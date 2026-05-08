@@ -1,0 +1,6 @@
+{
+  "name": "LLM Cross-Ref Lab",
+  "description": "Elite LLM comparator and analysis lab. Paste outputs from different models for cross-model evaluation, deep-drive comparisons, and automated 'Battle Reports' powered by Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
