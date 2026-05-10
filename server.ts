@@ -2,10 +2,14 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import { GoogleGenAI } from "@google/genai";
+
 import { setGlobalDispatcher, Agent } from 'undici';
 import dns from 'node:dns';
-dns.setServers(['1.1.1.1', '1.0.0.1', '2606:4700:4700::1111', '2606:4700:4700::1001']);
+try {
+  dns.setServers(['1.1.1.1', '1.0.0.1', '2606:4700:4700::1111', '2606:4700:4700::1001']);
+} catch (e) {
+  console.warn("[Server] DNS override failed (expected in some environments):", e);
+}
 
 // ── Speed Optimization: Global Connection Pooling ──────────────────────────
 // Reusing connections eliminates the 300-800ms TLS handshake delay on every call.
@@ -16,7 +20,6 @@ setGlobalDispatcher(new Agent({
     keepAliveInitialDelay: 1000,
   },
   pipelining: 10,
-  maxRedirections: 5,
   connections: 128, // High concurrency for many nodes
 }));
 
@@ -25,6 +28,7 @@ const __dirname = path.dirname(__filename);
 
 const OLLAMA_BASE = process.env.OLLAMA_HOST || "http://localhost:11434";
 const MAX_RETRIES = 3;
+const PORT = parseInt(process.env.PORT || "3000", 10);
 
 /**
  * Tracks which Ollama model is currently loaded in GPU/CPU memory.
@@ -79,26 +83,9 @@ function ensureModelEvicted(targetModel: string): Promise<void> {
   return pendingUnload;
 }
 
-// ── Gemini persistent connection cache ─────────────────────────────────────
-/**
- * Cache GoogleGenAI instances per API key so the underlying HTTP/2 connection
- * to generativelanguage.googleapis.com is reused across requests.
- * Without this, every call does a full TLS+TCP handshake (~200-800ms overhead).
- */
-const geminiInstanceCache = new Map<string, GoogleGenAI>();
-
-function getGeminiInstance(apiKey: string): GoogleGenAI {
-  if (!geminiInstanceCache.has(apiKey)) {
-    geminiInstanceCache.set(apiKey, new GoogleGenAI(apiKey));
-    console.log('[Gemini] Created new persistent connection for key ...', apiKey.slice(-6));
-  }
-  return geminiInstanceCache.get(apiKey)!;
-}
-
 async function startServer() {
   try {
     const app = express();
-    const PORT = 3000;
 
     app.use(express.json());
 
@@ -127,50 +114,76 @@ async function startServer() {
         return;
       }
 
-      const controller = new AbortController();
-      res.on('close', () => {
-        if (!res.writableEnded) {
-          console.log(`[Gemini] Client disconnected — aborting stream for: ${model}`);
-          controller.abort();
-        }
-      });
-
+      // ── Google Gemini Proxy (REST API + SSE) ────────────────────────────────
       try {
-        const ai = getGeminiInstance(apiKey);
-
-        // Open SSE only after we have the instance (instant — it's cached)
+        // Open SSE only after we have the request data
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Connection", "keep-alive");
         res.flushHeaders();
 
-        const startTime = Date.now();
-        let ttft: number | null = null;
-        let fullText = "";
+        const messages: { role: string; parts: { text: string }[] }[] = [];
+        if (systemInstruction) {
+          // System instructions in Gemini 1.5+ can be passed as a system_instruction block
+        }
+        messages.push({ role: "user", parts: [{ text: prompt }] });
 
-        const streamResponse = await ai.models.generateContentStream({
-          model,
-          contents: prompt,
-          config: {
-            temperature: settings?.temperature,
-            topP: settings?.topP,
-            topK: settings?.topK,
-            maxOutputTokens: settings?.maxTokens,
-            systemInstruction: systemInstruction || undefined,
-          },
+        const controller = new AbortController();
+        res.on('close', () => {
+          if (!res.writableEnded) controller.abort();
         });
 
-        for await (const chunk of streamResponse) {
-          try {
-            const chunkText = chunk.text;
-            if (chunkText) {
-              if (ttft === null) ttft = Date.now() - startTime;
-              fullText += chunkText;
-              res.write(`data: ${JSON.stringify({ chunk: chunkText, fullText, ttft })}\n\n`);
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+        
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: messages,
+            system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+            generationConfig: {
+              temperature: settings?.temperature,
+              maxOutputTokens: settings?.maxTokens,
+              topP: settings?.topP,
+              topK: settings?.topK,
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: { message: `HTTP ${response.status}` } })) as any;
+          throw new Error(err?.error?.message || `Gemini API error ${response.status}`);
+        }
+
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let fullText = "";
+        const startTime = Date.now();
+        let ttft: number | null = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const parsed = JSON.parse(line.slice(6));
+              const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text) {
+                if (ttft === null) ttft = Date.now() - startTime;
+                fullText += text;
+                res.write(`data: ${JSON.stringify({ chunk: text, fullText, ttft })}\n\n`);
+              }
+            } catch (e) {
+              // Ignore partial JSON or keepalive
             }
-          } catch (err: any) {
-            console.warn("[Gemini] Chunk error (likely safety filter):", err.message);
-            res.write(`data: ${JSON.stringify({ error: "Response blocked by safety filters or API error." })}\n\n`);
           }
         }
 
@@ -178,12 +191,8 @@ async function startServer() {
         res.write(`data: ${JSON.stringify({ done: true, fullText, ttft, totalLatency })}\n\n`);
         res.end();
       } catch (e: any) {
-        if (!res.headersSent) {
-          res.status(500).json({ error: e.message });
-        } else {
-          res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
-          res.end();
-        }
+        if (!res.headersSent) res.status(500).json({ error: e.message });
+        else { res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`); res.end(); }
       }
     });
 
@@ -482,6 +491,8 @@ async function startServer() {
             const errMsg = typeof err.error === 'object'
               ? (err.error.message || JSON.stringify(err.error))
               : (err.error || err.message || `OpenRouter error ${upstream.status}`);
+
+            console.error(`[Proxy] OpenRouter Resolved Error:`, errMsg);
 
             if (retryCount < MAX_RETRIES && (upstream.status === 408 || upstream.status >= 500 || errMsg.toLowerCase().includes('provider'))) {
               retryCount++;

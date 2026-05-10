@@ -22,6 +22,23 @@ export async function callAI(
 ): Promise<{ text: string; latency: number; ttft?: number }> {
   const startTime = Date.now();
 
+  // ── Strict API Key Validation ───────────────────────────────────────────
+  if (apiKey) {
+    const key = apiKey.trim();
+    if (provider === 'openai' && !key.startsWith('sk-')) {
+      throw new Error("Invalid OpenAI API Key format (must start with 'sk-')");
+    }
+    if (provider === 'claude' && !key.startsWith('sk-ant-')) {
+      throw new Error("Invalid Claude API Key format (must start with 'sk-ant-')");
+    }
+    if (provider === 'openrouter' && !key.startsWith('sk-or-')) {
+      throw new Error("Invalid OpenRouter API Key format (must start with 'sk-or-')");
+    }
+    if (provider === 'gemini' && key.length < 30) {
+      throw new Error("Invalid Gemini API Key format (too short)");
+    }
+  }
+
   try {
     let resultText = "";
     let ttft: number | undefined;
