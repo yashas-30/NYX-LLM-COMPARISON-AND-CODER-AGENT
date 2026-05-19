@@ -5,12 +5,14 @@ import './index.css';
 
 import { ThemeProvider } from './context/ThemeContext.tsx';
 import { TokenUsageProvider } from './context/TokenUsageContext.tsx';
+import { Analytics } from "@vercel/analytics/react";
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
       <TokenUsageProvider>
         <App />
+        <Analytics />
       </TokenUsageProvider>
     </ThemeProvider>
   </StrictMode>,
