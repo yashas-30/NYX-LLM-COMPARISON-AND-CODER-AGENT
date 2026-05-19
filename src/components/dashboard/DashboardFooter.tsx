@@ -29,6 +29,7 @@ const DashboardFooterComponent: React.FC<DashboardFooterProps> = ({
             <Tooltip content={columnsCount >= 2 ? 'Maximum 2 models' : 'Add model'}>
               <button
                 type="button"
+                aria-label={columnsCount >= 2 ? 'Maximum 2 models reached' : 'Add model'}
                 onClick={() => onOpenForge()}
                 disabled={columnsCount >= 2}
                 className={`shrink-0 w-8 h-8 rounded-xl flex items-center justify-center touch-manipulation transition-colors ${
@@ -41,10 +42,9 @@ const DashboardFooterComponent: React.FC<DashboardFooterProps> = ({
               </button>
             </Tooltip>
 
-            {/* Prompt input — font-size MUST be 16px+ to prevent iOS zoom */}
+            {/* Prompt input — global CSS ensures font-size ≥ 16px to prevent iOS zoom */}
             <input
-              className="flex-1 bg-transparent border-none focus:ring-0 outline-none text-foreground/90 placeholder:text-muted-foreground/40 font-medium"
-              style={{ fontSize: '16px', lineHeight: '1.4' }}
+              className="flex-1 bg-transparent border-none focus:ring-0 outline-none text-foreground/90 placeholder:text-muted-foreground/40 font-medium text-base leading-snug"
               placeholder={UI_TEXT.dashboard.arena.promptPlaceholder}
               value={globalPrompt}
               onChange={e => setGlobalPrompt(e.target.value)}
