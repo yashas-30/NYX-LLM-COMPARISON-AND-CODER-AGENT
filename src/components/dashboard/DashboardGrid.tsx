@@ -85,7 +85,7 @@ const DashboardGridComponent: React.FC<DashboardGridProps> = ({
     <div className="h-full w-full p-[2vw] flex flex-col min-h-0 overflow-hidden bg-background">
       <motion.div
         layout
-        className={`grid flex-1 min-h-0 w-full gap-4 ${getGridCols()}`}
+        className={`grid flex-1 min-h-0 w-full gap-4 overflow-y-auto md:overflow-hidden pb-20 md:pb-0 ${getGridCols()}`}
       >
         <AnimatePresence mode="popLayout">
           {columns.map(col => (
@@ -101,7 +101,7 @@ const DashboardGridComponent: React.FC<DashboardGridProps> = ({
                 damping: 30,
                 opacity: { duration: 0.2 }
               }}
-              className="min-h-0 flex flex-col h-full w-full relative"
+              className="min-h-[500px] md:min-h-0 flex flex-col h-full w-full relative"
             >
               <ModelOutputCard 
                 column={col} 

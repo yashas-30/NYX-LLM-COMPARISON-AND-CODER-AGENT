@@ -27,8 +27,8 @@ const SidebarComponent: React.FC<SidebarProps> = ({ activeMode, setActiveMode, o
   ];
 
   return (
-    <nav className="w-12 border-r border-border-strong flex flex-col items-center py-4 gap-4 bg-background z-50 transition-all duration-500 shrink-0 select-none">
-      <div className="relative group">
+    <nav className="w-full h-[60px] md:w-12 md:h-full border-t md:border-t-0 md:border-r border-border-strong flex flex-row md:flex-col items-center justify-around md:justify-start px-2 py-0 md:px-0 md:py-4 gap-1 md:gap-4 bg-background z-50 transition-all duration-500 shrink-0 select-none order-last md:order-first">
+      <div className="relative group hidden md:block">
         <motion.div
           animate={{ 
             boxShadow: [
@@ -50,7 +50,7 @@ const SidebarComponent: React.FC<SidebarProps> = ({ activeMode, setActiveMode, o
         />
       </div>
       
-      <div className="flex flex-col gap-3 flex-1">
+      <div className="flex flex-row md:flex-col gap-2 sm:gap-4 md:gap-3 flex-1 md:flex-none w-full md:w-auto items-center justify-center md:justify-start">
         {navItems.map((item) => {
           const isActive = activeMode === item.mode;
           return (
@@ -68,7 +68,7 @@ const SidebarComponent: React.FC<SidebarProps> = ({ activeMode, setActiveMode, o
                 {isActive && (
                   <motion.div 
                     layoutId="active-indicator"
-                    className="absolute -left-2 w-1 h-5 bg-primary rounded-full" 
+                    className="absolute -top-1 md:top-auto md:-left-2 w-5 md:w-1 h-1 md:h-5 bg-primary rounded-full" 
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
@@ -78,7 +78,7 @@ const SidebarComponent: React.FC<SidebarProps> = ({ activeMode, setActiveMode, o
         })}
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-row md:flex-col gap-2 md:gap-3 items-center justify-center">
         <Tooltip content="Exit" side="right">
           <button 
             onClick={onExit} 

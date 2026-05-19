@@ -224,12 +224,12 @@ export const CoderPage: React.FC<CoderPageProps> = ({
     <div className="h-full w-full p-[2vw] flex flex-col min-h-0 overflow-hidden bg-background">
       <div className="flex-1 min-h-0 w-full flex flex-col bg-card/40 backdrop-blur-3xl border border-border-strong/30 rounded-2xl overflow-hidden shadow-2xl relative">
         {/* ─── Header ─── */}
-        <header className="flex items-center justify-between p-4 border-b border-border-strong/20 shrink-0 select-none bg-background/25">
-          <div className="flex items-center gap-3">
+        <header className="flex items-center justify-between p-3 sm:p-4 border-b border-border-strong/20 shrink-0 select-none bg-background/25">
+          <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex bg-muted/20 p-0.5 rounded-lg border border-border-strong">
               <button 
                 onClick={() => setActiveAgent('open')}
-                className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest transition-all duration-300 ${
+                className={`px-2.5 sm:px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest transition-all duration-300 ${
                   activeAgent === 'open' 
                   ? 'bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.3)]' 
                   : 'text-muted-foreground hover:text-foreground'
@@ -239,7 +239,7 @@ export const CoderPage: React.FC<CoderPageProps> = ({
               </button>
               <button 
                 onClick={() => setActiveAgent('claude')}
-                className={`px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest transition-all duration-300 ${
+                className={`px-2.5 sm:px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest transition-all duration-300 ${
                   activeAgent === 'claude' 
                   ? 'bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.3)]' 
                   : 'text-muted-foreground hover:text-foreground'
@@ -248,8 +248,8 @@ export const CoderPage: React.FC<CoderPageProps> = ({
                 Claude Code
               </button>
             </div>
-            <div className="h-4 w-px bg-border-strong mx-1" />
-            <div className="flex flex-col">
+            <div className="h-4 w-px bg-border-strong mx-1 hidden sm:block" />
+            <div className="flex flex-col hidden sm:flex">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold tracking-tight text-foreground">{currentPersona.name}</span>
                 <span className="text-[7px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">v{currentPersona.version}</span>
@@ -257,8 +257,8 @@ export const CoderPage: React.FC<CoderPageProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-secondary/40 px-2 py-1 rounded-xl border border-border-strong shadow-inner group">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 bg-secondary/40 px-2 py-1 rounded-xl border border-border-strong shadow-inner group">
               <Zap className="w-2.5 h-2.5 text-primary group-hover:scale-110 transition-transform" />
               <div className="flex flex-col min-w-[40px]">
                 <span className="text-[6px] font-black text-muted-foreground uppercase leading-none">Latency</span>
