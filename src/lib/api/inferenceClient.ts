@@ -53,14 +53,26 @@ async function requestDirect(endpoint: string, payload: Record<string, any>, pro
 }
 
 async function handleGemini(model: string, prompt: string, apiKey: string, settings: AISettings, systemInstruction: string | undefined, history: any[] | undefined, onStream: ((text: string) => void) | undefined, signal: AbortSignal | undefined, gatewayUrls?: Record<string, string>): Promise<string> {
-   if (!apiKey) throw new Error("Gemini API key is required.");
-   const response = await requestDirect('/api/gemini/stream', { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }, 'Gemini', signal);
-   const data = await response.json();
-   const text = data.text || '';
-   if (onStream) onStream(text);
-   if (!text) throw new Error("No response from Gemini API.");
-   return text;
- }
+  if (!apiKey) throw new Error("Gemini API key is required.");
+  try {
+    const response = await requestDirect('/api/gemini/stream', { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }, 'Gemini', signal);
+    const data = await response.json();
+    const text = data.text || '';
+    if (onStream) onStream(text);
+    if (!text) throw new Error("No response from Gemini API.");
+    return text;
+  } catch (error: any) {
+    const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
+    if (!isAbort) {
+      console.warn('[inferenceClient] Gemini stream proxy failed, falling back to direct browser fetch:', error);
+      const { directFetchGemini } = await import('./directClient');
+      const text = await directFetchGemini(model, prompt, apiKey, settings, systemInstruction, history, signal, gatewayUrls);
+      if (onStream) onStream(text);
+      return text;
+    }
+    throw error;
+  }
+}
 
 async function handleOllama(nodeId: string, model: string, prompt: string, systemInstruction: string | undefined, settings: AISettings | undefined, baseUrl: string | undefined, history: any[] | undefined, onStream: ((text: string) => void) | undefined, signal: AbortSignal | undefined): Promise<string> {
     const { ollamaChat } = await import('@/src/lib/api/ollamaClient');
@@ -103,33 +115,69 @@ async function handleLMStudio(nodeId: string, model: string, prompt: string, sys
   }
 
 async function handleOpenRouter(model: string, prompt: string, apiKey: string, settings: AISettings, systemInstruction: string | undefined, history: any[] | undefined, onStream: ((text: string) => void) | undefined, signal: AbortSignal | undefined, gatewayUrls?: Record<string, string>): Promise<string> {
-   if (!apiKey) throw new Error("OpenRouter API key is required.");
-   const response = await requestDirect('/api/openrouter/stream', { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }, 'OpenRouter', signal);
-   const data = await response.json();
-   const text = data.text || '';
-   if (onStream) onStream(text);
-   if (!text) throw new Error("OpenRouter returned no response.");
-   return text;
- }
+  if (!apiKey) throw new Error("OpenRouter API key is required.");
+  try {
+    const response = await requestDirect('/api/openrouter/stream', { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }, 'OpenRouter', signal);
+    const data = await response.json();
+    const text = data.text || '';
+    if (onStream) onStream(text);
+    if (!text) throw new Error("OpenRouter returned no response.");
+    return text;
+  } catch (error: any) {
+    const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
+    if (!isAbort) {
+      console.warn('[inferenceClient] OpenRouter stream proxy failed, falling back to direct browser fetch:', error);
+      const { directFetchOpenRouter } = await import('./directClient');
+      const text = await directFetchOpenRouter(model, prompt, apiKey, settings, systemInstruction, history, signal, gatewayUrls);
+      if (onStream) onStream(text);
+      return text;
+    }
+    throw error;
+  }
+}
 
 async function handleNvidia(model: string, prompt: string, apiKey: string, settings: AISettings, systemInstruction: string | undefined, history: any[] | undefined, onStream: ((text: string) => void) | undefined, signal: AbortSignal | undefined, gatewayUrls?: Record<string, string>): Promise<string> {
-    // NVIDIA NIM models - requires API key
-    if (!apiKey) throw new Error("NVIDIA API key is required. Add your nvapi-* key in Settings.");
+  // NVIDIA NIM models - requires API key
+  if (!apiKey) throw new Error("NVIDIA API key is required. Add your nvapi-* key in Settings.");
+  try {
     const response = await requestDirect('/api/nvidia/stream', { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }, 'NVIDIA', signal);
     const data = await response.json();
     const text = data.text || '';
     if (onStream) onStream(text);
     if (!text) throw new Error("NVIDIA returned no response.");
     return text;
+  } catch (error: any) {
+    const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
+    if (!isAbort) {
+      console.warn('[inferenceClient] NVIDIA stream proxy failed, falling back to direct browser fetch:', error);
+      const { directFetchNvidia } = await import('./directClient');
+      const text = await directFetchNvidia(model, prompt, apiKey, settings, systemInstruction, history, signal, gatewayUrls);
+      if (onStream) onStream(text);
+      return text;
+    }
+    throw error;
   }
+}
 
 async function handleOpenCode(model: string, prompt: string, apiKey: string | undefined, settings: AISettings, systemInstruction: string | undefined, history: any[] | undefined, onStream: ((text: string) => void) | undefined, signal: AbortSignal | undefined, gatewayUrls?: Record<string, string>): Promise<string> {
-   const response = await requestDirect('/api/opencode/stream', { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }, 'OpenCode', signal);
-   const data = await response.json();
-   const text = data.text || '';
-   if (onStream) onStream(text);
-   return text;
- }
+  try {
+    const response = await requestDirect('/api/opencode/stream', { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }, 'OpenCode', signal);
+    const data = await response.json();
+    const text = data.text || '';
+    if (onStream) onStream(text);
+    return text;
+  } catch (error: any) {
+    const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
+    if (!isAbort) {
+      console.warn('[inferenceClient] OpenCode stream proxy failed, falling back to direct browser fetch:', error);
+      const { directFetchOpenCode } = await import('./directClient');
+      const text = await directFetchOpenCode(model, prompt, apiKey, settings, systemInstruction, history, signal, gatewayUrls);
+      if (onStream) onStream(text);
+      return text;
+    }
+    throw error;
+  }
+}
 
 export async function callAI(
   modelId: string, provider: string, prompt: string, apiKey?: string,

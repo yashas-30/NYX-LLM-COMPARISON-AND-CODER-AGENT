@@ -18,7 +18,7 @@ export class AIService {
     settings?: AISettings,
     onStream?: (text: string) => void,
     signal?: AbortSignal,
-    options?: { lmStudioBaseUrl?: string; ollamaBaseUrl?: string; history?: ChatMessage[]; nodeId?: string }
+    options?: { lmStudioBaseUrl?: string; ollamaBaseUrl?: string; history?: ChatMessage[]; nodeId?: string; gatewayUrls?: Record<string, string> }
   ): Promise<AIResponse> {
     const startTime = Date.now();
     let resultText = "";
@@ -67,15 +67,15 @@ export class AIService {
 
     try {
       if (provider === 'gemini') {
-        resultText = await this.executeGemini(modelId, prompt, apiKey!, settings, systemInstruction, options?.history, onStream, signal);
+        resultText = await this.executeGemini(modelId, prompt, apiKey!, settings, systemInstruction, options?.history, onStream, signal, options?.gatewayUrls);
       } else if (provider === 'ollama') {
         resultText = await this.executeOllama(modelId, prompt, systemInstruction, settings, options?.ollamaBaseUrl, options?.history, options?.nodeId, onStream, signal);
       } else if (provider === 'openrouter') {
-        resultText = await this.executeOpenRouter(modelId, prompt, apiKey!, settings, systemInstruction, options?.history, onStream, signal);
+        resultText = await this.executeOpenRouter(modelId, prompt, apiKey!, settings, systemInstruction, options?.history, onStream, signal, options?.gatewayUrls);
       } else if (provider === 'nvidia') {
-        resultText = await this.executeNvidia(modelId, prompt, apiKey!, settings, systemInstruction, options?.history, onStream, signal);
+        resultText = await this.executeNvidia(modelId, prompt, apiKey!, settings, systemInstruction, options?.history, onStream, signal, options?.gatewayUrls);
       } else if (provider === 'opencode') {
-        resultText = await this.executeOpencode(modelId, prompt, apiKey, settings, systemInstruction, options?.history, onStream, signal);
+        resultText = await this.executeOpencode(modelId, prompt, apiKey, settings, systemInstruction, options?.history, onStream, signal, options?.gatewayUrls);
       } else if (provider === 'lmstudio') {
         resultText = await this.executeLMStudio(modelId, prompt, systemInstruction, settings, options?.lmStudioBaseUrl, options?.history, options?.nodeId, onStream, signal);
       } else {
@@ -119,23 +119,36 @@ export class AIService {
 
   private static async executeGemini(
     model: string, prompt: string, apiKey: string, settings?: AISettings, 
-    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal
+    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal,
+    gatewayUrls?: Record<string, string>
   ): Promise<string> {
-    const response = await fetch('/api/gemini/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
-      body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history }),
-      signal,
-    });
+    try {
+      const response = await fetch('/api/gemini/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
+        body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),
+        signal,
+      });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: `Gemini Error ${response.status}` }));
-      throw new Error(err.error || `Gemini Error ${response.status}`);
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: `Gemini Error ${response.status}` }));
+        throw new Error(err.error || `Gemini Error ${response.status}`);
+      }
+      const data = await response.json();
+      const text = data.text || '';
+      if (onStream) onStream(text);
+      return text;
+    } catch (error: any) {
+      const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
+      if (!isAbort) {
+        console.warn('[AIService] Gemini stream proxy failed, falling back to direct browser fetch:', error);
+        const { directFetchGemini } = await import('@/src/lib/api/directClient');
+        const text = await directFetchGemini(model, prompt, apiKey, settings, systemInstruction, history, signal, gatewayUrls);
+        if (onStream) onStream(text);
+        return text;
+      }
+      throw error;
     }
-    const data = await response.json();
-    const text = data.text || '';
-    if (onStream) onStream(text);
-    return text;
   }
 
   private static async executeOllama(
@@ -190,66 +203,105 @@ export class AIService {
 
   private static async executeOpenRouter(
     model: string, prompt: string, apiKey: string, settings?: AISettings, 
-    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal
+    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal,
+    gatewayUrls?: Record<string, string>
   ): Promise<string> {
-    const response = await fetch('/api/openrouter/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
-      body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history }),
-      signal,
-    });
+    try {
+      const response = await fetch('/api/openrouter/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
+        body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),
+        signal,
+      });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: `OpenRouter Error ${response.status}` }));
-      throw new Error(err.error || `OpenRouter Error ${response.status}`);
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: `OpenRouter Error ${response.status}` }));
+        throw new Error(err.error || `OpenRouter Error ${response.status}`);
+      }
+      const data = await response.json();
+      const text = data.text || '';
+      if (onStream) onStream(text);
+      return text;
+    } catch (error: any) {
+      const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
+      if (!isAbort) {
+        console.warn('[AIService] OpenRouter stream proxy failed, falling back to direct browser fetch:', error);
+        const { directFetchOpenRouter } = await import('@/src/lib/api/directClient');
+        const text = await directFetchOpenRouter(model, prompt, apiKey, settings, systemInstruction, history, signal, gatewayUrls);
+        if (onStream) onStream(text);
+        return text;
+      }
+      throw error;
     }
-    const data = await response.json();
-    const text = data.text || '';
-    if (onStream) onStream(text);
-    return text;
   }
 
   private static async executeNvidia(
     model: string, prompt: string, apiKey: string, settings?: AISettings, 
-    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal
+    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal,
+    gatewayUrls?: Record<string, string>
   ): Promise<string> {
     // NVIDIA NIM models - requires API key
-    const response = await fetch('/api/nvidia/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
-      body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history }),
-      signal,
-    });
+    try {
+      const response = await fetch('/api/nvidia/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
+        body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),
+        signal,
+      });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: `NVIDIA Error ${response.status}` }));
-      throw new Error(err.error || `NVIDIA Error ${response.status}`);
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: `NVIDIA Error ${response.status}` }));
+        throw new Error(err.error || `NVIDIA Error ${response.status}`);
+      }
+      const data = await response.json();
+      const text = data.text || '';
+      if (onStream) onStream(text);
+      return text;
+    } catch (error: any) {
+      const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
+      if (!isAbort) {
+        console.warn('[AIService] NVIDIA stream proxy failed, falling back to direct browser fetch:', error);
+        const { directFetchNvidia } = await import('@/src/lib/api/directClient');
+        const text = await directFetchNvidia(model, prompt, apiKey, settings, systemInstruction, history, signal, gatewayUrls);
+        if (onStream) onStream(text);
+        return text;
+      }
+      throw error;
     }
-    const data = await response.json();
-    const text = data.text || '';
-    if (onStream) onStream(text);
-    return text;
   }
 
   private static async executeOpencode(
     model: string, prompt: string, apiKey?: string, settings?: AISettings, 
-    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal
+    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal,
+    gatewayUrls?: Record<string, string>
   ): Promise<string> {
-    const response = await fetch('/api/opencode/stream', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
-      body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history }),
-      signal,
-    });
+    try {
+      const response = await fetch('/api/opencode/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
+        body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),
+        signal,
+      });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: `OpenCode Error ${response.status}` }));
-      throw new Error(err.error || `OpenCode Error ${response.status}`);
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: `OpenCode Error ${response.status}` }));
+        throw new Error(err.error || `OpenCode Error ${response.status}`);
+      }
+      const data = await response.json();
+      const text = data.text || '';
+      if (onStream) onStream(text);
+      return text;
+    } catch (error: any) {
+      const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
+      if (!isAbort) {
+        console.warn('[AIService] OpenCode stream proxy failed, falling back to direct browser fetch:', error);
+        const { directFetchOpenCode } = await import('@/src/lib/api/directClient');
+        const text = await directFetchOpenCode(model, prompt, apiKey, settings, systemInstruction, history, signal, gatewayUrls);
+        if (onStream) onStream(text);
+        return text;
+      }
+      throw error;
     }
-    const data = await response.json();
-    const text = data.text || '';
-    if (onStream) onStream(text);
-    return text;
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
