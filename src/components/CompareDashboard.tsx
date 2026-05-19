@@ -57,18 +57,21 @@ export const CompareDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) 
 
   return (
     <ErrorBoundary>
-      <main className={`h-[100dvh] w-screen overflow-hidden flex flex-row bg-background text-foreground antialiased selection:bg-primary/20 ${theme === 'dark' ? 'dark' : ''}`}>
-        <div className="flex flex-row w-full h-full relative">
-          <Sidebar 
-            activeMode={activeMode} 
-            setActiveMode={setActiveMode} 
-            onExit={onExit} 
-            hasOutput={hasOutput} 
-            hasHistory={hasHistory} 
+      <main className={`h-[100dvh] w-screen overflow-hidden flex bg-background text-foreground antialiased selection:bg-primary/20 ${theme === 'dark' ? 'dark' : ''}`}>
+        {/* Desktop-only sidebar — takes column space on md+ */}
+        <div className="hidden md:block">
+          <Sidebar
+            activeMode={activeMode}
+            setActiveMode={setActiveMode}
+            onExit={onExit}
+            hasOutput={hasOutput}
+            hasHistory={hasHistory}
           />
+        </div>
 
-          <div className="flex-1 flex flex-col min-w-0 h-full bg-background relative pb-[60px] md:pb-0 overflow-hidden">
-            <div className="flex-1 min-h-0 relative flex flex-col animate-in">
+        {/* Main content — full width on mobile, flex-1 on desktop */}
+        <div className="flex-1 flex flex-col w-full h-full min-w-0 bg-background relative overflow-hidden pb-[60px] md:pb-0">
+          <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
               <AnimatePresence mode="wait">
                 {activeMode === 'grid' ? (
                   <DashboardGrid 
@@ -204,6 +207,16 @@ export const CompareDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) 
               )}
             </AnimatePresence>
           </div>
+
+        {/* Mobile-only fixed bottom sidebar */}
+        <div className="md:hidden">
+          <Sidebar
+            activeMode={activeMode}
+            setActiveMode={setActiveMode}
+            onExit={onExit}
+            hasOutput={hasOutput}
+            hasHistory={hasHistory}
+          />
         </div>
       </main>
     </ErrorBoundary>

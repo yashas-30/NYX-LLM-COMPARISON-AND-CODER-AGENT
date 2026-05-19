@@ -142,15 +142,32 @@
     background-color: var(--background) !important;
     color: var(--foreground);
     @apply selection:bg-primary/20 selection:text-primary w-full;
-    min-height: 100vh;
+    min-height: 100dvh;
     overflow-x: hidden;
     overflow-y: auto;
+    /* Prevent bounce-scroll on iOS which can shift fixed elements */
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
     transition: background-color 0.5s var(--ease-apple), color 0.5s var(--ease-apple);
   }
 
   #root {
     width: 100%;
-    min-height: 100vh;
+    min-height: 100dvh;
+    /* Safe area padding for notched phones (iPhone X+) */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Prevent text selection on interactive elements for a native feel */
+  button, [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+  }
+
+  /* Prevent iOS from making inputs tiny / triggering zoom */
+  input, textarea, select {
+    font-size: max(16px, 1rem);
   }
 
   h1, h2, h3, h4, h5, h6 {

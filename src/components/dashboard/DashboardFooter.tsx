@@ -1,8 +1,7 @@
 import React from 'react';
-import { Plus, Send, Loader2, History } from 'lucide-react';
+import { Plus, Send, Loader2 } from 'lucide-react';
 import { Tooltip } from '../Tooltip';
 import { UI_TEXT } from '../../lib/design-system/copy';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface DashboardFooterProps {
   globalPrompt: string;
@@ -22,73 +21,59 @@ const DashboardFooterComponent: React.FC<DashboardFooterProps> = ({
   columnsCount
 }) => {
   return (
-    <footer className="shrink-0 w-full p-1.5 bg-background/40 backdrop-blur-3xl z-40 border-t border-border-strong/20">
-      <div className={`mx-auto transition-all duration-700 ease-in-out ${globalPrompt.trim().length > 0 ? 'max-w-2xl' : 'max-w-lg'}`}>
-        <form onSubmit={(e) => { e.preventDefault(); runComparison(); }} className="relative group">
-          <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-card/50 backdrop-blur-3xl border border-border-strong/20 rounded-full focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/10 transition-all duration-500 shadow-2xl">
-            {/* Left Controls */}
-            <div className="shrink-0 flex items-center px-1">
-              <Tooltip content={UI_TEXT.dashboard.sidebar.history}>
-                <button 
-                  type="button" 
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-all"
-                >
-                  <History size={14} strokeWidth={1.5} />
-                </button>
-              </Tooltip>
-            </div>
+    <footer className="shrink-0 w-full px-3 py-2 bg-background/95 backdrop-blur-xl z-40 border-t border-border-strong/20">
+      <div className={`mx-auto transition-all duration-500 ease-out ${globalPrompt.trim().length > 0 ? 'max-w-2xl' : 'max-w-lg'}`}>
+        <form onSubmit={(e) => { e.preventDefault(); runComparison(); }} className="relative">
+          <div className="flex items-center gap-2 px-2 py-1 bg-card/80 backdrop-blur-xl border border-border-strong/20 rounded-2xl focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10 transition-all shadow-lg">
+            {/* Add model button */}
+            <Tooltip content={columnsCount >= 2 ? 'Maximum 2 models' : 'Add model'}>
+              <button
+                type="button"
+                onClick={() => onOpenForge()}
+                disabled={columnsCount >= 2}
+                className={`shrink-0 w-8 h-8 rounded-xl flex items-center justify-center touch-manipulation transition-colors ${
+                  columnsCount >= 2
+                    ? 'opacity-20 cursor-not-allowed text-muted-foreground'
+                    : 'text-muted-foreground/60 hover:text-primary hover:bg-primary/10 active:scale-90'
+                }`}
+              >
+                <Plus size={16} strokeWidth={2} />
+              </button>
+            </Tooltip>
 
-            {/* Input Area (Integrated Plus) */}
-            <div className="flex-1 relative flex items-center group/input">
-              <div className="absolute left-2 z-10">
-                <Tooltip content={columnsCount >= 2 ? "Maximum 2 models compared side-by-side" : UI_TEXT.registry.add}>
-                  <button 
-                    type="button"
-                    onClick={() => onOpenForge()}
-                    disabled={columnsCount >= 2}
-                    className={`w-5 h-5 rounded-full flex items-center justify-center text-muted-foreground/30 transition-all ${
-                      columnsCount >= 2
-                        ? 'opacity-20 cursor-not-allowed'
-                        : 'group-focus-within/input:text-primary group-hover/input:text-muted-foreground/60 hover:bg-primary/10'
-                    }`}
-                  >
-                    <Plus size={14} strokeWidth={1.5} />
-                  </button>
-                </Tooltip>
-              </div>
-              <input 
-                className="flex-1 bg-transparent border-none focus:ring-0 text-[11px] py-1 pl-8 pr-1 font-medium outline-none text-foreground/90 placeholder:text-muted-foreground/30 text-left" 
-                placeholder={UI_TEXT.dashboard.arena.promptPlaceholder} 
-                value={globalPrompt} 
-                onChange={e => setGlobalPrompt(e.target.value)} 
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); runComparison(); } }} 
-              />
-            </div>
+            {/* Prompt input — font-size MUST be 16px+ to prevent iOS zoom */}
+            <input
+              className="flex-1 bg-transparent border-none focus:ring-0 outline-none text-foreground/90 placeholder:text-muted-foreground/40 font-medium"
+              style={{ fontSize: '16px', lineHeight: '1.4' }}
+              placeholder={UI_TEXT.dashboard.arena.promptPlaceholder}
+              value={globalPrompt}
+              onChange={e => setGlobalPrompt(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); runComparison(); } }}
+            />
 
-            {/* Right Controls */}
-            <div className="shrink-0">
-              <Tooltip content={UI_TEXT.dashboard.arena.sendButton}>
-                <button 
-                  onClick={runComparison} 
-                  disabled={isGlobalLoading || (columnsCount === 0 || !globalPrompt.trim())} 
-                  className={`h-6 w-6 rounded-full flex items-center justify-center transition-all ${
-                    globalPrompt.trim() && !isGlobalLoading
-                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-100 hover:scale-105' 
-                      : 'bg-muted/20 text-muted-foreground/30 opacity-50 cursor-not-allowed'
-                  }`}
-                >
-                  {isGlobalLoading ? (
-                    <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
-                  ) : (
-                    <Send size={14} strokeWidth={1.5} />
-                  )}
-                </button>
-              </Tooltip>
-            </div>
+            {/* Send button */}
+            <Tooltip content={UI_TEXT.dashboard.arena.sendButton}>
+              <button
+                onClick={runComparison}
+                disabled={isGlobalLoading || columnsCount === 0 || !globalPrompt.trim()}
+                className={`shrink-0 w-8 h-8 rounded-xl flex items-center justify-center touch-manipulation transition-all ${
+                  globalPrompt.trim() && !isGlobalLoading
+                    ? 'bg-primary text-white shadow-md shadow-primary/30 active:scale-90'
+                    : 'bg-muted/30 text-muted-foreground/30 cursor-not-allowed'
+                }`}
+              >
+                {isGlobalLoading ? (
+                  <Loader2 size={15} strokeWidth={2} className="animate-spin" />
+                ) : (
+                  <Send size={15} strokeWidth={2} />
+                )}
+              </button>
+            </Tooltip>
           </div>
         </form>
       </div>
     </footer>
+
   );
 };
 

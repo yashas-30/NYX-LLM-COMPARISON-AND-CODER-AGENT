@@ -101,7 +101,7 @@ const DashboardGridComponent: React.FC<DashboardGridProps> = ({
                 damping: 30,
                 opacity: { duration: 0.2 }
               }}
-              className="min-h-[500px] md:min-h-0 flex flex-col h-full w-full relative"
+              className="min-h-[320px] md:min-h-0 flex flex-col h-auto md:h-full w-full relative"
             >
               <ModelOutputCard 
                 column={col} 
