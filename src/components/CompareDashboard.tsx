@@ -57,7 +57,7 @@ export const CompareDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) 
 
   return (
     <ErrorBoundary>
-      <main className={`h-screen w-screen overflow-hidden flex flex-row bg-background text-foreground antialiased selection:bg-primary/20 ${theme === 'dark' ? 'dark' : ''}`}>
+      <main className={`h-[100dvh] w-screen overflow-hidden flex flex-row bg-background text-foreground antialiased selection:bg-primary/20 ${theme === 'dark' ? 'dark' : ''}`}>
         <div className="flex flex-col md:flex-row w-full h-full relative">
           <Sidebar 
             activeMode={activeMode} 
