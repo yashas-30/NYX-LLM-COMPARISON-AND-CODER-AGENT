@@ -30,6 +30,9 @@ interface Props {
   providerStatuses?: Record<string, 'online' | 'offline' | 'no-key'>;
   ollamaBaseUrl?: string;
   lmStudioBaseUrl?: string;
+  gatewayUrls?: Record<string, string>;
+  localModelsEnabled: boolean;
+  setLocalModelsEnabled: (enabled: boolean) => void;
 }
 
 const ModelOutputCardComponent: React.FC<Props> = ({
@@ -44,7 +47,10 @@ const ModelOutputCardComponent: React.FC<Props> = ({
   onRemove,
   providerStatuses,
   ollamaBaseUrl,
-  lmStudioBaseUrl
+  lmStudioBaseUrl,
+  gatewayUrls = {},
+  localModelsEnabled,
+  setLocalModelsEnabled
 }) => {
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,22 +77,40 @@ const ModelOutputCardComponent: React.FC<Props> = ({
 
   const inferredProvider = useMemo(
     () => inferProviderFromId(
-      column.modelId, 
+      column.modelId,
       ollamaModelNames,
       lmStudioModelIds
     ),
     [column.modelId, ollamaModelNames, lmStudioModelIds]
   );
 
+  const ollamaModelInfo = useMemo(() => {
+    if (inferredProvider === 'ollama' && column.modelId) {
+      return ollamaModels.find(m => m.name === column.modelId);
+    }
+    return undefined;
+  }, [inferredProvider, column.modelId, ollamaModels]);
+
   const model = useMemo(
     () => knownModel ?? (column.modelId ? {
       id: column.modelId,
       name: column.modelId,
       provider: inferredProvider as any,
-      description: inferredProvider === 'ollama' ? 'Local Ollama model' : 
-                   inferredProvider === 'lmstudio' ? 'Local LM Studio model' : 'Model',
+      description: inferredProvider === 'ollama'
+        ? (ollamaModelInfo?.size
+          ? `Local Ollama (${(ollamaModelInfo.size / (1024 * 1024 * 1024)).toFixed(1)} GB)`
+          : 'Local Ollama model')
+        : inferredProvider === 'lmstudio'
+          ? 'Local LM Studio model'
+          : 'Model',
+      specs: {
+        contextWindow: 'Dynamic',
+        trainingData: 'N/A',
+        maxOutput: 'Dynamic',
+        modality: 'Text'
+      }
     } : undefined),
-    [knownModel, column.modelId, inferredProvider]
+    [knownModel, column.modelId, inferredProvider, ollamaModelInfo]
   );
 
   // ── Sync selector tab to current model's provider ───────────────────────────
@@ -152,11 +176,10 @@ const ModelOutputCardComponent: React.FC<Props> = ({
       layout
       ref={selectorRef}
       whileHover={{ y: -2 }}
-      className={`flex flex-col min-h-0 h-full relative rounded-2xl border-2 transition-all duration-500 ease-apple overflow-hidden ${
-        column.isSelected
-          ? 'bg-card border-primary ring-8 ring-primary/5 shadow-[0_20px_50px_rgba(var(--primary-rgb),0.15)] z-10 scale-[1.01]'
-          : 'bg-card/60 backdrop-blur-3xl border-border-strong/50 hover:border-primary/20 shadow-xl opacity-98'
-      }`}
+      className={`flex flex-col min-h-0 h-full relative rounded-2xl border-2 transition-all duration-500 ease-apple overflow-hidden ${column.isSelected
+        ? 'bg-card border-primary ring-8 ring-primary/5 shadow-[0_20px_50px_rgba(var(--primary-rgb),0.15)] z-10 scale-[1.01]'
+        : 'bg-card/60 backdrop-blur-3xl border-border-strong/50 hover:border-primary/20 shadow-xl opacity-98'
+        }`}
       style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
     >
       {/* Inner clipping layer for materials */}
@@ -204,6 +227,9 @@ const ModelOutputCardComponent: React.FC<Props> = ({
               providerStatuses={providerStatuses}
               ollamaBaseUrl={ollamaBaseUrl}
               lmStudioBaseUrl={lmStudioBaseUrl}
+              gatewayUrls={gatewayUrls}
+              localModelsEnabled={localModelsEnabled}
+              setLocalModelsEnabled={setLocalModelsEnabled}
             />
           )}
         </AnimatePresence>
@@ -220,7 +246,6 @@ const ModelOutputCardComponent: React.FC<Props> = ({
       <CardFooter
         metadata={column.metadata}
         onReset={() => onUpdate?.(column.id, { output: '', status: 'idle', metadata: undefined })}
-        onRemove={() => onRemove?.(column.id)}
       />
     </motion.div>
   );
@@ -236,5 +261,8 @@ export const ModelOutputCard = React.memo(ModelOutputCardComponent, (prev, next)
   prev.onModelChange === next.onModelChange &&
   prev.onToggleSelection === next.onToggleSelection &&
   prev.onRemove === next.onRemove &&
-  prev.providerStatuses === next.providerStatuses
+  prev.providerStatuses === next.providerStatuses &&
+  prev.gatewayUrls === next.gatewayUrls &&
+  prev.localModelsEnabled === next.localModelsEnabled &&
+  prev.setLocalModelsEnabled === next.setLocalModelsEnabled
 );

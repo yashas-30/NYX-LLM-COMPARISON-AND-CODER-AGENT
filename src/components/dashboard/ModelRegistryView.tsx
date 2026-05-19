@@ -1,5 +1,6 @@
+// Forced HMR re-transpilation trigger comment
 import React, { useState, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Plus, RefreshCw, Globe, HardDrive, Info, X, Box, Monitor, Server
 } from 'lucide-react';
@@ -98,17 +99,24 @@ const ModelCard: React.FC<{
   description: string;
   specs?: { contextWindow: string; maxOutput: string; modality: string };
   isDuplicate?: boolean;
+  isDisabled?: boolean;
   onAdd: () => void;
   usage?: { used: number; remaining: number };
   hasKey?: boolean;
   status?: 'online' | 'offline' | 'no-key';
-}> = ({ name, provider, description, specs, isDuplicate, onAdd, usage, hasKey, status }) => {
+}> = ({ name, provider, description, specs, isDuplicate, isDisabled, onAdd, usage, hasKey, status }) => {
   const [shaking, setShaking] = useState(false);
 
   const handleAdd = () => {
     if (isDuplicate) {
       setShaking(true);
       toast.error('A node is already created using this model — change it');
+      setTimeout(() => setShaking(false), 500);
+      return;
+    }
+    if (isDisabled) {
+      setShaking(true);
+      toast.error('Maximum of 2 models allowed. Please remove one first.');
       setTimeout(() => setShaking(false), 500);
       return;
     }
@@ -119,14 +127,16 @@ const ModelCard: React.FC<{
 
   return (
     <motion.div
-      whileHover={{ y: -2, scale: 1.01 }}
+      whileHover={(!isDuplicate && !isDisabled) ? { y: -2, scale: 1.01 } : undefined}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       className={`
         group relative p-3 rounded-[14px] border border-solid flex flex-col gap-2.5
         transform-gpu transition-all duration-500 overflow-hidden shadow-sm
         ${isDuplicate
           ? 'bg-destructive/5 border-destructive/20'
-          : 'bg-card/60 backdrop-blur-3xl border-border-strong/40 hover:border-primary/40 hover:bg-card/80'
+          : isDisabled
+            ? 'bg-card/30 border-border-strong/20 opacity-60'
+            : 'bg-card/60 backdrop-blur-3xl border-border-strong/40 hover:border-primary/40 hover:bg-card/80'
         }
       `}
       style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
@@ -160,16 +170,19 @@ const ModelCard: React.FC<{
           </h4>
         </div>
 
-        <Tooltip content={isDuplicate ? 'Already Active' : UI_TEXT.registry.add}>
+        <Tooltip content={isDuplicate ? 'Already Active' : isDisabled ? 'Max 2 Models' : UI_TEXT.registry.add}>
           <motion.button
             animate={shaking ? { x: [-3, 3, -3, 3, 0] } : {}}
             transition={{ duration: 0.35 }}
             onClick={handleAdd}
+            disabled={isDisabled && !isDuplicate}
             className={`
               w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 shrink-0 shadow-sm
               ${isDuplicate
                 ? 'bg-destructive text-destructive-foreground'
-                : 'bg-primary text-white opacity-0 group-hover:opacity-100'
+                : isDisabled
+                  ? 'bg-muted text-muted-foreground/30 cursor-not-allowed'
+                  : 'bg-primary text-white opacity-0 group-hover:opacity-100'
               }
             `}
           >
@@ -250,6 +263,7 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
   const { usage } = useTokenUsage();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'cloud' | 'local'>('all');
+  const [localModelsEnabled, setLocalModelsEnabled] = useState(false);
 
   const query = search.toLowerCase();
 
@@ -286,7 +300,7 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
     });
   }, [cloudModels]);
 
-  const showLocal = filter === 'all' || filter === 'local';
+  const showLocal = localModelsEnabled && (filter === 'all' || filter === 'local');
   const showCloud = filter === 'all' || filter === 'cloud';
 
   const columnModelIds = useMemo(
@@ -307,29 +321,27 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      className="h-full w-full flex flex-col overflow-hidden"
+      className="h-full w-full p-[2vw] flex flex-col min-h-0 overflow-hidden bg-background"
     >
-      {/* Padded inner wrapper — prevents content from touching sidebar edges */}
-      <div className="flex flex-col h-full pt-2 px-6">
-
+      <div className="flex-1 min-h-0 w-full flex flex-col bg-card/40 backdrop-blur-3xl border border-border-strong/30 rounded-2xl overflow-hidden shadow-2xl relative">
         {/* ── Page header ──────────────────────────────────────────────── */}
-        <header className="mb-3 flex flex-col md:flex-row md:items-center justify-between gap-5 shrink-0">
-          <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <div className="w-2 h-2 rounded-full bg-primary" />
-              <h2 className="text-xl font-bold tracking-tight text-foreground">
+        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 border-b border-border-strong/20 shrink-0 select-none">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+            <div>
+              <h2 className="text-sm font-bold tracking-tight text-foreground">
                 {UI_TEXT.registry.title}
               </h2>
+              <p className="text-muted-foreground text-[8px] font-black uppercase tracking-[0.2em] opacity-40">
+                Add models to your arena
+              </p>
             </div>
-            <p className="text-muted-foreground/40 text-[9px] font-bold uppercase tracking-widest">
-              Add models to your dashboard
-            </p>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Search */}
             <div className="relative group">
-              <Search size={14} strokeWidth={1.5} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/30 transition-colors group-focus-within:text-primary" />
+              <Search size={12} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/30 transition-colors group-focus-within:text-primary" />
               <input
                 type="text"
                 placeholder={UI_TEXT.registry.search}
@@ -337,8 +349,8 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                 onChange={e => setSearch(e.target.value)}
                 className="
                   bg-muted/10 border border-border-strong rounded-full
-                  text-[10px] font-medium text-foreground
-                  pl-10 pr-4 py-2 w-64
+                  text-[9px] font-medium text-foreground
+                  pl-8 pr-3 py-1.5 w-40 sm:w-48
                   outline-none focus:border-primary/20 focus:bg-background/40
                   transition-all placeholder:text-muted-foreground/20 shadow-sm
                 "
@@ -346,13 +358,13 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
             </div>
 
             {/* Filter tabs */}
-            <div className="flex gap-1 bg-muted/10 p-1.5 rounded-full border border-border-strong shadow-sm">
+            <div className="flex gap-1 bg-muted/10 p-1 rounded-full border border-border-strong shadow-sm">
               {(['all', 'cloud', 'local'] as const).map(f => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
                   className={`
-                    px-5 py-1.5 rounded-full text-[8px] font-bold uppercase tracking-tight transition-all
+                    px-3 py-1 rounded-full text-[8px] font-bold uppercase tracking-tight transition-all
                     ${filter === f
                       ? 'bg-primary text-white shadow-lg'
                       : 'text-muted-foreground/60 hover:text-foreground hover:bg-foreground/5'
@@ -363,24 +375,48 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                 </button>
               ))}
             </div>
+
+            {/* Local Models Toggle */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/10 border border-border-strong">
+              <Server size={10} className={localModelsEnabled ? 'text-primary' : 'text-muted-foreground/30'} />
+              <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/60">Local</span>
+              <button
+                onClick={() => {
+                  setLocalModelsEnabled(!localModelsEnabled);
+                  if (!localModelsEnabled) {
+                    onRefreshOllama();
+                    onRefreshLMStudio();
+                  }
+                }}
+                className={`
+                  w-8 h-4 rounded-full transition-colors duration-200 relative flex items-center px-0.5
+                  ${localModelsEnabled ? 'bg-primary' : 'bg-muted-foreground/20'}
+                `}
+              >
+                <div className={`
+                  w-3 h-3 rounded-full bg-background shadow-sm transition-transform duration-200
+                  ${localModelsEnabled ? 'translate-x-4' : 'translate-x-0'}
+                `} />
+              </button>
+            </div>
           </div>
         </header>
 
         {/* ── Scrollable content ───────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar pb-16 space-y-8 pr-2">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
 
           {/* ════════════════════════════════════════════════════════════════
            *  OLLAMA SECTION
            * ════════════════════════════════════════════════════════════════ */}
           {showLocal && (
-            <section className="space-y-4 p-5 rounded-[16px] bg-card/20 border border-border-strong">
+            <section className="space-y-4 p-5 rounded-[16px] bg-card/25 border border-border-strong">
               <SectionHeader
                 icon={<Server size={18} strokeWidth={1.5} />}
                 title="Ollama"
                 subtitle="Local model server"
               >
                 {/* Inline URL config for Ollama */}
-                <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-muted/5 border border-border-strong">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/5 border border-border-strong/40">
                   <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/30 shrink-0">URL</span>
                   <input
                     type="text"
@@ -388,13 +424,13 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                     onChange={e => setOllamaBaseUrl(e.target.value)}
                     placeholder="http://localhost:11434"
                     className="
-                      bg-transparent border-none text-[10px] font-mono text-primary
-                      outline-none w-40 placeholder:text-muted-foreground/10
+                      bg-transparent border-none text-[9px] font-mono text-primary
+                      outline-none w-36 placeholder:text-muted-foreground/10
                     "
                   />
                   <button
                     onClick={() => setOllamaBaseUrl('http://localhost:11434')}
-                    className="text-[7px] font-bold uppercase tracking-widest text-muted-foreground/20 hover:text-primary transition-colors shrink-0"
+                    className="text-[6px] font-bold uppercase tracking-widest text-muted-foreground/20 hover:text-primary transition-colors shrink-0"
                   >
                     Reset
                   </button>
@@ -425,8 +461,14 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                       key={`ollama-${m.name}`}
                       name={m.name}
                       provider="ollama"
-                      description={`Local model · ${(m.size / 1e9).toFixed(2)} GB`}
+                      description={m.size ? `Local Ollama (${(m.size / (1024 * 1024 * 1024)).toFixed(1)} GB)` : 'Local Ollama model'}
+                      specs={{
+                        contextWindow: 'Dynamic',
+                        maxOutput: 'Dynamic',
+                        modality: 'Text'
+                      }}
                       isDuplicate={isDuplicate(m.name)}
+                      isDisabled={columns.length >= 2}
                       onAdd={() => addColumn(m.name)}
                       usage={usage['ollama']}
                       hasKey={true}
@@ -442,28 +484,28 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
            *  LM STUDIO SECTION
            * ════════════════════════════════════════════════════════════════ */}
           {showLocal && (
-            <section className="space-y-4 p-5 rounded-[16px] bg-card/20 border border-border-strong">
+            <section className="space-y-4 p-5 rounded-[16px] bg-card/25 border border-border-strong">
               <SectionHeader
-                icon={<Monitor size={18} strokeWidth={1.5} />}
+                icon={<Server size={18} strokeWidth={1.5} />}
                 title="LM Studio"
-                subtitle="OpenAI-compatible local server"
+                subtitle="Local model directory server"
               >
-                {/* Inline URL config */}
-                <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-muted/5 border border-border-strong">
+                {/* Inline URL config for LM Studio */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/5 border border-border-strong/40">
                   <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/30 shrink-0">URL</span>
                   <input
                     type="text"
                     value={lmStudioBaseUrl}
                     onChange={e => setLmStudioBaseUrl(e.target.value)}
-                    placeholder="http://localhost:1234"
+                    placeholder="http://localhost:1234/v1"
                     className="
-                      bg-transparent border-none text-[10px] font-mono text-primary
-                      outline-none w-40 placeholder:text-muted-foreground/10
+                      bg-transparent border-none text-[9px] font-mono text-primary
+                      outline-none w-36 placeholder:text-muted-foreground/10
                     "
                   />
                   <button
-                    onClick={() => setLmStudioBaseUrl('http://localhost:1234')}
-                    className="text-[7px] font-bold uppercase tracking-widest text-muted-foreground/20 hover:text-primary transition-colors shrink-0"
+                    onClick={() => setLmStudioBaseUrl('http://localhost:1234/v1')}
+                    className="text-[6px] font-bold uppercase tracking-widest text-muted-foreground/20 hover:text-primary transition-colors shrink-0"
                   >
                     Reset
                   </button>
@@ -496,6 +538,7 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                       provider="lmstudio"
                       description="Currently loaded in LM Studio"
                       isDuplicate={isDuplicate(m.id)}
+                      isDisabled={columns.length >= 2}
                       onAdd={() => addColumn(m.id)}
                       usage={usage['lmstudio']}
                       hasKey={true}
@@ -511,7 +554,7 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
            *  CLOUD MODELS SECTION
            * ════════════════════════════════════════════════════════════════ */}
           {showCloud && (
-            <section className="space-y-5 p-5 rounded-[16px] bg-card/20 border border-border-strong">
+            <section className="space-y-5 p-5 rounded-[16px] bg-card/25 border border-border-strong">
               <SectionHeader
                 icon={<Globe size={18} strokeWidth={1.5} />}
                 title="Cloud Models"
@@ -537,6 +580,7 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                         description={m.description}
                         specs={m.specs as any}
                         isDuplicate={isDuplicate(m.id)}
+                        isDisabled={columns.length >= 2}
                         onAdd={() => addColumn(m.id)}
                         usage={usage[m.provider]}
                         hasKey={!!apiKeys[m.provider]}

@@ -10,7 +10,7 @@ import { UI_TEXT } from '../../lib/design-system/copy';
 interface CardFooterProps {
   metadata?: { tokensPerSecond?: number; latency?: number; tokens?: number };
   onReset: () => void;
-  onRemove: () => void;
+  onRemove?: () => void;
 }
 
 export const CardFooter: React.FC<CardFooterProps> = ({
@@ -42,14 +42,16 @@ export const CardFooter: React.FC<CardFooterProps> = ({
             <RotateCcw size={14} strokeWidth={2} className="group-hover:-rotate-180 transition-transform duration-700" />
           </button>
         </Tooltip>
-        <Tooltip content="Remove">
-          <button
-            onClick={onRemove}
-            className="w-8 h-8 rounded-xl flex items-center justify-center bg-destructive/5 hover:bg-destructive/10 text-muted-foreground/60 hover:text-destructive transition-all group border border-destructive/10 active:scale-90 shadow-sm"
-          >
-            <X size={14} strokeWidth={2} />
-          </button>
-        </Tooltip>
+        {onRemove && (
+          <Tooltip content="Remove">
+            <button
+              onClick={onRemove}
+              className="w-8 h-8 rounded-xl flex items-center justify-center bg-destructive/5 hover:bg-destructive/10 text-muted-foreground/60 hover:text-destructive transition-all group border border-destructive/10 active:scale-90 shadow-sm"
+            >
+              <X size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
+        )}
       </div>
     </div>
   </div>

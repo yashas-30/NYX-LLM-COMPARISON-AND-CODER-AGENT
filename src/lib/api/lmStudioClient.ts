@@ -169,17 +169,16 @@ async function _unloadModel(model: string, baseUrl?: string): Promise<void> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Fetch models available in LM Studio via the backend proxy.
+ * Fetch instances available in LM Studio via the Fastify backend proxy.
  */
-export async function fetchLMStudioModels(baseUrl?: string): Promise<LMStudioModel[]> {
+export async function fetchLMStudioInstances(baseUrl?: string): Promise<any> {
   const url = baseUrl || DEFAULT_LMSTUDIO;
-  const r = await fetch(`/api/lmstudio/models?baseUrl=${encodeURIComponent(url)}`);
+  const r = await fetch(`/api/fastify/lmstudio/instances?baseUrl=${encodeURIComponent(url)}`);
   if (!r.ok) {
     const body = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
-    throw new Error(body?.error || `LM Studio HTTP ${r.status}`);
+    throw new Error(body?.error || `LM Studio Instances HTTP ${r.status}`);
   }
-  const data = await r.json();
-  return data.data ?? [];
+  return r.json();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -6,43 +6,30 @@ import { AnalysisJudgement, CodeAnalysisResult } from '@/src/types';
  * Extracts the first valid JSON object from a string, handling markdown fences.
  */
 function extractJSON(text: string): string {
-  console.log('[extractJSON] Raw response length:', text?.length);
-  
   if (!text || text.trim().length === 0) {
     throw new Error("Model returned empty response.");
   }
 
-  // Check if the response contains an error message
   const lowerText = text.toLowerCase();
   if (lowerText.includes('error') || lowerText.includes('failed') || lowerText.includes('exception')) {
-    console.log('[extractJSON] Response contains error:', text.substring(0, 200));
-    // Try to extract error message
     const errorMatch = text.match(/"?error"?[\s:]*"?([^"]+)"?/i) || text.match(/error[\s:]+(.+)/i);
     if (errorMatch) {
       throw new Error(`API Error: ${errorMatch[1] || text.substring(0, 100)}`);
     }
   }
 
-  // Try to find content within markdown code blocks first
   const markdownMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   let content = markdownMatch ? markdownMatch[1] : text;
-  console.log('[extractJSON] After markdown extraction:', content?.substring(0, 100));
   
-  // Try to find any JSON-like structure in the content
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
     content = jsonMatch[0];
-    console.log('[extractJSON] Found JSON in content');
   }
 
-  // Try to parse to validate it's proper JSON
   try {
     JSON.parse(content);
-    console.log('[extractJSON] Successfully parsed JSON');
     return content;
   } catch (parseErr: any) {
-    console.log('[extractJSON] Parse failed:', parseErr.message);
-    // Try to find the outermost braces
     const startIdx = content.indexOf('{');
     const endIdx = content.lastIndexOf('}');
     
@@ -50,13 +37,10 @@ function extractJSON(text: string): string {
       const candidate = content.substring(startIdx, endIdx + 1);
       try {
         JSON.parse(candidate);
-        console.log('[extractJSON] Found valid JSON with brace matching');
         return candidate;
       } catch {}
     }
     
-    // If still failing, show a portion of the response for debugging
-    console.log('[extractJSON] Response preview:', text.substring(0, 300));
     throw new Error("Model failed to generate valid JSON structure. The model returned: " + text.substring(0, 150) + "...");
   }
 }
@@ -140,9 +124,6 @@ ${formattedResponses}
     undefined,
     options
   );
-
-  console.log('[Analysis] Raw API response:', result.text?.substring(0, 500));
-  console.log('[Analysis] Response length:', result.text?.length);
   
   if (!result.text || result.text.trim().length === 0) {
     throw new Error("Model returned empty response.");

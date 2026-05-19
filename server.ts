@@ -14,12 +14,13 @@ import './server/lib/apiAgent.js'; // 🚀 Init global connection pooling
 import { geminiRouter }     from './server/routes/gemini.js';
 import { openrouterRouter } from './server/routes/openrouter.js';
 import { nvidiaRouter }     from './server/routes/nvidia.js';
-import { ollamaRouter }     from './server/routes/ollama.js';
-import { lmStudioRouter }   from './server/routes/lmstudio.js';
 import { terminalRouter }   from './server/routes/terminal.js';
 import { agentsRouter }     from './server/routes/agents.js';
 import { opencodeRouter }   from './server/routes/opencode.js';
+import { CacheServer }      from './server/lib/cache.js';
 import compression from 'compression';
+import { warmupDNS, startFastifyServer } from './server/lib/fastifyApi.js';
+
 
 // ── DNS: prefer Cloudflare for fastest lookups on Windows ─────────────────────
 try { dns.setServers(['1.1.1.1', '8.8.8.8']); } catch { }
@@ -29,6 +30,14 @@ const __dirname  = path.dirname(__filename);
 const PORT       = parseInt(process.env.PORT || '3000', 10);
 
 async function startServer() {
+  // Start Fastify server for high-performance streaming API proxying
+  try {
+    await warmupDNS();
+    await startFastifyServer(3001);
+  } catch (err: any) {
+    console.error('Failed to start Fastify server:', err.message);
+  }
+
   const app = express();
   
   // ── Optimization: Compress non-streaming responses ──────────────────────────
@@ -58,8 +67,6 @@ async function startServer() {
   app.use('/api/gemini',     geminiRouter);
   app.use('/api/openrouter', openrouterRouter);
   app.use('/api/nvidia',     nvidiaRouter);
-  app.use('/api/ollama',     ollamaRouter);
-  app.use('/api/lmstudio',   lmStudioRouter);
   app.use('/api/terminal',   terminalRouter);
   app.use('/api/agents',     agentsRouter);
   app.use('/api/opencode',   opencodeRouter);
@@ -109,6 +116,89 @@ async function startServer() {
     }
   });
 
+  // ── Cache Server API routes ───────────────────────────────────────────────
+  app.post('/api/cache/get', (req, res) => {
+    try {
+      const key = CacheServer.generateKey(req.body);
+      const text = CacheServer.get(key);
+      if (text !== null) {
+        return res.json({ hit: true, text, key });
+      }
+      return res.json({ hit: false, key });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/cache/set', (req, res) => {
+    const { key, data, provider, model } = req.body;
+    try {
+      CacheServer.set(key, data, provider, model);
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/cache/stats', (_req, res) => {
+    try {
+      const stats = CacheServer.getStats();
+      res.json(stats);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/cache/clear', (_req, res) => {
+    try {
+      const result = CacheServer.clear();
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Fastify routes (all AI providers) ───────────────────────────────────────
+  // Proxy requests to Fastify server on port 3001 to maintain streaming performance
+  app.all('/api/fastify/*', async (req, res) => {
+    const targetUrl = `http://127.0.0.1:3001${req.url.replace('/api/fastify', '')}`;
+    try {
+      const headers: Record<string, string> = {};
+      Object.entries(req.headers).forEach(([key, value]) => {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey !== 'content-length' && lowerKey !== 'host' && lowerKey !== 'connection') {
+          headers[key] = Array.isArray(value) ? value.join(', ') : (value || '');
+        }
+      });
+
+      const response = await fetch(targetUrl, {
+        method: req.method,
+        headers,
+        body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body)
+      });
+      
+      response.headers.forEach((value, key) => {
+        if (key.toLowerCase() !== 'transfer-encoding') {
+          res.setHeader(key, value);
+        }
+      });
+      res.status(response.status);
+      res.flushHeaders();
+      if (response.body) {
+        const reader = response.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          res.write(value);
+        }
+      }
+      res.end();
+    } catch (e: any) {
+      console.error('[Fastify Proxy Error]:', e.message);
+      res.status(500).send({ error: `Fastify Proxy Error: ${e.message}` });
+    }
+  });
+
   // ── Vite dev middleware ───────────────────────────────────────────────────────
   const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
   app.use(vite.middlewares);
@@ -125,7 +215,7 @@ async function startServer() {
   });
 
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 LLMLAB READY: http://localhost:${PORT}`);
+    console.log(`🚀 NYX READY: http://localhost:${PORT}`);
   });
 }
 

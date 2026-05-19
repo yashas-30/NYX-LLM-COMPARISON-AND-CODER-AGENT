@@ -41,19 +41,23 @@ const DashboardFooterComponent: React.FC<DashboardFooterProps> = ({
             {/* Input Area (Integrated Plus) */}
             <div className="flex-1 relative flex items-center group/input">
               <div className="absolute left-2 z-10">
-                <Tooltip content={UI_TEXT.registry.add}>
+                <Tooltip content={columnsCount >= 2 ? "Maximum 2 models compared side-by-side" : UI_TEXT.registry.add}>
                   <button 
                     type="button"
                     onClick={() => onOpenForge()}
-                    disabled={columnsCount >= 4}
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-muted-foreground/30 group-focus-within/input:text-primary group-hover/input:text-muted-foreground/60 hover:bg-primary/10 transition-all disabled:opacity-10"
+                    disabled={columnsCount >= 2}
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-muted-foreground/30 transition-all ${
+                      columnsCount >= 2
+                        ? 'opacity-20 cursor-not-allowed'
+                        : 'group-focus-within/input:text-primary group-hover/input:text-muted-foreground/60 hover:bg-primary/10'
+                    }`}
                   >
                     <Plus size={14} strokeWidth={1.5} />
                   </button>
                 </Tooltip>
               </div>
               <input 
-                className="flex-1 bg-transparent border-none focus:ring-0 text-[11px] py-1 pl-8 pr-1 font-medium outline-none text-foreground/90 placeholder:text-muted-foreground/30 text-center" 
+                className="flex-1 bg-transparent border-none focus:ring-0 text-[11px] py-1 pl-8 pr-1 font-medium outline-none text-foreground/90 placeholder:text-muted-foreground/30 text-left" 
                 placeholder={UI_TEXT.dashboard.arena.promptPlaceholder} 
                 value={globalPrompt} 
                 onChange={e => setGlobalPrompt(e.target.value)} 

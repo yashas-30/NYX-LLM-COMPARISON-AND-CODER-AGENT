@@ -4,5 +4,10 @@ dist/
 coverage/
 .DS_Store
 *.log
+*.err
 .env*
 !.env.example
+.nyx-cache/
+.claude/
+graphify-out/
+scratch/

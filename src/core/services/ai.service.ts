@@ -11,7 +11,7 @@ export class AIService {
    */
   static async execute(
     modelId: string,
-    provider: Provider,
+    provider: Provider | string,
     prompt: string,
     apiKey?: string,
     systemInstruction?: string,
@@ -25,6 +25,45 @@ export class AIService {
     
     // ── Validation ──────────────────────────────────────────────────────────
     this.validateApiKey(provider, apiKey);
+
+    // ── Cache Server Intercept ──────────────────────────────────────────────
+    let cacheKey = "";
+    try {
+      const cacheCheckRes = await fetch('/api/cache/get', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider,
+          model: modelId,
+          prompt,
+          systemInstruction,
+          history: options?.history || [],
+          settings: settings || {}
+        }),
+        signal
+      });
+      if (cacheCheckRes.ok) {
+        const cacheCheck = await cacheCheckRes.json();
+        cacheKey = cacheCheck.key;
+        if (cacheCheck.hit) {
+          const text = cacheCheck.text;
+          const endTime = Date.now();
+          const latency = endTime - startTime;
+          const tokens = Math.floor(text.length / 4);
+          if (onStream) onStream(text);
+          return {
+            text,
+            metrics: {
+              latency,
+              tokens,
+              tps: latency > 0 ? Number(((tokens / latency) * 1000).toFixed(1)) : 0
+            }
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('[Cache Server] Check failed, falling back to direct API:', e);
+    }
 
     try {
       if (provider === 'gemini') {
@@ -41,6 +80,20 @@ export class AIService {
         resultText = await this.executeLMStudio(modelId, prompt, systemInstruction, settings, options?.lmStudioBaseUrl, options?.history, options?.nodeId, onStream, signal);
       } else {
         throw new Error(`Unsupported provider: ${provider}`);
+      }
+
+      // Write-back to the Cache Server asynchronously
+      if (cacheKey && resultText) {
+        fetch('/api/cache/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key: cacheKey,
+            data: resultText,
+            provider,
+            model: modelId
+          })
+        }).catch(err => console.warn('[Cache Server] Write failed:', err));
       }
 
       const endTime = Date.now();
@@ -75,8 +128,14 @@ export class AIService {
       signal,
     });
 
-    if (!response.ok) throw new Error(`Gemini Error: ${response.status}`);
-    return this.processStream(response, onStream);
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: `Gemini Error ${response.status}` }));
+      throw new Error(err.error || `Gemini Error ${response.status}`);
+    }
+    const data = await response.json();
+    const text = data.text || '';
+    if (onStream) onStream(text);
+    return text;
   }
 
   private static async executeOllama(
@@ -140,14 +199,21 @@ export class AIService {
       signal,
     });
 
-    if (!response.ok) throw new Error(`OpenRouter Error: ${response.status}`);
-    return this.processStream(response, onStream);
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: `OpenRouter Error ${response.status}` }));
+      throw new Error(err.error || `OpenRouter Error ${response.status}`);
+    }
+    const data = await response.json();
+    const text = data.text || '';
+    if (onStream) onStream(text);
+    return text;
   }
 
   private static async executeNvidia(
     model: string, prompt: string, apiKey: string, settings?: AISettings, 
     systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal
   ): Promise<string> {
+    // NVIDIA NIM models - requires API key
     const response = await fetch('/api/nvidia/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
@@ -155,8 +221,14 @@ export class AIService {
       signal,
     });
 
-    if (!response.ok) throw new Error(`NVIDIA Error: ${response.status}`);
-    return this.processStream(response, onStream);
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: `NVIDIA Error ${response.status}` }));
+      throw new Error(err.error || `NVIDIA Error ${response.status}`);
+    }
+    const data = await response.json();
+    const text = data.text || '';
+    if (onStream) onStream(text);
+    return text;
   }
 
   private static async executeOpencode(
@@ -170,19 +242,27 @@ export class AIService {
       signal,
     });
 
-    if (!response.ok) throw new Error(`OpenCode Error: ${response.status}`);
-    return this.processStream(response, onStream);
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: `OpenCode Error ${response.status}` }));
+      throw new Error(err.error || `OpenCode Error ${response.status}`);
+    }
+    const data = await response.json();
+    const text = data.text || '';
+    if (onStream) onStream(text);
+    return text;
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   private static async processStream(response: Response, onStream?: (t: string) => void): Promise<string> {
-    if (!response.body) throw new Error("No response body");
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let resultText = "";
-    let buffer = "";
+  if (!response.body) throw new Error("No response body");
+  
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let resultText = "";
+  let buffer = "";
 
+  try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -192,21 +272,91 @@ export class AIService {
       buffer = lines.pop() || "";
 
       for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
+        const trimmed = line.trim();
+        
+        // Skip empty lines and comments
+        if (!trimmed || trimmed.startsWith(":")) continue;
+        
+        // Check for "data: " prefix
+        const hasDataPrefix = trimmed.startsWith("data: ");
+        const dataStr = hasDataPrefix ? trimmed.slice(6).trim() : trimmed;
+        
+        // Handle [DONE] sentinel
+        if (dataStr === "[DONE]" || dataStr === "[done]") {
+          return resultText || "[PROTOCOL HALT]";
+        }
+        
+        // Skip empty data
+        if (!dataStr) continue;
+        
+        // Try to parse JSON safely
         try {
-          const parsed = JSON.parse(line.slice(6));
-          if (parsed.error) throw new Error(parsed.error);
-          if (parsed.chunk) {
-            resultText += parsed.chunk;
+          const parsed = JSON.parse(dataStr);
+          
+          // Debug logging for first few chunks
+          if (resultText.length < 50 && parsed.chunk) {
+            console.log('[AIService.processStream] First chunk received:', parsed.chunk.substring(0, 100));
+          }
+          
+          // Check for error
+          if (parsed.error) {
+            const msg = typeof parsed.error === 'object' 
+              ? (parsed.error.message || JSON.stringify(parsed.error))
+              : String(parsed.error);
+            throw new Error(msg);
+          }
+          
+          // Extract content from various formats
+          let chunk: string | null = null;
+          
+          // Unified format: { chunk: "..." }
+          if (typeof parsed.chunk === 'string') {
+            chunk = parsed.chunk;
+          }
+          // OpenAI format: { choices: [{ delta: { content: "..." } }] }
+          else if (parsed.choices?.[0]?.delta?.content) {
+            chunk = parsed.choices[0].delta.content;
+          }
+          // Ollama chat: { message: { content: "..." } }
+          else if (parsed.message?.content) {
+            chunk = parsed.message.content;
+          }
+          // Ollama generate: { response: "..." }
+          else if (typeof parsed.response === 'string') {
+            chunk = parsed.response;
+          }
+          
+          // Debug: log chunk info
+          if (chunk) {
+            console.log('[AIService.processStream] Extracted chunk, length:', chunk.length, 'finish_reason:', parsed.choices?.[0]?.finish_reason);
+          }
+          
+          if (chunk) {
+            resultText += chunk;
             if (onStream) onStream(resultText);
           }
-        } catch (e) {}
+        } catch (e: any) {
+          // Skip JSON parse errors silently - partial chunks are common in SSE
+          if (e.message?.includes('JSON') || e.message?.includes('Unexpected token')) {
+            continue;
+          }
+          // Re-throw non-parse errors
+          throw e;
+        }
       }
     }
-    return resultText || "[PROTOCOL HALT]";
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // Lock may already be released
+    }
   }
+  
+  return resultText || "[PROTOCOL HALT]";
+}
 
-  private static validateApiKey(provider: Provider, key?: string) {
+  private static validateApiKey(provider: Provider | string, key?: string) {
     if (!['ollama', 'lmstudio', 'opencode'].includes(provider) && !key) {
       throw new Error(`${provider} API key is required. Add it in Settings.`);
     }
@@ -214,7 +364,12 @@ export class AIService {
       const trimmed = key.trim();
       if (provider === 'openrouter' && !trimmed.startsWith('sk-or-')) throw new Error("Invalid OpenRouter Key");
       if (provider === 'gemini' && trimmed.length < 30) throw new Error("Invalid Gemini Key");
-      if (provider === 'nvidia' && !trimmed.startsWith('nvapi-')) throw new Error("Invalid NVIDIA Key");
+      if (provider === 'openai' && !trimmed.startsWith('sk-')) throw new Error("Invalid OpenAI Key");
+      if (provider === 'anthropic' && !trimmed.startsWith('sk-ant-')) throw new Error("Invalid Anthropic Key");
+      if (provider === 'deepseek' && trimmed.length < 20) throw new Error("Invalid DeepSeek Key");
+      if (provider === 'groq' && !trimmed.startsWith('gsk_')) throw new Error("Invalid Groq Key");
+      if (provider === 'mistral' && trimmed.length < 20) throw new Error("Invalid Mistral Key");
+      if (provider === 'together' && !trimmed.startsWith('sk-')) throw new Error("Invalid Together AI Key");
     }
   }
 
@@ -233,7 +388,7 @@ export class AIService {
   /**
    * Returns the connectivity status of a provider.
    */
-  static async checkStatus(provider: Provider, apiKey?: string, options?: { lmStudioBaseUrl?: string, ollamaBaseUrl?: string }): Promise<'online' | 'offline' | 'no-key'> {
+  static async checkStatus(provider: Provider | string, apiKey?: string, options?: { lmStudioBaseUrl?: string, ollamaBaseUrl?: string }): Promise<'online' | 'offline' | 'no-key'> {
     // 1. Check for missing keys first (except for local providers and opencode)
     if (!['ollama', 'lmstudio', 'opencode'].includes(provider) && !apiKey) {
       return 'no-key';
@@ -248,8 +403,8 @@ export class AIService {
           // with no-cors we can't check ok, but if it doesn't throw, it's likely up
           return 'online';
         } catch {
-          // Try proxy as fallback
-          const proxyResponse = await fetch(`/api/ollama/models?baseUrl=${encodeURIComponent(baseUrl)}`);
+          // Try Fastify proxy as fallback
+          const proxyResponse = await fetch(`/api/fastify/ollama/models?baseUrl=${encodeURIComponent(baseUrl)}`);
           return proxyResponse.ok ? 'online' : 'offline';
         }
       } 
@@ -257,12 +412,17 @@ export class AIService {
       if (provider === 'lmstudio') {
         const baseUrl = options?.lmStudioBaseUrl || 'http://localhost:1234';
         try {
-          // LM Studio usually needs proxy for CORS
-          const proxyResponse = await fetch(`/api/lmstudio/models?baseUrl=${encodeURIComponent(baseUrl)}`);
+          // LM Studio via Fastify
+          const proxyResponse = await fetch(`/api/fastify/lmstudio/models?baseUrl=${encodeURIComponent(baseUrl)}`);
           return proxyResponse.ok ? 'online' : 'offline';
         } catch {
           return 'offline';
         }
+      }
+
+      if (provider === 'nvidia') {
+        // NVIDIA NIM - requires API key
+        return apiKey ? 'online' : 'no-key';
       }
 
       // 2. For cloud providers, validate the key format
@@ -285,11 +445,25 @@ export class AIService {
    * Returns true if the prompt is asking for code generation.
    */
   static isCodePrompt(prompt: string): boolean {
-    const p = prompt.toLowerCase();
-    return [
-      'write', 'code', 'implement', 'function', 'class', 'algorithm', 'script',
-      'program', 'method', 'api', 'component', 'module', 'build', 'create a',
-      'develop', 'generate code', 'snippet', 'solve', 'debug', 'refactor', 'optimize'
-    ].some(kw => p.includes(kw));
+    const p = prompt.toLowerCase().trim();
+    if (prompt.trim().startsWith('CODE: ')) return true;
+    const strongKeywords = [
+      'generate code', 'write code', 'write a function', 'write a class',
+      'implement a function', 'implement a class', 'implement an algorithm',
+      'debug this code', 'refactor this', 'fix this code', 'fix the bug',
+      'code snippet', 'python script', 'javascript function', 'typescript',
+      'sql query', 'bash script', 'shell script', 'html template',
+      'css style', 'react component', 'react hook', 'api endpoint',
+      'rest api', 'graphql', 'dockerfile', 'kubernetes', 'terraform',
+      'unit test', 'test case', 'pseudocode', 'time complexity', 'space complexity',
+      'big o', 'recursion', 'data structure', 'linked list', 'binary tree',
+      'sorting algorithm', 'merge sort', 'quick sort'
+    ];
+    if (strongKeywords.some(kw => p.includes(kw))) return true;
+    if (/```[\w]*\n/.test(prompt)) return true;
+    const langPattern = /\b(python|javascript|typescript|java|c\+\+|c#|rust|golang|ruby|php|swift|kotlin|scala)\b/;
+    const taskPattern = /\b(write|implement|create|build|code|function|class|script|program)\b/;
+    if (langPattern.test(p) && taskPattern.test(p)) return true;
+    return false;
   }
 }

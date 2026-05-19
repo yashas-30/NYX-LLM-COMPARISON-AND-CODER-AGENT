@@ -8,11 +8,12 @@ export const useProviderStatus = (apiKeys: Record<string, string>, lmStudioBaseU
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
 
   const checkAllStatuses = useCallback(async () => {
-    const providers: Provider[] = ['gemini', 'openrouter', 'nvidia', 'ollama', 'lmstudio'];
+    const providers: string[] = ['gemini', 'openrouter', 'nvidia', 'ollama', 'lmstudio', 'opencode', 'openai', 'anthropic', 'deepseek', 'groq', 'mistral', 'together'];
     const newStatuses: Record<string, Status> = {};
 
     await Promise.all(providers.map(async (p) => {
-      newStatuses[p] = await AIService.checkStatus(p, apiKeys[p], { lmStudioBaseUrl, ollamaBaseUrl });
+      const key = apiKeys[p];
+      newStatuses[p] = await AIService.checkStatus(p, key, { lmStudioBaseUrl, ollamaBaseUrl });
     }));
 
     setStatuses(newStatuses);

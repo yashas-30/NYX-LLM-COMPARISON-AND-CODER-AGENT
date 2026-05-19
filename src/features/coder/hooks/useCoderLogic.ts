@@ -6,7 +6,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { AIService } from '@/src/core/services/ai.service';
 import { ChatMessage, TelemetryMetrics, Provider, AISettings, AgentPersona } from '@/src/core/types';
-import { detectProvider } from '@/src/core/utils/provider';
+import { detectProvider, getEffectiveApiKey } from '@/src/core/utils/provider';
 import { DEFAULT_AGENTS } from '@/src/config/agents';
 import { toast } from 'sonner';
 
@@ -41,8 +41,8 @@ export const useCoderLogic = ({
   });
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
   const [models, setModels] = useState<Record<'open' | 'claude', string>>({
-    open: 'opencode/elephant-free',
-    claude: 'gemini-3.1-pro-preview'
+    open: 'opencode/big-pickle',
+    claude: 'anthropic/claude-sonnet-4-20250514'
   });
   const [agentPersonas, setAgentPersonas] = useState<Record<'open' | 'claude', AgentPersona>>(DEFAULT_AGENTS);
   const [isUpdatingAgents, setIsUpdatingAgents] = useState(false);
@@ -86,7 +86,7 @@ export const useCoderLogic = ({
       const persona = agentPersonas[activeAgent];
       const currentModelId = models[activeAgent];
       const provider = detectProvider(currentModelId, ollamaModels, lmStudioModels);
-      const apiKey = apiKeys[provider];
+      const apiKey = getEffectiveApiKey(provider, apiKeys);
 
       setHistoryMap(prev => ({
         ...prev,

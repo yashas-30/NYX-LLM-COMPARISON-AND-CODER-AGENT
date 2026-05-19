@@ -23,7 +23,8 @@ export const useComparisonLogic = (
   modelSettings: any,
   trackUsage: (p: string, t: number) => void,
   lmStudioBaseUrl: string,
-  ollamaBaseUrl: string
+  ollamaBaseUrl: string,
+  gatewayUrls: Record<string, string> = {}
 ) => {
   const [columns, setColumns] = useState<ComparisonColumn[]>([]);
   const [globalPrompt, setGlobalPrompt] = useState('');
@@ -33,7 +34,7 @@ export const useComparisonLogic = (
   const [analysisTab, setAnalysisTab] = useState<'standard' | 'code'>('standard');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isCodeAnalyzing, setIsCodeAnalyzing] = useState(false);
-  const [analysisModel, setAnalysisModel] = useState('gemini-3.1-pro-preview');
+  const [analysisModel, setAnalysisModel] = useState('');
   const [isCodeSession, setIsCodeSession] = useState(false);
   const [history, setHistory] = useState<ComparisonHistoryItem[]>([]);
   const [shakingColumnId, setShakingColumnId] = useState<string | null>(null);
@@ -114,8 +115,9 @@ export const useComparisonLogic = (
       lmStudioBaseUrl,
       ollamaBaseUrl,
       updateUsage: trackUsage,
+      gatewayUrls,
     });
-  }, [columns, globalPrompt, apiKeys, ollamaModels, lmStudioModels, modelSettings, isGlobalLoading, abortGenerationLocal, runAnalysis, lmStudioBaseUrl, ollamaBaseUrl, trackUsage]);
+  }, [columns, globalPrompt, apiKeys, ollamaModels, lmStudioModels, modelSettings, isGlobalLoading, abortGenerationLocal, runAnalysis, lmStudioBaseUrl, ollamaBaseUrl, trackUsage, gatewayUrls]);
 
   const restoreHistory = useCallback((item: ComparisonHistoryItem, setActiveMode: (m: any) => void) => {
     restoreHistoryHelper(item, setGlobalPrompt, setColumns, setActiveMode);

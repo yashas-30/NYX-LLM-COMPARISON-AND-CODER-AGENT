@@ -1,95 +1,90 @@
-// ─── server/routes/nvidia.ts ──────────────────────────────────────────────────
-// NVIDIA NIM API streaming proxy (OpenAI-compatible SSE format).
-// To change NVIDIA config (thinking mode, temperature, max_tokens): edit only this file.
+/**
+ * @file server/routes/nvidia.ts
+ * @description NVIDIA NIM API direct REST proxy.
+ * Requires a valid NVIDIA API key (nvapi-*) for authentication.
+ */
 
 import { Router } from 'express';
 
 export const nvidiaRouter = Router();
 
+// NVIDIA NIM free model mapping (UI ID -> Real API ID)
+const NVIDIA_MODELS: Record<string, string> = {
+  'nvidia/llama-3.1-8b-instruct': 'meta/llama-3.1-8b-instruct',
+  'nvidia/llama-3.1-70b-instruct': 'meta/llama-3.3-70b-instruct',
+  'nvidia/llama-3.3-70b-instruct': 'meta/llama-3.3-70b-instruct',
+  'nvidia/llama-3.3-nemotron-super-49b-v1.5': 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+  'nvidia/nemotron-3-super-120b-a12b': 'nvidia/nemotron-3-super-120b-a12b',
+  'nvidia/nemotron-3-nano-9b-v2': 'nvidia/nemotron-3-nano-9b-v2',
+  'nvidia/gemma-3-27b-it': 'google/gemma-3-27b-it',
+  'nvidia/gemma-2-9b-it': 'google/gemma-2-9b-it',
+  'nvidia/phi-4': 'microsoft/phi-4',
+  'nvidia/ministral-8b': 'mistralai/ministral-8b-instruct-v0.3',
+};
+
 nvidiaRouter.post('/stream', async (req, res) => {
-    const { model, prompt, apiKey, settings, systemInstruction, history } = req.body;
-    if (!model || !prompt || !apiKey) {
-      return res.status(400).json({ error: 'Required fields missing' });
+  try {
+    const { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls } = req.body;
+
+    if (!model || !prompt) {
+      return res.status(400).json({ error: 'Model and prompt are required' });
     }
 
-    // Enable thinking mode only for -think models
-    const enableThinking = model.includes('-think');
+    // Map UI model ID to real NVIDIA API model ID
+    const realModel = NVIDIA_MODELS[model] || model.replace('nvidia/', '');
 
-    try {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no'); // 🚀 Disable Nginx buffering
-      res.flushHeaders();
+    if (!realModel) {
+      return res.status(400).json({ error: `Unknown NVIDIA model: ${model}` });
+    }
 
-      // 🚀 Reduced preamble (512 bytes is usually enough to poke buffers)
-      res.write(`: ${' '.repeat(512)}\n\n`);
+    // Build messages
+    const messages: any[] = [];
+    if (systemInstruction) {
+      messages.push({ role: 'system', content: systemInstruction });
+    }
+    if (history && Array.isArray(history)) {
+      messages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
+    }
+    messages.push({ role: 'user', content: prompt });
 
-      const messages = [];
-      if (systemInstruction) {
-        messages.push({ role: 'system', content: systemInstruction });
-      }
-
-      // Inject history if provided
-      if (history && Array.isArray(history)) {
-        messages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
-      }
-
-      messages.push({ role: 'user', content: prompt });
-
-    const requestBody: any = {
-      model,
+    const requestBody = {
+      model: realModel,
       messages,
-      stream: true,
-      max_tokens: settings?.maxTokens || 16384,
-      temperature: settings?.temperature ?? 1.0,
+      stream: false,
+      max_tokens: settings?.maxTokens || 512,
+      temperature: settings?.temperature ?? 0.7,
       top_p: settings?.topP ?? 1.0,
     };
 
-    // Explicitly set thinking mode
-    requestBody.chat_template_kwargs = { thinking: enableThinking };
+    // Resolve API key: request body > env var
+    const activeKey = apiKey || process.env.NVIDIA_API_KEY || '';
+    if (!activeKey || !activeKey.startsWith('nvapi-')) {
+      return res.status(401).json({ error: 'NVIDIA API key is required. Add your nvapi-* key in Settings.' });
+    }
 
-    const r = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+    console.log(`[NVIDIA Proxy] Sending to NVIDIA NIM: ${realModel}`);
+
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'Accept': 'text/event-stream',
-        'Connection': 'keep-alive',
+        'Authorization': `Bearer ${activeKey}`,
       },
       body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(60000), // 🚀 60s timeout to prevent hanging
     });
 
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({ error: `NVIDIA Error ${r.status}` }));
-      throw new Error(err.error?.message || err.error || `NVIDIA Error ${r.status}`);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[NVIDIA Error] ${response.status}: ${errText}`);
+      return res.status(response.status).json({ error: `NVIDIA API Error ${response.status}: ${errText}` });
     }
 
-    const reader = r.body!.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const raw = line.slice(6).trim();
-        if (raw === '[DONE]') { res.end(); return; }
-        try {
-          const parsed = JSON.parse(raw);
-          const content = parsed.choices?.[0]?.delta?.content;
-          if (content) res.write(`data: ${JSON.stringify({ chunk: content })}\n\n`);
-        } catch { /* partial chunk, skip */ }
-      }
-    }
-    res.end();
+    return res.json({ text });
   } catch (e: any) {
-    res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
-    res.end();
+    console.error('[NVIDIA Error]:', e.message);
+    return res.status(500).json({ error: e.message });
   }
 });

@@ -29,15 +29,15 @@ export const addColumn = (
       return prev;
     }
 
-    if (prev.length >= 4) {
-      toast.error('Maximum 4 models allowed for comparison grid.');
+    if (prev.length >= 2) {
+      toast.error('Maximum of 2 models allowed. Please remove one first.');
       success = false;
       return prev;
     }
 
     const newId = (Math.max(0, ...prev.map((c) => parseInt(c.id) || 0)) + 1).toString();
     
-    return [...prev, { id: newId, modelId: resolvedModelId, status: 'idle', output: '' }];
+    return [...prev, { id: newId, modelId: resolvedModelId, status: 'idle', output: '', isSelected: true }];
   });
 
   return success;

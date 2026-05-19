@@ -1,78 +1,76 @@
-// ─── server/routes/openrouter.ts ──────────────────────────────────────────────
-// OpenRouter streaming proxy (OpenAI-compatible SSE format).
-// To change OpenRouter config: edit only this file.
+/**
+ * @file server/routes/openrouter.ts
+ * @description OpenRouter direct REST proxy with Cloudflare AI Gateway support.
+ */
 
 import { Router } from 'express';
+import { Gateway } from '../lib/gateway.js';
 
 export const openrouterRouter = Router();
 
 openrouterRouter.post('/stream', async (req, res) => {
-    const { model, prompt, apiKey, settings, systemInstruction, history } = req.body;
-    if (!model || !prompt || !apiKey) {
-      return res.status(400).json({ error: 'Required fields missing' });
+  try {
+    const { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls } = req.body;
+
+    // Auth validation
+    const authResult = Gateway.validateAuth('openrouter', model, apiKey);
+    if (!authResult.valid) {
+      return res.status(401).json({ error: authResult.error });
     }
 
-    try {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.flushHeaders();
-      
-      // 🚀 Preamble to bypass intermediate proxy buffering (pokes the buffer)
-      res.write(`: ${' '.repeat(2048)}\n\n`);
+    if (!model || !prompt) {
+      return res.status(400).json({ error: 'Model and prompt are required' });
+    }
 
-      const messages = [];
-      if (systemInstruction) {
-        messages.push({ role: 'system', content: systemInstruction });
-      }
-      
-      // Inject history if provided
-      if (history && Array.isArray(history)) {
-        messages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
-      }
+    const activeKey = Gateway.getActiveKey('openrouter', apiKey);
 
-      messages.push({ role: 'user', content: prompt });
+    // Build messages
+    const messages = [];
+    if (systemInstruction) {
+      messages.push({ role: 'system', content: systemInstruction });
+    }
+    if (history && Array.isArray(history)) {
+      messages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
+    }
+    messages.push({ role: 'user', content: prompt });
 
-    const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    // Build URL with gateway support (custom user gateway takes priority)
+    const { url } = Gateway.buildUrl('openrouter', '/chat/completions', gatewayUrls);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'Connection': 'keep-alive', // 🚀 Ensure persistent connection to OpenRouter
+        'Authorization': `Bearer ${activeKey}`,
+        'HTTP-Referer': 'http://localhost:3000',
+        'X-Title': 'LLM Reference Dashboard',
       },
       body: JSON.stringify({
         model,
         messages,
-        stream: true,
+        stream: false,
         ...settings,
       }),
     });
 
-    if (!r.ok) throw new Error(`OpenRouter Error ${r.status}`);
-
-    const reader = r.body!.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const raw = line.slice(6).trim();
-        if (raw === '[DONE]') { res.end(); return; }
-        try {
-          const parsed = JSON.parse(raw);
-          const content = parsed.choices?.[0]?.delta?.content;
-          if (content) res.write(`data: ${JSON.stringify({ chunk: content })}\n\n`);
-        } catch { /* partial chunk, skip */ }
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `OpenRouter Error ${response.status}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error?.message || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
       }
+      return res.status(response.status).json({ error: errorMessage });
     }
-    res.end();
+
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || '';
+    
+    return res.json({ text });
   } catch (e: any) {
-    res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`);
-    res.end();
+    console.error('[OpenRouter Error]:', e.message);
+    return res.status(500).json({ error: e.message });
   }
 });

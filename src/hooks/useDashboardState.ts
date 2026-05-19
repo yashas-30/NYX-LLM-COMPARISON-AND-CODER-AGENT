@@ -20,7 +20,7 @@ export const useDashboardState = (onExit?: () => void) => {
   const [providerFilter, setProviderFilter] = useState<string>('all');
   const [modelSettings, setModelSettings] = useState({
     temperature: 0.7,
-    maxTokens: 2048,
+    maxTokens: 512,
     topP: 0.95,
     topK: 40
   });
@@ -44,7 +44,8 @@ export const useDashboardState = (onExit?: () => void) => {
     modelSettings,
     trackUsage,
     registry.lmStudioBaseUrl,
-    registry.ollamaBaseUrl
+    registry.ollamaBaseUrl,
+    security.gatewayUrls
   );
 
   // 5. Terminal Polling

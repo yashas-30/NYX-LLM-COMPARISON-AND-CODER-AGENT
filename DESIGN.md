@@ -1,4 +1,4 @@
-# Design System: react-example (LLMLAB)
+# Design System: react-example (NYX)
 **Project ID:** local/react-example
 
 ## 1. Visual Theme & Atmosphere

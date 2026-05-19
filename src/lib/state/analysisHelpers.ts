@@ -38,6 +38,7 @@ export interface RunComparisonOptions {
   runAnalysis: (columnsToAnalyze?: ComparisonColumn[], globalPromptOverride?: string) => Promise<void>;
   updateUsage: (provider: string, tokens: number) => void;
   ollamaBaseUrl: string;
+  gatewayUrls?: Record<string, string>;
 }
 
 export const runComparison = async ({
@@ -58,6 +59,7 @@ export const runComparison = async ({
   lmStudioBaseUrl,
   ollamaBaseUrl,
   updateUsage,
+  gatewayUrls,
 }: RunComparisonOptions) => {
   if (isGlobalLoading) return;
   if (!globalPrompt.trim() && columns.every((c) => !c.localPrompt?.trim() && !c.output.trim())) {
@@ -83,7 +85,7 @@ export const runComparison = async ({
     prev.map((c) => {
       const isTarget = targetNodes.some((tn) => tn.id === c.id);
       if (isTarget && c.modelId) {
-        return { ...c, status: 'loading', output: '', error: undefined };
+        return { ...c, status: 'loading', output: '', error: undefined, lastPrompt: c.localPrompt || capturedPrompt };
       }
       return c;
     })
@@ -130,13 +132,16 @@ export const runComparison = async ({
       // Rough estimate of input tokens
       updateUsage(provider, Math.ceil(activePrompt.length / 4));
 
+      // Enforce token cap: use the lower of user setting or 1024 to save tokens
+      const cappedSettings = { ...modelSettings, maxTokens: Math.min(modelSettings?.maxTokens || 1024, 1024) };
+
       const result = await callAI(
         column.modelId,
         provider,
         activePrompt,
         finalKey,
-        "You are a helpful AI assistant. Provide a clear, natural language response.",
-        modelSettings,
+        'Respond naturally to the user.',
+        cappedSettings,
         (partialText) => {
           const now = Date.now();
           
@@ -155,7 +160,7 @@ export const runComparison = async ({
         0,
         controller.signal,
         column.id,
-        { lmStudioBaseUrl, ollamaBaseUrl }
+        { lmStudioBaseUrl, ollamaBaseUrl, gatewayUrls }
       );
       delete activeControllers.current[column.id];
 
@@ -308,9 +313,12 @@ export const runAnalysis = async ({
     });
   }
 
-  // Determine which analysis to run
-  // Only auto-switch to code if it's a high-confidence code prompt
-  const shouldRunCodeAnalysis = isCode && (currentTab === 'code' || isCodePrompt(activePrompt));
+  // Determine which analysis to run.
+  // ONLY run code analysis if:
+  //   1. User explicitly selected the code tab, OR
+  //   2. The prompt itself is definitively a code prompt (not just output containing code blocks)
+  // Never auto-switch from standard tab to code analysis.
+  const shouldRunCodeAnalysis = currentTab === 'code' || (isCodePrompt(activePrompt) && hasCodeBlocks);
 
   if (shouldRunCodeAnalysis) {
     if (currentTab !== 'code') setAnalysisTab('code');
@@ -387,14 +395,31 @@ export const restoreHistory = (
   setActiveMode: Dispatch<SetStateAction<'grid' | 'analysis' | 'history' | 'settings' | 'registry' | 'coder'>>
 ) => {
   setGlobalPrompt(item.globalPrompt);
-  setColumns(
-    item.columns.map((c, i) => ({
-      id: (i + 1).toString(),
-      modelId: c.modelId,
-      status: c.status,
-      output: c.output,
-    }))
-  );
+  
+  const restoredCols: ComparisonColumn[] = item.columns.map((c, i) => ({
+    id: (i + 1).toString(),
+    modelId: c.modelId,
+    status: c.status,
+    output: c.output,
+    isSelected: i === 0,
+  }));
+
+  // Pad to exactly 2 columns if needed
+  if (restoredCols.length < 2) {
+    const defaults = ['gemini-2.5-flash', 'openrouter/free'];
+    while (restoredCols.length < 2) {
+      const idx = restoredCols.length;
+      restoredCols.push({
+        id: (idx + 1).toString(),
+        modelId: defaults[idx],
+        status: 'idle',
+        output: '',
+        isSelected: false,
+      });
+    }
+  }
+
+  setColumns(restoredCols.slice(0, 2));
   setActiveMode('grid');
   toast.info('Session restored from deep storage.');
 };

@@ -1,10 +1,10 @@
 // ─── CardContent ──────────────────────────────────────────────────────────────
 // The main output area of a model node.
 // Handles: idle placeholder, loading skeleton, error panel, markdown output.
-// To change any of these states: edit only this file.
+// Chat layout: user prompt (right) → model response (left).
 
 import React from 'react';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -42,23 +42,34 @@ export const CardContent: React.FC<CardContentProps> = ({
 
     {/* Loading skeleton */}
     {column.status === 'loading' && !column.output && (
-      <div className="absolute inset-0 flex flex-col justify-center px-10 gap-4">
-        {[100, 85, 92, 70, 88, 75].map((w, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.08 }}
-            className="h-2 rounded-full bg-muted/30 relative overflow-hidden"
-            style={{ width: `${w}%` }}
-          >
+      <div className="absolute inset-0 flex flex-col px-4 py-3 gap-3">
+        {/* Right-aligned user prompt while loading */}
+        {column.lastPrompt && (
+          <div className="flex justify-end">
+            <div className="max-w-[80%] px-3 py-2 rounded-2xl rounded-tr-sm bg-primary/15 border border-primary/20">
+              <p className="text-[11px] leading-relaxed text-foreground/90 font-medium break-words">{column.lastPrompt}</p>
+            </div>
+          </div>
+        )}
+        {/* Skeleton lines */}
+        <div className="flex flex-col gap-2 mt-2">
+          {[100, 85, 92, 70, 88, 75].map((w, i) => (
             <motion.div
-              animate={{ x: ['-100%', '200%'] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent"
-            />
-          </motion.div>
-        ))}
+              key={i}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.08 }}
+              className="h-2 rounded-full bg-muted/30 relative overflow-hidden"
+              style={{ width: `${w}%` }}
+            >
+              <motion.div
+                animate={{ x: ['-100%', '200%'] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent"
+              />
+            </motion.div>
+          ))}
+        </div>
       </div>
     )}
 
@@ -90,20 +101,31 @@ export const CardContent: React.FC<CardContentProps> = ({
       </div>
     )}
 
-    {/* Markdown output (streaming + final) */}
+    {/* Chat output: prompt (right) → response (left) */}
     {(column.status === 'success' || (column.status === 'loading' && column.output)) && (
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="flex-1 min-h-0 h-full overflow-y-auto overflow-x-hidden custom-scrollbar p-1"
+        className="flex-1 min-h-0 h-full overflow-y-auto overflow-x-hidden custom-scrollbar p-3 flex flex-col gap-3"
       >
-        <div className="min-h-0 overflow-hidden">
-          <div className={`markdown-body overflow-hidden ${column.status === 'loading' ? 'streaming-cursor' : ''}`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{column.output}</ReactMarkdown>
+        {/* Right-aligned user prompt bubble */}
+        {column.lastPrompt && (
+          <div className="flex justify-end">
+            <div className="max-w-[80%] px-3 py-2 rounded-2xl rounded-tr-sm bg-primary/15 border border-primary/20">
+              <p className="text-[11px] leading-relaxed text-foreground/90 font-medium break-words">{column.lastPrompt}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Left-aligned model response */}
+        <div className="flex justify-start">
+          <div className="w-full min-h-0 overflow-hidden">
+            <div className={`markdown-body overflow-hidden ${column.status === 'loading' ? 'streaming-cursor' : ''}`}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{column.output}</ReactMarkdown>
+            </div>
           </div>
         </div>
       </div>
     )}
-
   </div>
 );

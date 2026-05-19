@@ -1,21 +1,12 @@
 /**
  * @file src/core/types/index.ts
- * @description Core domain types for the LLM Lab application.
+ * @description Core domain types for the NYX application.
  */
 
 export type Provider = 
   | 'gemini' 
-  | 'ollama' 
-  | 'lmstudio' 
   | 'openrouter' 
   | 'nvidia' 
-  | 'anthropic' 
-  | 'openai' 
-  | 'groq' 
-  | 'mistral' 
-  | 'deepseek' 
-  | 'together'
-  | 'claude'
   | 'terminal'
   | 'opencode';
 

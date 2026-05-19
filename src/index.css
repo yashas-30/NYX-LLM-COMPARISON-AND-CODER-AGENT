@@ -288,3 +288,120 @@
   display: flex;
   width: max-content;
 }
+
+/* ── Markdown Body ───────────────────────────────────────────── */
+/* Used in model response cards and analysis view */
+.markdown-body {
+  font-size: 12px;
+  line-height: 1.65;
+  color: inherit;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.markdown-body p {
+  margin: 0 0 0.6em;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.markdown-body h1 { font-size: 1.25em; font-weight: 700; margin: 0.8em 0 0.4em; }
+.markdown-body h2 { font-size: 1.1em;  font-weight: 700; margin: 0.8em 0 0.4em; }
+.markdown-body h3 { font-size: 1em;    font-weight: 600; margin: 0.6em 0 0.3em; }
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 { font-size: 0.9em;  font-weight: 600; margin: 0.5em 0 0.25em; }
+
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0.4em 0 0.6em;
+  padding-left: 1.25em;
+}
+
+.markdown-body li {
+  margin: 0.2em 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid var(--primary);
+  margin: 0.5em 0;
+  padding: 0.25em 0.75em;
+  opacity: 0.8;
+}
+
+.markdown-body code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.markdown-body pre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75em;
+  margin: 0.5em 0;
+  overflow-x: auto;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  word-break: normal;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin: 0.5em 0;
+  display: block;
+  overflow-x: auto;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border);
+  padding: 0.3em 0.6em;
+  text-align: left;
+}
+
+.markdown-body a {
+  color: var(--primary);
+  word-break: break-all;
+}
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.75em 0;
+}
+
+/* Streaming cursor */
+.streaming-cursor::after {
+  content: '▋';
+  animation: blink 1s step-end infinite;
+  color: var(--primary);
+  font-size: 0.9em;
+  margin-left: 1px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+

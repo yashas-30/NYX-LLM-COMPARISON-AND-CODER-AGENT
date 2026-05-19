@@ -13,7 +13,7 @@ import { DashboardFooter } from './dashboard/DashboardFooter';
 // Lazy load non-critical views to reduce initial DOM size and improve LCP
 const AnalysisView = lazy(() => import('./dashboard/AnalysisView').then(m => ({ default: m.AnalysisView })));
 const HistoryView = lazy(() => import('./dashboard/HistoryView').then(m => ({ default: m.HistoryView })));
-const SettingsView = lazy(() => import('./dashboard/SettingsView').then(m => ({ default: m.SettingsView })));
+import { SettingsView } from './dashboard/SettingsView';
 const ModelRegistryView = lazy(() => import('./dashboard/ModelRegistryView').then(m => ({ default: m.ModelRegistryView })));
 
 // Modular Feature Pages
@@ -47,7 +47,8 @@ export const CompareDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) 
     modelSettings, setModelSettings, trackUsage,
     lockAllKeys, toggleKeyLock, clearApiKeys,
     statuses, refreshStatuses,
-    setOllamaBaseUrl
+    setOllamaBaseUrl,
+    localModelsEnabled, setLocalModelsEnabled
   } = useDashboardState(onExit);
 
   const { theme } = useTheme();
@@ -85,6 +86,8 @@ export const CompareDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) 
                     providerStatuses={statuses}
                     ollamaBaseUrl={ollamaBaseUrl}
                     lmStudioBaseUrl={lmStudioBaseUrl}
+                    localModelsEnabled={localModelsEnabled}
+                    setLocalModelsEnabled={setLocalModelsEnabled}
                   />
                 ) : activeMode === 'analysis' ? (
                   <Suspense fallback={<LoadingFallback />}>
@@ -94,8 +97,6 @@ export const CompareDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) 
                       isAnalyzing={isAnalyzing} 
                       analysisOutput={analysisOutput} 
                       setActiveMode={setActiveMode} 
-                      analysisModel={analysisModel}
-                      setAnalysisModel={setAnalysisModel}
                       runAnalysis={runAnalysis}
                       allModels={AVAILABLE_MODELS}
                       ollamaModels={ollamaModels}
@@ -109,6 +110,10 @@ export const CompareDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) 
                       ollamaBaseUrl={ollamaBaseUrl}
                       lmStudioBaseUrl={lmStudioBaseUrl}
                       globalPrompt={globalPrompt}
+                      localModelsEnabled={localModelsEnabled}
+                      setLocalModelsEnabled={setLocalModelsEnabled}
+                      analysisModel={analysisModel}
+                      setAnalysisModel={setAnalysisModel}
                     />
                   </Suspense>
                 ) : activeMode === 'history' ? (
@@ -143,43 +148,39 @@ export const CompareDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) 
                     />
                   </Suspense>
                 ) : activeMode === 'coder' ? (
-                  <CoderPage
-                    key="coder"
-                    allModels={AVAILABLE_MODELS}
-                    apiKeys={apiKeys}
-                    lmStudioBaseUrl={lmStudioBaseUrl}
-                    modelSettings={modelSettings}
-                    setModelSettings={setModelSettings}
-                    trackUsage={trackUsage}
-                    ollamaModels={ollamaModels}
-                    lmStudioModels={lmStudioModels}
-                    ollamaStatus={ollamaStatus}
-                    lmStudioStatus={lmStudioStatus}
-                    onRefreshOllama={fetchOllamaModels}
-                    onRefreshLMStudio={fetchLMStudioModels}
-                    providerStatuses={statuses}
-                    ollamaBaseUrl={ollamaBaseUrl}
-                  />
-                ) : (
                   <Suspense fallback={<LoadingFallback />}>
+                    <CoderPage
+                      key="coder"
+                      allModels={AVAILABLE_MODELS}
+                      apiKeys={apiKeys}
+                      lmStudioBaseUrl={lmStudioBaseUrl}
+                      modelSettings={modelSettings}
+                      setModelSettings={setModelSettings}
+                      trackUsage={trackUsage}
+                      ollamaModels={ollamaModels}
+                      lmStudioModels={lmStudioModels}
+                      ollamaStatus={ollamaStatus}
+                      lmStudioStatus={lmStudioStatus}
+                      onRefreshOllama={fetchOllamaModels}
+                      onRefreshLMStudio={fetchLMStudioModels}
+                      providerStatuses={statuses}
+                      ollamaBaseUrl={ollamaBaseUrl}
+                      localModelsEnabled={localModelsEnabled}
+                    />
+                  </Suspense>
+                ) : (
+                  <>
                     <SettingsView 
                       key="settings"
                       apiKeys={apiKeys} 
                       updateApiKey={updateApiKey} 
-                      unlockedKeys={unlockedKeys}
-                      securityPin={securityPin}
-                      pinModal={pinModal}
-                      setPinModal={setPinModal}
-                      handlePinInput={handlePinInput}
-                      lockAllKeys={lockAllKeys}
-                      toggleKeyLock={toggleKeyLock}
                       clearApiKeys={clearApiKeys}
                       ollamaBaseUrl={ollamaBaseUrl}
                       setOllamaBaseUrl={setOllamaBaseUrl}
                       lmStudioBaseUrl={lmStudioBaseUrl}
                       setLmStudioBaseUrl={setLmStudioBaseUrl}
                     />
-                  </Suspense>
+                  </>
                 )}
               </AnimatePresence>
             </div>

@@ -6,6 +6,7 @@ export interface ComparisonColumn {
   status: 'idle' | 'loading' | 'success' | 'error';
   output: string;
   localPrompt?: string;
+  lastPrompt?: string;
   error?: string;
   metadata?: {
     latency?: number;

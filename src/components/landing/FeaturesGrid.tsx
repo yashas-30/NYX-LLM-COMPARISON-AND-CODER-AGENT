@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Terminal, Activity, Shield, Key, Database, ArrowRight } from 'lucide-react';
-import { UI_TEXT } from '../../lib/design-system/copy';
-import { ArenaPreview, CoderPreview, MetricsPreview } from './AppPreview';
+import { Terminal, Activity } from 'lucide-react';
+import { ArenaPreview, MetricsPreview } from './AppPreview';
 
 const FEATURE_TABS = [
   {
@@ -29,13 +28,13 @@ export const FeaturesGrid: React.FC = () => {
   const [activeTab, setActiveTab] = useState(FEATURE_TABS[0]);
 
   return (
-    <section id="features" className="w-full max-w-7xl mx-auto px-6 py-48">
-      <div className="flex flex-col mb-24 max-w-2xl">
+    <section id="features" className="w-full max-w-7xl mx-auto px-6 py-20">
+      <div className="flex flex-col mb-12 max-w-2xl">
         <motion.span
           initial={{ opacity: 0, x: -10 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
-          className="text-primary font-bold text-[11px] uppercase tracking-[0.5em] mb-4"
+          className="text-primary font-bold text-[11px] uppercase tracking-[0.5em] mb-3"
         >
           Capabilities
         </motion.span>
@@ -43,7 +42,7 @@ export const FeaturesGrid: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-5xl md:text-8xl font-black text-foreground tracking-tighter leading-[0.85]"
+          className="text-3xl md:text-5xl font-black text-foreground tracking-tighter leading-[0.9]"
           style={{ fontFamily: 'Geist, sans-serif' }}
         >
           Built for <br />
@@ -51,9 +50,9 @@ export const FeaturesGrid: React.FC = () => {
         </motion.h2>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Navigation Tabs */}
-        <div className="lg:col-span-4 flex flex-col gap-4">
+        <div className="lg:col-span-4 flex flex-col gap-3">
           {FEATURE_TABS.map((tab) => {
             const isActive = activeTab.id === tab.id;
             const Icon = tab.icon;
@@ -62,22 +61,23 @@ export const FeaturesGrid: React.FC = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab)}
-                className={`group relative text-left p-8 rounded-[24px] transition-all duration-500 overflow-hidden ${isActive ? 'bg-primary/10 border-primary/10 border shadow-2xl' : 'hover:bg-foreground/5'
-                  }`}
+                className={`group relative text-left p-6 rounded-[16px] transition-all duration-500 overflow-hidden ${
+                  isActive ? 'bg-primary/10 border-primary/10 border shadow-2xl' : 'hover:bg-foreground/5'
+                }`}
               >
-                <div className="flex items-center gap-4 mb-4">
-                  <div className={`p-2.5 rounded-full transition-colors ${isActive ? 'bg-primary text-background shadow-lg shadow-primary/20' : 'bg-muted-zinc/10 text-muted-foreground group-hover:text-foreground'}`}>
-                    <Icon size={20} />
+                <div className="flex items-center gap-3 mb-3">
+                  <div className={`p-2 rounded-full transition-colors ${isActive ? 'bg-primary text-background shadow-lg shadow-primary/20' : 'bg-muted-zinc/10 text-muted-foreground group-hover:text-foreground'}`}>
+                    <Icon size={16} />
                   </div>
-                  <span className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-widest transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
                     {tab.label}
                   </span>
                 </div>
 
-                <h3 className={`text-2xl font-bold mb-3 transition-colors ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
+                <h3 className={`text-lg font-bold mb-2 transition-colors ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
                   {tab.title}
                 </h3>
-                <p className={`text-[15px] leading-relaxed transition-colors ${isActive ? 'text-foreground/70' : 'text-foreground/40'}`}>
+                <p className={`text-[13px] leading-relaxed transition-colors ${isActive ? 'text-foreground/70' : 'text-foreground/40'}`}>
                   {tab.desc}
                 </p>
 
@@ -90,28 +90,26 @@ export const FeaturesGrid: React.FC = () => {
               </button>
             );
           })}
-
-
         </div>
 
         {/* Live Preview Container */}
         <div className="lg:col-span-8 sticky top-32">
           <div className="relative aspect-[16/10] w-full rounded-[24px] overflow-hidden glass border border-border-strong shadow-[0_40px_80px_-20px_rgba(0,0,0,0.3)] bg-surface-deep backdrop-blur-3xl">
             {/* Window Chrome */}
-            <div className="absolute top-0 inset-x-0 h-14 border-b border-border-strong flex items-center px-8 justify-between bg-background/40 backdrop-blur-3xl z-20">
-              <div className="flex gap-2.5">
-                <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/10" />
-                <div className="w-3 h-3 rounded-full bg-amber-500/20 border border-amber-500/10" />
-                <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/10" />
+            <div className="absolute top-0 inset-x-0 h-10 border-b border-border-strong flex items-center px-6 justify-between bg-background/40 backdrop-blur-3xl z-20">
+              <div className="flex gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/10" />
+                <div className="w-2.5 h-2.5 rounded-full bg-amber-500/20 border border-amber-500/10" />
+                <div className="w-2.5 h-2.5 rounded-full bg-green-500/20 border border-green-500/10" />
               </div>
-              <div className="text-[10px] font-bold tracking-[0.3em] text-foreground/40 uppercase">
-                LLMLAB 2026 / {activeTab.title}
+              <div className="text-[9px] font-bold tracking-[0.3em] text-foreground/40 uppercase">
+                NYX 2026 / {activeTab.title}
               </div>
-              <div className="w-16 h-1 bg-muted-zinc/10 rounded-full" />
+              <div className="w-12 h-1 bg-muted-zinc/10 rounded-full" />
             </div>
 
             {/* Content Switcher */}
-            <div className="absolute inset-0 pt-14">
+            <div className="absolute inset-0 pt-10">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab.id}

@@ -57,7 +57,7 @@ export function inferProviderFromId(
   modelId: string | undefined,
   ollamaModelNames: Set<string> | string[] = [],
   lmStudioModelNames: Set<string> | string[] = []
-): ModelProvider | undefined {
+): string | undefined {
   if (!modelId) return undefined;
   
   // Check explicitly loaded local nodes first (handles both Set and array)

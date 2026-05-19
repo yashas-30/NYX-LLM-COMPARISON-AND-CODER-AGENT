@@ -1,5 +1,10 @@
-// All Gemini calls route through the local Express server proxy (/api/gemini/stream)
-// so the server can reuse a persistent HTTP/2 connection to Google's API.
+/**
+ * @file src/lib/api/inferenceClient.ts
+ * @description Unified inference client for all AI providers.
+ * Uses the same direct Express endpoints as the Coder page (AIService).
+ */
+
+import { isTransientError, formatProviderError } from './streamParser';
 
 export interface AISettings {
   temperature?: number;
@@ -8,345 +13,185 @@ export interface AISettings {
   topK?: number;
 }
 
-export async function callAI(
-  modelId: string,
-  provider: string,
-  prompt: string,
-  apiKey?: string,
-  systemInstruction?: string,
-  settings?: AISettings,
-  onStream?: (text: string) => void,
-  retryCount = 0,
-  signal?: AbortSignal,
-  nodeId?: string,
-  options?: { lmStudioBaseUrl?: string; ollamaBaseUrl?: string; history?: any[] }
-): Promise<{ text: string; latency: number; ttft?: number }> {
-  const startTime = Date.now();
+export interface InferenceOptions {
+  lmStudioBaseUrl?: string;
+  ollamaBaseUrl?: string;
+  history?: any[];
+  nodeId?: string;
+  gatewayUrls?: Record<string, string>;
+}
 
-  // ── Strict API Key Validation ───────────────────────────────────────────
-  if (apiKey) {
-    const key = apiKey.trim();
-    if (provider === 'openrouter' && !key.startsWith('sk-or-')) {
-      throw new Error("Invalid OpenRouter API Key format (must start with 'sk-or-')");
-    }
-    if (provider === 'gemini' && key.length < 30) {
-      throw new Error("Invalid Gemini API Key format (too short)");
-    }
+export interface InferenceResult {
+  text: string;
+  latency: number;
+}
+
+function validateApiKey(provider: string, apiKey?: string): void {
+  if (!apiKey) return;
+  const key = apiKey.trim();
+  if (provider === 'openrouter' && !key.startsWith('sk-or-')) {
+    throw new Error("Invalid OpenRouter API Key format (must start with 'sk-or-')");
   }
-
-  try {
-    let resultText = "";
-    let ttft: number | undefined;
-
-    if (provider === 'gemini') {
-      // ── Route through local server proxy for persistent HTTP/2 connection ──
-      // The server caches GoogleGenAI instances per key, eliminating the
-      // TLS handshake overhead on every request (~200-800ms savings).
-      if (!apiKey) throw new Error("Gemini API key is required. Add it in Settings.");
-
-      const response = await fetch('/api/gemini/stream', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Connection': 'keep-alive' 
-        },
-        body: JSON.stringify({ model: modelId, prompt, apiKey, settings, systemInstruction, history: options?.history }),
-        signal,
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-        throw new Error(err.error || `Request failed: ${response.status}`);
-      }
-      if (!response.body) throw new Error("No response body from Gemini proxy");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const parsed = JSON.parse(line.slice(6));
-            if (parsed.error) throw new Error(parsed.error);
-            if (parsed.chunk && onStream) {
-              resultText += parsed.chunk;
-              onStream(resultText);
-            }
-            if (parsed.done) {
-              // Final check
-            }
-          } catch (parseErr: any) {
-            if (!parseErr.message?.includes("JSON")) throw parseErr;
-          }
-        }
-      }
-
-      if (!resultText || resultText.includes('[PROTOCOL HALT]')) {
-        throw new Error(resultText || "No response received from API. The service may be unavailable or the request timed out.");
-      }
-
-    } else if (provider === 'ollama') {
-
-      // ── Ollama (direct browser→Ollama — zero Express hop) ─────────────────
-      // ollamaClient handles abort, pre-warm, and unload. This wrapper adapts
-      // the callback-based client to the Promise-based callAI interface.
-      const { ollamaChat } = await import('./ollamaClient');
-
-      await new Promise<void>((resolve, reject) => {
-        ollamaChat({
-          nodeId: nodeId ?? modelId,
-          model: modelId,
-          prompt,
-          systemInstruction,
-          baseUrl: options?.ollamaBaseUrl,
-          settings,
-          onChunk: (_chunk, accumulated) => {
-            resultText = accumulated;
-            if (onStream) onStream(accumulated);
-          },
-          onDone: () => resolve(),
-          onError: (msg) => reject(new Error(msg)),
-          history: options?.history
-        });
-
-        // Propagate external abort signal to ollamaClient
-        if (signal) {
-          signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
-        }
-      });
-
-      if (!resultText) throw new Error("Ollama returned no response. Check if Ollama is running.");
-
-    } else if (provider === 'openrouter') {
-
-      // ── OpenRouter (via server-side SSE proxy) ─────────────────────────────
-      if (!apiKey) throw new Error("OpenRouter API key is required. Add it in Settings.");
-
-      const endpoint = `/api/openrouter/stream`;
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Connection': 'keep-alive'
-        },
-        body: JSON.stringify({ model: modelId, prompt, apiKey, settings, systemInstruction, history: options?.history }),
-        signal,
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-        throw new Error((err as any).error || `Request failed: ${response.status}`);
-      }
-      if (!response.body) throw new Error("No response body from OpenRouter proxy");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const parsed = JSON.parse(line.slice(6));
-            if (parsed.error) throw new Error(parsed.error);
-            if (parsed.chunk && onStream) {
-              resultText += parsed.chunk;
-              onStream(resultText);
-            }
-            if (parsed.done) {
-              // End
-            }
-          } catch (parseErr: any) {
-            if (!parseErr.message?.includes("JSON")) throw parseErr;
-          }
-        }
-      }
-
-      if (!resultText) throw new Error("OpenRouter returned no response. Check your API key and try again.");
-
-    } else if (provider === 'nvidia') {
-      // ── NVIDIA (via server-side SSE proxy) ─────────────────────────────────
-      if (!apiKey) throw new Error("NVIDIA API key is required. Add it in Settings.");
-
-      const response = await fetch('/api/nvidia/stream', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Connection': 'keep-alive'
-        },
-        body: JSON.stringify({ model: modelId, prompt, apiKey, settings, systemInstruction, history: options?.history }),
-        signal,
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-        throw new Error((err as any).error || `Request failed: ${response.status}`);
-      }
-      if (!response.body) throw new Error("No response body from NVIDIA proxy");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const parsed = JSON.parse(line.slice(6));
-            if (parsed.error) throw new Error(parsed.error);
-            if (parsed.chunk && onStream) {
-              resultText += parsed.chunk;
-              onStream(resultText);
-            }
-          } catch (parseErr: any) {
-            if (!parseErr.message?.includes("JSON")) throw parseErr;
-          }
-        }
-      }
-
-      if (!resultText) throw new Error("NVIDIA NIM returned no response. Check your API key and try again.");
-
-    } else if (provider === 'opencode') {
-      // ── OpenCode (Free models, no key required) ───────────────────────────
-      const response = await fetch('/api/opencode/stream', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Connection': 'keep-alive'
-        },
-        body: JSON.stringify({ model: modelId, prompt, settings, systemInstruction, history: options?.history }),
-        signal,
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-        throw new Error((err as any).error || `Request failed: ${response.status}`);
-      }
-      if (!response.body) throw new Error("No response body from OpenCode proxy");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const parsed = JSON.parse(line.slice(6));
-            if (parsed.error) throw new Error(parsed.error);
-            if (parsed.chunk && onStream) {
-              resultText += parsed.chunk;
-              onStream(resultText);
-            }
-          } catch { }
-        }
-      }
-
-    } else if (provider === 'lmstudio') {
-      // ── LM Studio (direct browser→LM Studio — zero Express hop) ───────────
-      const { lmStudioChat } = await import('./lmStudioClient');
-
-      await new Promise<void>((resolve, reject) => {
-        lmStudioChat({
-          nodeId: nodeId ?? modelId,
-          model: modelId,
-          prompt,
-          systemInstruction,
-          baseUrl: options?.lmStudioBaseUrl,
-          settings,
-          onChunk: (_chunk, accumulated) => {
-            resultText = accumulated;
-            if (onStream) onStream(accumulated);
-          },
-          onDone: () => resolve(),
-          onError: (msg) => reject(new Error(msg)),
-          history: options?.history
-        });
-
-        if (signal) {
-          signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
-        }
-      });
-
-      if (!resultText) throw new Error("LM Studio returned no response. Check if LM Studio is running.");
-
-    } else {
-      throw new Error(`Unsupported provider: ${provider}`);
-    }
-
-    const endTime = Date.now();
-    return {
-      text: resultText,
-      latency: endTime - startTime,
-    };
-  } catch (error: any) {
-    const message = error.message || String(error);
-
-    // Handle transient errors (rate limit, quota, overloaded) — retry up to 2x
-    const isTransient =
-      message.includes("429") ||
-      message.includes("503") ||
-      message.includes("RESOURCE_EXHAUSTED") ||
-      message.includes("UNAVAILABLE") ||
-      message.includes("rate_limit") ||
-      message.includes("quota") ||
-      message.includes("overloaded") ||
-      message.includes("high demand");
-
-    if (isTransient && retryCount < 2) {
-      const waitTime = (retryCount + 1) * 4000;
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      return callAI(modelId, provider, prompt, apiKey, systemInstruction, settings, onStream, retryCount + 1, signal, nodeId, options);
-    }
-
-    console.error(`Error calling ${provider} model ${modelId}:`, error);
-
-    if (message.includes("RESOURCE_EXHAUSTED") || message.includes("429") || message.includes("quota")) {
-      throw new Error("API quota exceeded. Your provider has reached its usage limit. Check your provider dashboard.");
-    }
-
-    if (message.includes("503") || message.includes("UNAVAILABLE") || message.includes("high demand") || message.includes("overloaded")) {
-      throw new Error("Model is currently unavailable or overloaded. Please try again in a moment or use a different model.");
-    }
-
-    if (message.includes("No response received") || message.includes("PROTOCOL HALT") || message.includes("No response body")) {
-      throw new Error("No response from API. The service may be down or unreachable. Try a different provider or model.");
-    }
-
-    throw new Error(message);
+  if (provider === 'gemini' && key.length < 30) {
+    throw new Error("Invalid Gemini API Key format (too short)");
   }
 }
 
-/** Returns true if the prompt is asking for code to be written. */
+async function requestDirect(endpoint: string, payload: Record<string, any>, provider: string, signal?: AbortSignal): Promise<Response> {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+    throw new Error((err as any).error || `Request failed: ${response.status}`);
+  }
+  return response;
+}
+
+async function handleGemini(model: string, prompt: string, apiKey: string, settings: AISettings, systemInstruction: string | undefined, history: any[] | undefined, onStream: ((text: string) => void) | undefined, signal: AbortSignal | undefined, gatewayUrls?: Record<string, string>): Promise<string> {
+   if (!apiKey) throw new Error("Gemini API key is required.");
+   const response = await requestDirect('/api/gemini/stream', { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }, 'Gemini', signal);
+   const data = await response.json();
+   const text = data.text || '';
+   if (onStream) onStream(text);
+   if (!text) throw new Error("No response from Gemini API.");
+   return text;
+ }
+
+async function handleOllama(nodeId: string, model: string, prompt: string, systemInstruction: string | undefined, settings: AISettings | undefined, baseUrl: string | undefined, history: any[] | undefined, onStream: ((text: string) => void) | undefined, signal: AbortSignal | undefined): Promise<string> {
+    const { ollamaChat } = await import('@/src/lib/api/ollamaClient');
+    let resultText = "";
+    return new Promise((resolve, reject) => {
+      ollamaChat({
+        nodeId: nodeId ?? model,
+        model, prompt, systemInstruction, settings, history, baseUrl,
+        onChunk: (_, accumulated) => {
+          resultText = accumulated;
+          if (onStream) onStream(accumulated);
+        },
+        onDone: () => resolve(resultText),
+        onError: (msg) => reject(new Error(msg))
+      });
+      if (signal) {
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+      }
+    });
+  }
+
+async function handleLMStudio(nodeId: string, model: string, prompt: string, systemInstruction: string | undefined, settings: AISettings | undefined, baseUrl: string | undefined, history: any[] | undefined, onStream: ((text: string) => void) | undefined, signal: AbortSignal | undefined): Promise<string> {
+    const { lmStudioChat } = await import('@/src/lib/api/lmStudioClient');
+    let resultText = "";
+    return new Promise((resolve, reject) => {
+      lmStudioChat({
+        nodeId: nodeId ?? model,
+        model, prompt, systemInstruction, settings, history, baseUrl,
+        onChunk: (_, accumulated) => {
+          resultText = accumulated;
+          if (onStream) onStream(accumulated);
+        },
+        onDone: () => resolve(resultText),
+        onError: (msg) => reject(new Error(msg))
+      });
+      if (signal) {
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+      }
+    });
+  }
+
+async function handleOpenRouter(model: string, prompt: string, apiKey: string, settings: AISettings, systemInstruction: string | undefined, history: any[] | undefined, onStream: ((text: string) => void) | undefined, signal: AbortSignal | undefined, gatewayUrls?: Record<string, string>): Promise<string> {
+   if (!apiKey) throw new Error("OpenRouter API key is required.");
+   const response = await requestDirect('/api/openrouter/stream', { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }, 'OpenRouter', signal);
+   const data = await response.json();
+   const text = data.text || '';
+   if (onStream) onStream(text);
+   if (!text) throw new Error("OpenRouter returned no response.");
+   return text;
+ }
+
+async function handleNvidia(model: string, prompt: string, apiKey: string, settings: AISettings, systemInstruction: string | undefined, history: any[] | undefined, onStream: ((text: string) => void) | undefined, signal: AbortSignal | undefined, gatewayUrls?: Record<string, string>): Promise<string> {
+    // NVIDIA NIM models - requires API key
+    if (!apiKey) throw new Error("NVIDIA API key is required. Add your nvapi-* key in Settings.");
+    const response = await requestDirect('/api/nvidia/stream', { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }, 'NVIDIA', signal);
+    const data = await response.json();
+    const text = data.text || '';
+    if (onStream) onStream(text);
+    if (!text) throw new Error("NVIDIA returned no response.");
+    return text;
+  }
+
+async function handleOpenCode(model: string, prompt: string, apiKey: string | undefined, settings: AISettings, systemInstruction: string | undefined, history: any[] | undefined, onStream: ((text: string) => void) | undefined, signal: AbortSignal | undefined, gatewayUrls?: Record<string, string>): Promise<string> {
+   const response = await requestDirect('/api/opencode/stream', { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }, 'OpenCode', signal);
+   const data = await response.json();
+   const text = data.text || '';
+   if (onStream) onStream(text);
+   return text;
+ }
+
+export async function callAI(
+  modelId: string, provider: string, prompt: string, apiKey?: string,
+  systemInstruction?: string, settings?: AISettings,
+  onStream?: (text: string) => void, retryCount = 0,
+  signal?: AbortSignal, nodeId?: string, options?: InferenceOptions
+): Promise<InferenceResult> {
+  const startTime = Date.now();
+  validateApiKey(provider, apiKey);
+
+  try {
+    let resultText = "";
+    switch (provider) {
+      case 'gemini': resultText = await handleGemini(modelId, prompt, apiKey!, settings, systemInstruction, options?.history, onStream, signal, options?.gatewayUrls); break;
+      case 'ollama': resultText = await handleOllama(nodeId ?? modelId, modelId, prompt, systemInstruction, settings, options?.ollamaBaseUrl, options?.history, onStream, signal); break;
+      case 'lmstudio': resultText = await handleLMStudio(nodeId ?? modelId, modelId, prompt, systemInstruction, settings, options?.lmStudioBaseUrl, options?.history, onStream, signal); break;
+      case 'openrouter': resultText = await handleOpenRouter(modelId, prompt, apiKey!, settings, systemInstruction, options?.history, onStream, signal, options?.gatewayUrls); break;
+      case 'nvidia': resultText = await handleNvidia(modelId, prompt, apiKey!, settings, systemInstruction, options?.history, onStream, signal, options?.gatewayUrls); break;
+      case 'opencode': resultText = await handleOpenCode(modelId, prompt, apiKey, settings, systemInstruction, options?.history, onStream, signal, options?.gatewayUrls); break;
+      default: throw new Error(`Unsupported provider: ${provider}`);
+    }
+    return { text: resultText, latency: Date.now() - startTime };
+  } catch (error: any) {
+    const message = error.message || String(error);
+    if (isTransientError(message) && retryCount < 2) {
+      await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 4000));
+      return callAI(modelId, provider, prompt, apiKey, systemInstruction, settings, onStream, retryCount + 1, signal, nodeId, options);
+    }
+    console.error(`Error calling ${provider} model ${modelId}:`, error);
+    throw new Error(formatProviderError(message));
+  }
+}
+
 export function isCodePrompt(prompt: string): boolean {
-  const p = prompt.toLowerCase();
-  return [
-    'write', 'code', 'implement', 'function', 'class', 'algorithm', 'script',
-    'program', 'method', 'api', 'component', 'module', 'build', 'create a',
-    'develop', 'generate code', 'snippet', 'solve', 'debug', 'refactor', 'optimize'
-  ].some(kw => p.includes(kw)) || prompt.trim().startsWith('CODE: ');
+  const p = prompt.toLowerCase().trim();
+
+  // Explicit code prefix override
+  if (prompt.trim().startsWith('CODE: ')) return true;
+
+  // Strong code-specific keywords unlikely to appear in plain text
+  const strongKeywords = [
+    'generate code', 'write code', 'write a function', 'write a class',
+    'implement a function', 'implement a class', 'implement an algorithm',
+    'debug this code', 'refactor this', 'fix this code', 'fix the bug',
+    'code snippet', 'python script', 'javascript function', 'typescript',
+    'sql query', 'bash script', 'shell script', 'html template',
+    'css style', 'react component', 'react hook', 'api endpoint',
+    'rest api', 'graphql', 'dockerfile', 'kubernetes', 'terraform',
+    'unit test', 'test case', 'pseudocode', 'time complexity', 'space complexity',
+    'big o', 'recursion', 'data structure', 'linked list', 'binary tree',
+    'sorting algorithm', 'merge sort', 'quick sort'
+  ];
+
+  if (strongKeywords.some(kw => p.includes(kw))) return true;
+
+  // Code block in the prompt itself
+  if (/```[\w]*\n/.test(prompt)) return true;
+
+  // Explicit programming language mentions combined with task words
+  const langPattern = /\b(python|javascript|typescript|java|c\+\+|c#|rust|golang|ruby|php|swift|kotlin|scala)\b/;
+  const taskPattern = /\b(write|implement|create|build|code|function|class|script|program)\b/;
+  if (langPattern.test(p) && taskPattern.test(p)) return true;
+
+  return false;
 }

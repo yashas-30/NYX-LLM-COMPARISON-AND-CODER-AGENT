@@ -40,7 +40,7 @@ const SidebarComponent: React.FC<SidebarProps> = ({ activeMode, setActiveMode, o
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
           className="w-8 h-8 rounded-xl bg-foreground/5 border border-border-strong flex items-center justify-center relative z-10"
         >
-          <Logo size={16} className="text-foreground" />
+          <Logo size={22} className="" />
         </motion.div>
         {/* Subtle Outer Glow Layer */}
         <motion.div
@@ -79,15 +79,6 @@ const SidebarComponent: React.FC<SidebarProps> = ({ activeMode, setActiveMode, o
       </div>
 
       <div className="flex flex-col gap-3">
-        <Tooltip content={theme === 'dark' ? 'Light' : 'Dark'} side="right">
-          <button 
-            onClick={toggleTheme} 
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground hover:text-primary transition-all hover:bg-muted/40 active:scale-90"
-          >
-            {theme === 'dark' ? <Sun size={16} strokeWidth={1.5} /> : <Moon size={16} strokeWidth={1.5} />}
-          </button>
-        </Tooltip>
-
         <Tooltip content="Exit" side="right">
           <button 
             onClick={onExit} 

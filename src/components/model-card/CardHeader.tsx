@@ -51,7 +51,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
     const provider = model?.provider;
     if (!provider) return false;
     // Local providers are always visible once started
-    if (provider === 'ollama' || provider === 'lmstudio' || provider === 'terminal') return true;
+    if (provider === 'terminal') return true;
     // Cloud providers require an API key
     return !!apiKeys[provider]?.trim();
   }, [model?.provider, apiKeys]);
@@ -64,17 +64,6 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
     <div className={`shrink-0 px-4 py-3 flex items-center justify-between gap-2 border-b-2 border-border-strong relative z-10 ${column.isSelected ? 'bg-primary/[0.04]' : 'bg-transparent'}`}>
       <div className="flex items-center gap-1.5 min-w-0">
         <NodeToggle isSelected={!!column.isSelected} onToggle={onToggleSelection} />
-
-        {/* Provider icon badge */}
-        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 border ${
-          column.isSelected ? 'bg-primary/10 border-primary/20 shadow-sm' : 'bg-muted/10 border-border-strong'
-        }`}>
-          <ProviderIcon
-            provider={model?.provider}
-            size={12}
-            className={column.isSelected ? 'text-primary' : 'text-muted-foreground/60'}
-          />
-        </div>
 
         {/* Unified Model Selector Trigger */}
         <div className="relative">

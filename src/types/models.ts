@@ -4,14 +4,9 @@
 export type ModelProvider =
   | 'gemini'
   | 'openrouter'
-  | 'ollama'
   | 'nvidia'
-  | 'openai'
-  | 'claude'
-  | 'deepseek'
   | 'terminal'
-  | 'opencode'
-  | 'lmstudio';
+  | 'opencode';
 
 export interface OllamaModel {
   name: string;

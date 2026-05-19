@@ -18,6 +18,9 @@ interface DashboardGridProps {
   providerStatuses?: Record<string, 'online' | 'offline' | 'no-key'>;
   lmStudioBaseUrl: string;
   ollamaBaseUrl: string;
+  gatewayUrls?: Record<string, string>;
+  localModelsEnabled: boolean;
+  setLocalModelsEnabled: (enabled: boolean) => void;
 }
 
 // ── Uniform spacing token ──────────────────────────────────────────────────────
@@ -37,26 +40,31 @@ const DashboardGridComponent: React.FC<DashboardGridProps> = ({
   onRemoveColumn,
   providerStatuses,
   lmStudioBaseUrl,
-  ollamaBaseUrl
+  ollamaBaseUrl,
+  gatewayUrls = {},
+  localModelsEnabled,
+  setLocalModelsEnabled
 }) => {
   if (columns.length === 0) {
     return (
-      <div className={`flex-1 flex flex-col items-center justify-center ${GRID_PAD}`}>
-        <motion.div 
-          initial={{ scale: 0.98, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          className="flex flex-col items-center text-center"
-        >
-          <h2 className="text-xl font-bold tracking-tight text-foreground">{UI_TEXT.history.empty}</h2>
-          <p className="text-muted-foreground/60 text-[10px] font-medium uppercase tracking-widest mt-2 opacity-50">No models initialized</p>
-          
-          <button 
-            onClick={() => onOpenForge()}
-            className="mt-8 px-8 py-3 bg-primary text-white font-bold uppercase tracking-widest text-[9px] rounded-full hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 active:scale-95"
+      <div className="h-full w-full p-[2vw] flex flex-col min-h-0 overflow-hidden bg-background">
+        <div className="flex-1 min-h-0 w-full flex flex-col items-center justify-center bg-card/40 backdrop-blur-3xl border border-border-strong/30 rounded-2xl overflow-hidden shadow-2xl relative p-6">
+          <motion.div 
+            initial={{ scale: 0.98, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="flex flex-col items-center text-center px-4"
           >
-            {UI_TEXT.registry.add}
-          </button>
-        </motion.div>
+            <h2 className="text-xl md:text-2xl font-bold tracking-tight text-foreground break-words max-w-md">Add model to start conversation</h2>
+            <p className="text-muted-foreground/60 text-[9px] md:text-[10px] font-medium uppercase tracking-widest mt-2 opacity-50">Select a model to begin side-by-side benchmarking</p>
+            
+            <button 
+              onClick={() => onOpenForge()}
+              className="mt-8 px-8 py-3 bg-primary text-white font-bold uppercase tracking-widest text-[9px] md:text-[10px] rounded-full hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 active:scale-95 whitespace-nowrap"
+            >
+              Add
+            </button>
+          </motion.div>
+        </div>
       </div>
     );
   }
@@ -74,44 +82,49 @@ const DashboardGridComponent: React.FC<DashboardGridProps> = ({
   };
 
   return (
-    <motion.div
-      layout
-      className={`grid w-full h-full ${GRID_GAP} ${GRID_PAD} ${getGridCols()}`}
-    >
-      <AnimatePresence mode="popLayout">
-        {columns.map(col => (
-          <motion.div
-            key={col.id}
-            layout
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            transition={{ 
-              type: "spring", 
-              stiffness: 400, 
-              damping: 30,
-              opacity: { duration: 0.2 }
-            }}
-            className="min-h-0 flex flex-col h-full"
-          >
-            <ModelOutputCard 
-              column={col} 
-              allModels={AVAILABLE_MODELS} 
-              ollamaModels={ollamaModels} 
-              lmStudioModels={lmStudioModels}
-              apiKeys={apiKeys}
-              lmStudioBaseUrl={lmStudioBaseUrl}
-              ollamaBaseUrl={ollamaBaseUrl}
-              onUpdate={updateOutput} 
-              onModelChange={updateModel} 
-              onToggleSelection={onToggleSelection}
-              onRemove={onRemoveColumn}
-              providerStatuses={providerStatuses}
-            />
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </motion.div>
+    <div className="h-full w-full p-[2vw] flex flex-col min-h-0 overflow-hidden bg-background">
+      <motion.div
+        layout
+        className={`grid flex-1 min-h-0 w-full gap-4 ${getGridCols()}`}
+      >
+        <AnimatePresence mode="popLayout">
+          {columns.map(col => (
+            <motion.div
+              key={col.id}
+              layout
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              transition={{ 
+                type: "spring", 
+                stiffness: 400, 
+                damping: 30,
+                opacity: { duration: 0.2 }
+              }}
+              className="min-h-0 flex flex-col h-full w-full relative"
+            >
+              <ModelOutputCard 
+                column={col} 
+                allModels={AVAILABLE_MODELS} 
+                ollamaModels={ollamaModels} 
+                lmStudioModels={lmStudioModels}
+                apiKeys={apiKeys}
+                lmStudioBaseUrl={lmStudioBaseUrl}
+                ollamaBaseUrl={ollamaBaseUrl}
+                onUpdate={updateOutput} 
+                onModelChange={updateModel} 
+                onToggleSelection={onToggleSelection}
+                onRemove={onRemoveColumn}
+                providerStatuses={providerStatuses}
+                gatewayUrls={gatewayUrls}
+                localModelsEnabled={localModelsEnabled}
+                setLocalModelsEnabled={setLocalModelsEnabled}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </motion.div>
+    </div>
   );
 };
 

@@ -54,87 +54,53 @@ export interface AnalysisResult {
 // ============================================================================
 
 const MODEL_PROVIDER_MAP: Record<string, { provider: Provider; label: string }> = {
-  // Gemini models
-  'gemini-3.1-pro-preview': { provider: 'gemini', label: 'Gemini 3.1 Pro' },
-  'gemini-3-flash-preview': { provider: 'gemini', label: 'Gemini 3 Flash' },
-  'gemini-3.1-flash-lite': { provider: 'gemini', label: 'Gemini 3.1 Flash Lite' },
+  // Gemini 2 Series
   'gemini-2.5-pro': { provider: 'gemini', label: 'Gemini 2.5 Pro' },
   'gemini-2.5-flash': { provider: 'gemini', label: 'Gemini 2.5 Flash' },
-  'gemini-2.5-flash-lite': { provider: 'gemini', label: 'Gemini 2.5 Flash Lite' },
+
+  // Gemma 4 Series
+  'gemma-4-31b-it': { provider: 'gemini', label: 'Gemma 4 31B' },
+  'google/gemma-4-27b-it': { provider: 'openrouter', label: 'Gemma 4 27B' },
+  'gemma-4-26b-a4b-it': { provider: 'gemini', label: 'Gemma 4 26B MoE' },
+  'gemma-4-e4b-it': { provider: 'gemini', label: 'Gemma 4 E4B (Edge)' },
+  'gemma-4-e2b-it': { provider: 'gemini', label: 'Gemma 4 E2B (Edge)' },
   
-  // NVIDIA models
-  'moonshotai/kimi-k2.6-think': { provider: 'nvidia', label: 'Kimi K2.6 (Thinking)' },
-  'moonshotai/kimi-k2.6': { provider: 'nvidia', label: 'Kimi K2.6 (Fast)' },
+  // OpenRouter models - Free
+  'openrouter/free': { provider: 'openrouter', label: 'OpenRouter Auto (Free)' },
+  'google/gemma-4-31b-it:free': { provider: 'openrouter', label: 'Gemma 4 31B (Free)' },
+  'deepseek/deepseek-v4-flash:free': { provider: 'openrouter', label: 'DeepSeek V4 Flash (Free)' },
+  'meta-llama/llama-3.3-70b-instruct:free': { provider: 'openrouter', label: 'Llama 3.3 70B (Free)' },
+  'nvidia/nemotron-3-super-120b-a12b:free': { provider: 'openrouter', label: 'Nemotron 3 Super (Free)' },
+  'qwen/qwen3-next-80b-a3b-instruct:free': { provider: 'openrouter', label: 'Qwen3 Next 80B (Free)' },
+  'minimax/minimax-m2.5:free': { provider: 'openrouter', label: 'MiniMax M2.5 (Free)' },
   
-  // OpenRouter models - Paid models
-  'google/gemini-pro-1.5': { provider: 'openrouter', label: 'Gemini 1.5 Pro' },
-  'anthropic/claude-3.5-sonnet': { provider: 'openrouter', label: 'Claude 3.5 Sonnet' },
-  'meta-llama/llama-3.1-405b-instruct': { provider: 'openrouter', label: 'Llama 3.1 405B' },
-  'meta-llama/llama-3.1-70b-instruct': { provider: 'openrouter', label: 'Llama 3.1 70B' },
-  'qwen/qwen-2.5-72b-instruct': { provider: 'openrouter', label: 'Qwen 2.5 72B' },
-  'deepseek/deepseek-coder': { provider: 'openrouter', label: 'DeepSeek Coder' },
-  'qwen/qwen-2.5-coder-32b-instruct': { provider: 'openrouter', label: 'Qwen 2.5 Coder' },
-  
-  // OpenRouter Free Models
-  'google/gemma-2-9b-it:free': { provider: 'openrouter', label: 'Gemma 2 9B (Free)' },
-  'meta-llama/llama-3.1-8b-instruct:free': { provider: 'openrouter', label: 'Llama 3.1 8B (Free)' },
-  'mistralai/mistral-7b-instruct:free': { provider: 'openrouter', label: 'Mistral 7B (Free)' },
-  'microsoft/phi-3-mini-128k-instruct:free': { provider: 'openrouter', label: 'Phi-3 Mini (Free)' },
-  'qwen/qwen-2-7b-instruct:free': { provider: 'openrouter', label: 'Qwen 2 7B (Free)' },
-  
-  // OpenAI models
-  'gpt-4o': { provider: 'openai', label: 'GPT-4o (OpenAI)' },
-  'gpt-4o-mini': { provider: 'openai', label: 'GPT-4o Mini' },
-  
-  // Anthropic models
-  'claude-3-5-sonnet-20241022': { provider: 'anthropic', label: 'Claude 3.5 Sonnet' },
-  'claude-3-opus-20240229': { provider: 'anthropic', label: 'Claude 3 Opus' },
+  // OpenRouter Paid models
+  'google/gemma-3-27b-it': { provider: 'openrouter', label: 'Gemma 3 27B' },
+  'meta-llama/llama-3.3-70b-instruct': { provider: 'openrouter', label: 'Llama 3.3 70B' },
+  'mistralai/mistral-small-3.1-24b': { provider: 'openrouter', label: 'Mistral Small 3.1' },
+  'anthropic/claude-sonnet-4-20250514': { provider: 'openrouter', label: 'Claude Sonnet 4' },
+  'deepseek/deepseek-chat': { provider: 'openrouter', label: 'DeepSeek Chat' },
 };
 
 // ============================================================================
-// Model Provider Detection - Same logic as comparison grid (analysisHelpers.ts)
+// Model Provider Detection
 // ============================================================================
 
-/**
- * Detect provider exactly like comparison grid does
- */
 function detectProviderForAnalysis(
   modelId: string,
   ollamaModels: ModelDefinition[] | OllamaModel[] = [],
   lmStudioModels: any[] = []
 ): Provider {
-  // Check local Ollama models - OllamaModel has name, ModelDefinition has both id and name
-  const isOllamaModel = (m: any): boolean => {
-    if (m.id !== undefined) return m.id === modelId || m.name === modelId;
-    return m.name === modelId;
-  };
-  if (ollamaModels?.some(isOllamaModel)) {
-    return 'ollama';
-  }
-
-  // Check local LM Studio models
-  if (lmStudioModels?.some((m: any) => m.id === modelId || m.name === modelId)) {
-    return 'lmstudio';
-  }
-  
-  // Check available cloud models
   const availableModel = AVAILABLE_MODELS.find(m => m.id === modelId);
-  if (availableModel) {
-    return availableModel.provider as Provider;
-  }
-  
-  // Default fallback - same as comparison grid
+  if (availableModel) return availableModel.provider as Provider;
   if (modelId.includes('/')) return 'openrouter';
   return 'gemini';
 }
 
 // ============================================================================
-// Model Resolution - Structured way to find correct model and API key
+// Model Resolution
 // ============================================================================
 
-/**
- * Resolve model configuration - uses same logic as comparison grid
- */
 export function resolveModelConfig(
   modelId: string,
   apiKeys: Record<string, string>,
@@ -145,112 +111,57 @@ export function resolveModelConfig(
 ): AnalysisModelConfig | null {
   BugCollector.logEntry('AnalysisService', 'resolveModelConfig', { modelId, availableKeys: Object.keys(apiKeys) });
   
-  // Check for local Ollama first
-  const ollama = ollamaModels.find((m: any) => (m.id === modelId || m.name === modelId));
-  if (ollama) {
-    return {
-      modelId,
-      provider: 'ollama',
-      label: `Ollama: ${ollama.name || modelId}`,
-      apiKey: '',
-      baseUrl: ollamaBaseUrl || 'http://localhost:11434'
-    };
-  }
-  
-  // Check for LM Studio
-  const lms = lmStudioModels.find((m: any) => (m.id === modelId || m.name === modelId));
-  if (lms) {
-    return {
-      modelId,
-      provider: 'lmstudio',
-      label: `LM Studio: ${lms.name || lms.id || modelId}`,
-      apiKey: '',
-      baseUrl: lmStudioBaseUrl || 'http://localhost:1234'
-    };
+  if (!modelId || modelId.trim() === '') {
+    BugCollector.logExit('AnalysisService', 'resolveModelConfig', 'no model selected');
+    return null;
   }
 
-  // Use the same provider detection as comparison grid
   const provider = detectProviderForAnalysis(modelId, ollamaModels, lmStudioModels);
   
-  // First check our explicit map
   let config = MODEL_PROVIDER_MAP[modelId];
   
-  // If not found in map, use the detected provider
   if (!config) {
     const availableModel = AVAILABLE_MODELS.find(m => m.id === modelId);
     if (availableModel) {
-      config = {
-        provider: availableModel.provider as Provider,
-        label: availableModel.name
-      };
+      config = { provider: availableModel.provider as Provider, label: availableModel.name };
     } else {
       config = { provider, label: modelId };
     }
   }
   
-  // Ensure we use the detected provider
   config = { ...config, provider };
-  
-  // Get API key for the provider
   const apiKey = apiKeys[provider];
   
   if (!apiKey || apiKey.trim().length === 0) {
-    BugCollector.report(
-      'AnalysisService',
-      `Missing API key for provider: ${config.provider}`,
-      { modelId, provider: config.provider, availableKeys: Object.keys(apiKeys) },
-      'high'
-    );
+    BugCollector.report('AnalysisService', `Missing API key for provider: ${config.provider}`, { modelId, provider: config.provider, availableKeys: Object.keys(apiKeys) }, 'high');
     BugCollector.logExit('AnalysisService', 'resolveModelConfig', null);
     return null;
   }
   
-  const result = {
-    modelId,
-    provider: config.provider,
-    apiKey: apiKey.trim(),
-    label: config.label
-  };
-  
+  const result = { modelId, provider: config.provider, apiKey: apiKey.trim(), label: config.label };
   BugCollector.logExit('AnalysisService', 'resolveModelConfig', result);
   return result;
 }
 
-/**
- * Get available analysis models with their provider info
- */
 export function getAvailableAnalysisModels(apiKeys: Record<string, string>): AnalysisModelConfig[] {
   BugCollector.logEntry('AnalysisService', 'getAvailableAnalysisModels', { apiKeys: Object.keys(apiKeys) });
   
   const available: AnalysisModelConfig[] = [];
-  
-  // Priority order for analysis models - use actual valid model IDs
-  // Free models first (no API key cost), then paid models
   const priorityModels = [
-    // Gemini models (if key available)
-    'gemini-3.1-pro-preview',
-    'gemini-2.5-flash', 
-    'gemini-2.5-flash-lite',
-    // OpenRouter Free models (no cost)
-    'google/gemma-2-9b-it:free',
-    'meta-llama/llama-3.1-8b-instruct:free',
-    'mistralai/mistral-7b-instruct:free',
-    'microsoft/phi-3-mini-128k-instruct:free',
-    'qwen/qwen-2-7b-instruct:free',
-    // OpenRouter Paid models
-    'google/gemini-pro-1.5',
-    'anthropic/claude-3.5-sonnet',
-    'meta-llama/llama-3.1-70b-instruct',
-    'meta-llama/llama-3.1-405b-instruct',
-    // NVIDIA
-    'moonshotai/kimi-k2.6'
+    'gemini-2.5-flash', 'gemini-2.5-pro',
+    'gemma-4-31b-it', 'gemma-4-26b-a4b-it', 'gemma-4-e4b-it', 'gemma-4-e2b-it',
+    'google/gemma-4-27b-it',
+    'openrouter/free', 'google/gemma-4-31b-it:free', 'deepseek/deepseek-v4-flash:free',
+    'meta-llama/llama-3.3-70b-instruct:free', 'nvidia/nemotron-3-super-120b-a12b:free',
+    'qwen/qwen3-next-80b-a3b-instruct:free', 'minimax/minimax-m2.5:free',
+    'google/gemma-3-27b-it', 'anthropic/claude-sonnet-4-20250514',
+    'meta-llama/llama-3.3-70b-instruct', 'mistralai/mistral-small-3.1-24b',
+    'moonshotai/kimi-k2.6', 'deepseekai/deepseek-v4-flash',
   ];
   
   for (const modelId of priorityModels) {
     const config = resolveModelConfig(modelId, apiKeys);
-    if (config) {
-      available.push(config);
-    }
+    if (config) available.push(config);
   }
   
   BugCollector.logExit('AnalysisService', 'getAvailableAnalysisModels', { count: available.length });
@@ -258,50 +169,29 @@ export function getAvailableAnalysisModels(apiKeys: Record<string, string>): Ana
 }
 
 // ============================================================================
-// JSON Extraction - Robust parsing with error handling
+// JSON Extraction
 // ============================================================================
 
-/**
- * Extract JSON from model response with comprehensive error handling
- */
 function extractAnalysisJSON(text: string): AnalysisResponse {
   BugCollector.logEntry('AnalysisService', 'extractAnalysisJSON', { textLength: text?.length });
   
   if (!text || text.trim().length === 0) {
     BugCollector.report('AnalysisService', 'Empty response from model', { text }, 'critical');
-    throw new Error('Model returned empty response. No data received from the API.');
+    throw new Error('Model returned empty response.');
   }
   
-  // Check for error indicators in response
-  const lowerText = text.toLowerCase();
-  if (lowerText.includes('error') || lowerText.includes('failed') || lowerText.includes('exception')) {
-    // Try to extract error message
-    const errorMatch = text.match(/"?error"?[\s:]*"?([^"]+)"?/i) || text.match(/error[\s:]+(.+)/i);
-    const errorMsg = errorMatch ? errorMatch[1].substring(0, 100) : text.substring(0, 150);
-    BugCollector.report('AnalysisService', 'API returned error', { error: errorMsg, fullResponse: text.substring(0, 500) }, 'critical');
-    throw new Error(`API Error: ${errorMsg}`);
-  }
-  
-  // Try markdown code block first
   let content = text;
   const markdownMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (markdownMatch) {
-    content = markdownMatch[1];
-  }
+  if (markdownMatch) content = markdownMatch[1];
   
-  // Try to find JSON object
   const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    content = jsonMatch[0];
-  }
+  if (jsonMatch) content = jsonMatch[0];
   
-  // Validate JSON
   try {
     const parsed = JSON.parse(content);
     BugCollector.logExit('AnalysisService', 'extractAnalysisJSON', 'success');
     return parsed as AnalysisResponse;
   } catch (parseError: any) {
-    // Try alternative brace matching
     const startIdx = content.indexOf('{');
     const endIdx = content.lastIndexOf('}');
     
@@ -314,29 +204,57 @@ function extractAnalysisJSON(text: string): AnalysisResponse {
       } catch {}
     }
     
-    // If all parsing fails, report the bug
-    BugCollector.report(
-      'AnalysisService',
-      'Failed to parse JSON from model response',
-      { 
-        error: parseError.message, 
-        textPreview: text.substring(0, 300),
-        textLength: text.length
-      },
-      'high'
-    );
-    
-    throw new Error(`Model returned invalid JSON. The response format was not recognized. Response preview: ${text.substring(0, 200)}...`);
+    BugCollector.report('AnalysisService', 'Failed to parse JSON', { error: parseError.message, textPreview: text.substring(0, 300) }, 'high');
+    throw new Error(`Invalid JSON response. Preview: ${text.substring(0, 200)}...`);
   }
 }
 
 // ============================================================================
-// Main Analysis Function
+// Shared Prompt Builder — Token-Efficient Unified Analysis
 // ============================================================================
 
+/** Max chars per model output sent to the judge — truncation saves input tokens */
+const MAX_OUTPUT_CHARS = 1500;
+
+function truncate(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  return text.slice(0, limit) + '\n…[truncated]';
+}
+
 /**
- * Run standard analysis on model responses
+ * Build a compact judge prompt shared by both standard and code analysis.
+ * Same 5-pillar rubric for every mode. Code mode adds a `code` field.
  */
+function buildJudgePrompt(
+  globalPrompt: string,
+  responses: Array<{ modelId: string; output: string }>,
+  mode: 'standard' | 'code'
+): string {
+  const models = responses
+    .map(r => `[${r.modelId}]\n${truncate(r.output, MAX_OUTPUT_CHARS)}`)
+    .join('\n---\n');
+
+  const codeExtra = mode === 'code'
+    ? `,"code":{"lang":"string","best":"modelId","impl":"merged best-of code","explain":"1-2 sentence summary"}`
+    : '';
+
+  return `Compare AI model outputs. Evaluate on Memory, Formatting, Nuance, Logic, Efficiency (each 0-20, total 0-100).
+
+TASK: "${truncate(globalPrompt, 500)}"
+
+RULES: Raw JSON only. No markdown fences. No commentary. Keep strings short.
+
+SCHEMA:
+{"best":"modelId","consensus":"short synthesized answer","diff":[{"cat":"Memory|Formatting|Nuance|Logic|Efficiency","desc":"short","impact":"high|med|low"}],"scores":{"<modelId>":{"s":<0-100>,"a":"short analysis","f":"short feedback"}}${codeExtra}}
+
+RESPONSES:
+${models}`;
+}
+
+// ============================================================================
+// Main Analysis Functions
+// ============================================================================
+
 export async function runStandardAnalysis(
   globalPrompt: string,
   responses: Array<{ modelId: string; output: string; localPrompt?: string }>,
@@ -349,133 +267,63 @@ export async function runStandardAnalysis(
     model: analysisModelConfig.modelId,
     provider: analysisModelConfig.provider
   });
-  
-  // Format responses for the judge prompt
-  const formattedResponses = responses
-    .map(r => `
-MODEL [${r.modelId}]:
-SOURCE PROMPT: ${r.localPrompt || globalPrompt}
-OUTPUT:
-${r.output}
----`)
-    .join("\n\n");
-  
-  // Build the judge prompt
-  const judgePrompt = `
-You are an expert AI evaluator comparing responses from different language models.
-Find a "Daily Driver" model based on Memory, Formatting, Nuance, Logic, and Efficiency.
 
-USER PROMPT: "${globalPrompt}"
+  const judgePrompt = buildJudgePrompt(globalPrompt, responses, 'standard');
 
-RULES:
-1. Reference each model by its exact ID shown in brackets.
-2. Output ONLY raw JSON matching the schema below. 
-3. DO NOT include any markdown code fences or conversational text.
-4. "consensus" is a synthesized best-answer in markdown.
-
-SCHEMA:
-{
-  "bestResponseId": "exact modelId string",
-  "consensus": "Synthesized markdown answer",
-  "methodology": "Daily-Driver Optimization Audit",
-  "differences": [
-    {
-      "category": "Memory|Formatting|Nuance|Logic|Efficiency",
-      "description": "Short divergence description",
-      "impact": "high|medium|low"
-    }
-  ],
-  "critique": {
-    "<modelId>": {
-      "analysis": "Pillar-focused analysis",
-      "actionableFeedback": "Specific improvement tip",
-      "score": <0-100>
-    }
-  }
-}
-
-MODEL RESPONSES:
-${formattedResponses}
-`;
-  
   try {
-    // Call the AI
     const result = await callAI(
       analysisModelConfig.modelId,
       analysisModelConfig.provider,
       judgePrompt,
       analysisModelConfig.apiKey,
-      "Output ONLY valid JSON. No markdown fences. No yapping.",
-      { maxTokens: 8192 },
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      { 
-        lmStudioBaseUrl: analysisModelConfig.provider === 'lmstudio' ? analysisModelConfig.baseUrl : undefined,
-        ollamaBaseUrl: analysisModelConfig.provider === 'ollama' ? analysisModelConfig.baseUrl : undefined
-      }
+      'JSON evaluator. Output raw JSON only.',
+      { maxTokens: 1024 },
+      undefined, undefined, undefined, undefined, {}
     );
-    
+
     const parseTime = Date.now() - startTime;
-    
-    BugCollector.logEntry('AnalysisService', 'runStandardAnalysis parse', {
-      responseLength: result.text?.length,
-      parseTime
-    });
-    
-    // Extract and validate JSON
-    const analysisData = extractAnalysisJSON(result.text);
-    
-    const successResult: AnalysisResult = {
+    const raw = extractAnalysisJSON(result.text);
+
+    // Normalise compact schema → existing AnalysisResponse shape
+    const analysisData: AnalysisResponse = {
+      bestResponseId: (raw as any).best ?? (raw as any).bestResponseId ?? '',
+      consensus: (raw as any).consensus ?? '',
+      methodology: 'Daily-Driver Optimization Audit',
+      differences: ((raw as any).diff ?? (raw as any).differences ?? []).map((d: any) => ({
+        category: d.cat ?? d.category ?? '',
+        description: d.desc ?? d.description ?? '',
+        impact: d.impact ?? 'medium'
+      })),
+      critique: Object.fromEntries(
+        Object.entries((raw as any).scores ?? (raw as any).critique ?? {}).map(([k, v]: [string, any]) => [
+          k,
+          {
+            score: v.s ?? v.score ?? 0,
+            analysis: v.a ?? v.analysis ?? '',
+            actionableFeedback: v.f ?? v.actionableFeedback ?? ''
+          }
+        ])
+      )
+    };
+
+    BugCollector.logExit('AnalysisService', 'runStandardAnalysis', 'success');
+    return {
       success: true,
       data: analysisData,
-      debugInfo: {
-        modelUsed: analysisModelConfig.modelId,
-        provider: analysisModelConfig.provider,
-        responseLength: result.text?.length || 0,
-        parseTime
-      }
+      debugInfo: { modelUsed: analysisModelConfig.modelId, provider: analysisModelConfig.provider, responseLength: result.text?.length || 0, parseTime }
     };
-    
-    BugCollector.logExit('AnalysisService', 'runStandardAnalysis', 'success');
-    return successResult;
-    
   } catch (error: any) {
     BugCollector.logError('AnalysisService', 'runStandardAnalysis', error);
-    
-    const errorMessage = error.message || String(error);
-    
-    let userMessage = errorMessage;
-    
-    if (errorMessage.includes('quota') || errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
-      userMessage = `API quota exceeded for ${analysisModelConfig.label}. Check your provider dashboard.`;
-    } else if (errorMessage.includes('format')) {
-      userMessage = errorMessage;
-    } else if (errorMessage.includes('API key') || errorMessage.includes('unauthorized') || errorMessage.includes('401')) {
-      userMessage = `Invalid API key for ${analysisModelConfig.label}. Please check your Settings.`;
-    } else if (errorMessage.includes('No response') || errorMessage.includes('empty')) {
-      userMessage = `No response from ${analysisModelConfig.label}. The service may be unavailable.`;
-    } else if (errorMessage.includes('JSON') || errorMessage.includes('invalid')) {
-      userMessage = `Model returned invalid response. Try selecting a different model for analysis.`;
-    }
-    
-    return {
-      success: false,
-      error: userMessage,
-      debugInfo: {
-        modelUsed: analysisModelConfig.modelId,
-        provider: analysisModelConfig.provider,
-        responseLength: 0,
-        parseTime: Date.now() - startTime
-      }
-    };
+    const msg = error.message || String(error);
+    let userMessage = msg;
+    if (/quota|429|RESOURCE_EXHAUSTED/.test(msg)) userMessage = `Quota exceeded for ${analysisModelConfig.label}.`;
+    else if (/API key|unauthorized|401/.test(msg)) userMessage = `Invalid API key for ${analysisModelConfig.label}.`;
+    else if (/No response|empty/.test(msg)) userMessage = `No response from ${analysisModelConfig.label}.`;
+    else if (/JSON|invalid/.test(msg)) userMessage = 'Invalid response. Try a different analysis model.';
+    return { success: false, error: userMessage, debugInfo: { modelUsed: analysisModelConfig.modelId, provider: analysisModelConfig.provider, responseLength: 0, parseTime: Date.now() - startTime } };
   }
 }
 
-/**
- * Run code analysis on model responses
- */
 export async function runCodeAnalysis(
   userPrompt: string,
   responses: Array<{ modelId: string; output: string; localPrompt?: string }>,
@@ -487,104 +335,64 @@ export async function runCodeAnalysis(
     responseCount: responses.length,
     model: analysisModelConfig.modelId
   });
-  
-  const formattedResponses = responses
-    .map(r => `MODEL [${r.modelId}]:\n${r.output}\n---`)
-    .join("\n\n");
-  
-  const judgePrompt = `
-You are a Lead Software Architect reviewing code from multiple AI models.
-Evaluate implementation quality using a strict 100-point rubric.
 
-USER'S CODING TASK: "${userPrompt}"
+  const judgePrompt = buildJudgePrompt(userPrompt, responses, 'code');
 
-RUBRIC:
-1. **Execution (40 pts)**: Reliability, edge cases, security.
-2. **Explanation (30 pts)**: Clarity of architecture, formatting.
-3. **Efficiency (30 pts)**: Optimization, modularity.
-
-RULES:
-1. Output ONLY raw JSON. No markdown code fences. No conversational text.
-2. Every model ID MUST have an entry in "modelCodeAnalysis".
-3. "combinedCode" must be a complete, runnable best-of implementation.
-
-SCHEMA:
-{
-  "isCodeResponse": true,
-  "language": "detected-lang",
-  "bestModelId": "modelId",
-  "combinedCode": "Complete code implementation",
-  "combinedExplanation": "Architectural summary",
-  "modelCodeAnalysis": {
-    "<modelId>": {
-      "codeQualityScore": <0-100>,
-      "executionScore": <0-40>,
-      "explanationScore": <0-30>,
-      "efficiencyScore": <0-30>,
-      "strengths": ["list"],
-      "weaknesses": ["list"],
-      "extractedCode": "code block"
-    }
-  },
-  "codeDifferences": [
-    {
-      "aspect": "Execution|Explanation|Efficiency",
-      "description": "Short divergence description",
-      "winner": "modelId"
-    }
-  ]
-}
-
-MODEL RESPONSES:
-${formattedResponses}
-`;
-  
   try {
     const result = await callAI(
       analysisModelConfig.modelId,
       analysisModelConfig.provider,
       judgePrompt,
       analysisModelConfig.apiKey,
-      "Output ONLY valid JSON. No markdown fences. No yapping.",
-      { maxTokens: 16384 },
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      { 
-        lmStudioBaseUrl: analysisModelConfig.provider === 'lmstudio' ? analysisModelConfig.baseUrl : undefined,
-        ollamaBaseUrl: analysisModelConfig.provider === 'ollama' ? analysisModelConfig.baseUrl : undefined
-      }
+      'JSON evaluator. Output raw JSON only.',
+      { maxTokens: 1536 },
+      undefined, undefined, undefined, undefined, {}
     );
-    
+
     const parseTime = Date.now() - startTime;
-    const analysisData = extractAnalysisJSON(result.text) as any;
-    
+    const raw = extractAnalysisJSON(result.text) as any;
+
+    // Normalise compact code schema → existing CodeAnalysisResult shape
+    const codeBlock = raw.code ?? {};
+    const analysisData = {
+      isCodeResponse: true,
+      language: codeBlock.lang ?? raw.language ?? 'unknown',
+      bestModelId: codeBlock.best ?? raw.bestModelId ?? raw.best ?? '',
+      combinedCode: codeBlock.impl ?? raw.combinedCode ?? '',
+      combinedExplanation: codeBlock.explain ?? raw.combinedExplanation ?? '',
+      modelCodeAnalysis: Object.fromEntries(
+        Object.entries(raw.scores ?? raw.modelCodeAnalysis ?? {}).map(([k, v]: [string, any]) => [
+          k,
+          {
+            codeQualityScore: v.s ?? v.codeQualityScore ?? 0,
+            executionScore: v.executionScore ?? Math.round(((v.s ?? 0) * 40) / 100),
+            explanationScore: v.explanationScore ?? Math.round(((v.s ?? 0) * 30) / 100),
+            efficiencyScore: v.efficiencyScore ?? Math.round(((v.s ?? 0) * 30) / 100),
+            strengths: v.strengths ?? [],
+            weaknesses: v.weaknesses ?? [],
+            extractedCode: v.extractedCode ?? ''
+          }
+        ])
+      ),
+      codeDifferences: ((raw.diff ?? raw.codeDifferences ?? []) as any[]).map((d: any) => ({
+        aspect: d.cat ?? d.aspect ?? '',
+        description: d.desc ?? d.description ?? '',
+        winner: d.winner ?? ''
+      }))
+    };
+
     BugCollector.logExit('AnalysisService', 'runCodeAnalysis', 'success');
-    
     return {
       success: true,
-      data: analysisData,
-      debugInfo: {
-        modelUsed: analysisModelConfig.modelId,
-        provider: analysisModelConfig.provider,
-        responseLength: result.text?.length || 0,
-        parseTime
-      }
+      data: analysisData as any,
+      debugInfo: { modelUsed: analysisModelConfig.modelId, provider: analysisModelConfig.provider, responseLength: result.text?.length || 0, parseTime }
     };
-    
   } catch (error: any) {
     BugCollector.logError('AnalysisService', 'runCodeAnalysis', error);
-    
     return {
       success: false,
       error: error.message || String(error),
-      debugInfo: {
-        modelUsed: analysisModelConfig.modelId,
-        provider: analysisModelConfig.provider,
-        responseLength: 0,
-        parseTime: Date.now() - startTime
-      }
+      debugInfo: { modelUsed: analysisModelConfig.modelId, provider: analysisModelConfig.provider, responseLength: 0, parseTime: Date.now() - startTime }
     };
   }
 }

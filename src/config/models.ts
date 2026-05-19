@@ -1,215 +1,163 @@
 import { ModelOption } from '../types';
 
-export const AVAILABLE_MODELS: ModelOption[] = [
-  // ── Gemini 3.x Series (Preview) ────────────────────────────
+// Anthropic Claude via OpenRouter
+export const CLAUDE_MODELS: ModelOption[] = [
   {
-    id: 'gemini-3.1-pro-preview',
-    name: 'Gemini 3.1 Pro',
-    provider: 'gemini',
-    description: 'Elite 2026 flagship for complex coding, architectural logic, and multimodal reasoning.',
-    specs: { contextWindow: '5M Tokens', trainingData: 'Dec 2025', maxOutput: '16,384', modality: 'Native Omni' }
-  },
-  {
-    id: 'gemini-3-flash-preview',
-    name: 'Gemini 3 Flash',
-    provider: 'gemini',
-    description: 'State-of-the-art speedster for real-time everyday tasks, rapid prototyping, and snappiness.',
-    specs: { contextWindow: '1M Tokens', trainingData: 'Dec 2025', maxOutput: '8,192', modality: 'Native Omni' }
-  },
-  {
-    id: 'gemini-3.1-flash-lite',
-    name: 'Gemini 3.1 Flash Lite',
-    provider: 'gemini',
-    description: 'Ultra-low latency lightweight model for high-frequency tasks.',
-    specs: { contextWindow: '512K Tokens', trainingData: 'Dec 2025', maxOutput: '4,096', modality: 'Text/Vision' }
-  },
-  // ── Gemini 2.5 Series (Stable) ──────────────────────────────
-  {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
-    provider: 'gemini',
-    description: 'Production-stable high-intelligence model with exceptional reasoning.',
-    specs: { contextWindow: '2M Tokens', trainingData: 'Aug 2025', maxOutput: '8,192', modality: 'Multimodal' }
-  },
-  {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    provider: 'gemini',
-    description: 'High-throughput balanced model for efficient large-scale processing.',
-    specs: { contextWindow: '1M Tokens', trainingData: 'Aug 2025', maxOutput: '8,192', modality: 'Multimodal' }
-  },
-  {
-    id: 'gemini-2.5-flash-lite',
-    name: 'Gemini 2.5 Flash Lite',
-    provider: 'gemini',
-    description: 'Lightest and fastest 2.5-series model, optimized for cost-efficient tasks.',
-    specs: { contextWindow: '512K Tokens', trainingData: 'Aug 2025', maxOutput: '4,096', modality: 'Text/Vision' }
-  },
-
-  { 
-    id: 'openai/gpt-4o', 
-    name: 'GPT-4o', 
-    provider: 'openrouter', 
-    description: 'OpenAI flagship multimodal model with human-level logic.',
-    specs: { contextWindow: '128K Tokens', trainingData: 'Oct 2023', maxOutput: '4,096', modality: 'Omni-Multimodal' }
-  },
-  { 
-    id: 'anthropic/claude-3.5-sonnet', 
-    name: 'Claude 3.5 Sonnet', 
-    provider: 'openrouter', 
-    description: 'Anthropic next-gen reasoning with unparalleled coding skill.',
-    specs: { contextWindow: '200K Tokens', trainingData: 'Apr 2024', maxOutput: '8,192', modality: 'Multimodal' }
-  },
-  { 
-    id: 'meta-llama/llama-3.1-405b-instruct', 
-    name: 'Llama 3.1 405B', 
-    provider: 'openrouter', 
-    description: 'The world\'s most powerful open-source foundation model.',
-    specs: { contextWindow: '128K Tokens', trainingData: 'July 2024', maxOutput: '4,096', modality: 'Text' }
-  },
-  { 
-    id: 'google/gemini-pro-1.5', 
-    name: 'Gemini 1.5 Pro (OR)', 
-    provider: 'openrouter', 
-    description: 'Google flagship reasoning engine via OpenRouter.',
-    specs: { contextWindow: '2M Tokens', trainingData: 'Apr 2024', maxOutput: '8,192', modality: 'Multimodal' }
-  },
-  { 
-    id: 'qwen/qwen-2.5-72b-instruct', 
-    name: 'Qwen 2.5 72B', 
-    provider: 'openrouter', 
-    description: 'Alibaba flagship with incredible math and code capabilities.',
-    specs: { contextWindow: '128K Tokens', trainingData: 'Sept 2024', maxOutput: '8,192', modality: 'Text/Code' }
-  },
-  { 
-    id: 'mistralai/mistral-large-2407', 
-    name: 'Mistral Large 2', 
-    provider: 'openrouter', 
-    description: 'Mistral flagship for complex multilingual logic.',
-    specs: { contextWindow: '128K Tokens', trainingData: 'July 2024', maxOutput: '8,192', modality: 'Text' }
-  },
-  { 
-    id: 'deepseek/deepseek-coder', 
-    name: 'DeepSeek Coder V2', 
-    provider: 'openrouter', 
-    description: 'State-of-the-art open-source coding specialist.',
-    specs: { contextWindow: '128K Tokens', trainingData: 'June 2024', maxOutput: '8,192', modality: 'Text/Code' }
-  },
-  { 
-    id: 'qwen/qwen-2.5-coder-32b-instruct', 
-    name: 'Qwen 2.5 Coder 32B', 
-    provider: 'openrouter', 
-    description: 'Alibaba Specialized coding engine with superior reasoning and debugging.',
-    specs: { contextWindow: '128K Tokens', trainingData: 'Sept 2024', maxOutput: '8,192', modality: 'Text/Code' }
-  },
-  {
-    id: 'google/gemini-2.0-flash-exp:free',
-    name: 'Gemini 2.0 Flash (Free)',
+    id: 'anthropic/claude-sonnet-4-20250514',
+    name: 'Claude Sonnet 4 (Latest)',
     provider: 'openrouter',
-    description: 'Next-gen experimental flash model from Google (via OpenRouter Free).',
-    specs: { contextWindow: '1M Tokens', trainingData: 'Dec 2024', maxOutput: '8,192', modality: 'Omni' }
+    description: 'Anthropic latest Sonnet model with enhanced coding capabilities.',
+    specs: { contextWindow: '200K', trainingData: '2025', maxOutput: '32K', modality: 'Text' }
   },
-
-  // ── OpenRouter: High-Performance (Mid-Tier) ──────────────────
-  { 
-    id: 'anthropic/claude-3-haiku', 
-    name: 'Claude 3 Haiku', 
-    provider: 'openrouter', 
-    description: 'Ultra-fast intelligence for rapid interactions.',
-    specs: { contextWindow: '200K Tokens', trainingData: 'Mar 2024', maxOutput: '4,096', modality: 'Text/Vision' }
-  },
-  { 
-    id: 'meta-llama/llama-3.1-70b-instruct', 
-    name: 'Llama 3.1 70B', 
-    provider: 'openrouter', 
-    description: 'High-intelligence Meta model with deep reasoning.',
-    specs: { contextWindow: '128K Tokens', trainingData: 'July 2024', maxOutput: '4,096', modality: 'Text' }
-  },
-
-  // ── OpenRouter: Zero-Cost / Free Tier ───────────────────────
-  { 
-    id: 'openrouter/auto', 
-    name: 'OpenRouter Auto', 
-    provider: 'openrouter', 
-    description: 'Auto-routes to the best performing free model available.',
-    specs: { contextWindow: 'Varies', trainingData: 'Dynamic', maxOutput: 'Varies', modality: 'Text/Vision' } 
-  },
-  { 
-    id: 'google/gemma-2-9b-it:free', 
-    name: 'Gemma 2 9B (Free)', 
-    provider: 'openrouter', 
-    description: 'Google DeepMind efficient instruction-tuned model.',
-    specs: { contextWindow: '8,192', trainingData: 'Mar 2024', maxOutput: '8,192', modality: 'Text' } 
-  },
-  { 
-    id: 'meta-llama/llama-3.1-8b-instruct:free', 
-    name: 'Llama 3.1 8B (Free)', 
-    provider: 'openrouter', 
-    description: 'Meta efficient 8B model for edge applications.',
-    specs: { contextWindow: '128K Tokens', trainingData: 'July 2024', maxOutput: '4,096', modality: 'Text' } 
-  },
-  { 
-    id: 'mistralai/mistral-7b-instruct:free', 
-    name: 'Mistral 7B (Free)', 
-    provider: 'openrouter', 
-    description: 'Mistral high-performance dense model.',
-    specs: { contextWindow: '32K Tokens', trainingData: 'Sept 2023', maxOutput: '8,192', modality: 'Text' } 
-  },
-  { 
-    id: 'microsoft/phi-3-mini-128k-instruct:free', 
-    name: 'Phi-3 Mini (Free)', 
-    provider: 'openrouter', 
-    description: 'Microsoft compact model with huge context window.',
-    specs: { contextWindow: '128K Tokens', trainingData: 'Apr 2024', maxOutput: '4,096', modality: 'Text' } 
-  },
-  { 
-    id: 'qwen/qwen-2-7b-instruct:free', 
-    name: 'Qwen 2 7B (Free)', 
-    provider: 'openrouter', 
-    description: 'Alibaba high-efficiency language model.',
-    specs: { contextWindow: '128K Tokens', trainingData: 'June 2024', maxOutput: '8,192', modality: 'Text' } 
-  },
-
-  // ── NVIDIA NIM: Thinking Models ──────────────────
   {
-    id: 'moonshotai/kimi-k2-thinking',
-    name: 'Kimi K2 (Thinking)',
-    provider: 'nvidia',
-    description: 'Nvidia NIM hosted Moonshot Kimi K2 with thinking capabilities.',
-    specs: { contextWindow: '128k', trainingData: '2024', maxOutput: '8k', modality: 'Text/Thinking' }
-  },
-  // ── NVIDIA NIM: Fast Models ──────────────────
-  {
-    id: 'moonshotai/kimi-k2.6',
-    name: 'Kimi K2.6 (Fast)',
-    provider: 'nvidia',
-    description: 'Fast response mode without internal thinking. Quick answers for simple tasks.',
-    specs: { contextWindow: '128K Tokens', trainingData: '2025', maxOutput: '16,384', modality: 'Text' }
+    id: 'anthropic/claude-3.5-sonnet',
+    name: 'Claude 3.5 Sonnet',
+    provider: 'openrouter',
+    description: 'Strong coding and reasoning capabilities.',
+    specs: { contextWindow: '200K', trainingData: '2024', maxOutput: '8K', modality: 'Text' }
   },
 ];
 
+// OpenCode Zen - All verified free models
 export const FREE_OPENCODE_MODELS: ModelOption[] = [
-  { id: 'opencode/elephant-free', name: 'Elephant (free)', provider: 'opencode', description: 'Powerful free reasoning model.' },
-  { id: 'opencode/ring-2.6-1t-free', name: 'Ring 2.6 1T Free', provider: 'opencode', description: 'High-capacity free model.' },
-  { id: 'opencode/gemma-3-4b-free', name: 'Gemma 3 4B (free)', provider: 'opencode', description: 'Fast and efficient free model.' },
-  { id: 'opencode/uncensored-free', name: 'Uncensored (free)', provider: 'opencode', description: 'Unfiltered free intelligence.' },
-  { id: 'opencode/minimax-m2.5-free', name: 'MiniMax M2.5 Free', provider: 'opencode', description: 'Balanced performance free model.' },
-  { id: 'opencode/free-models-router', name: 'Free Models Router', provider: 'opencode', description: 'Intelligent routing between free models.' },
-  { id: 'opencode/gemma-3n-2b-free', name: 'Gemma 3n 2B (free)', provider: 'opencode', description: 'Fast free model.' },
-  { id: 'opencode/gemma-3-12b-free', name: 'Gemma 3 12B (free)', provider: 'opencode', description: 'Medium-weight powerful free model.' },
-  { id: 'opencode/gemma-3n-4b-free', name: 'Gemma 3n 4B (free)', provider: 'opencode', description: 'Efficient free model.' },
-  { id: 'opencode/gemma-3-27b-free', name: 'Gemma 3 27B (free)', provider: 'opencode', description: 'Strong free model.' },
-  { id: 'opencode/gemma-4-31b-free', name: 'Gemma 4 31B (free)', provider: 'opencode', description: 'Next-gen free model.' },
-  { id: 'opencode/glm-4.5-air-free', name: 'GLM 4.5 Air (free)', provider: 'opencode', description: 'Lightweight and agile free model.' },
-  { id: 'opencode/gpt-oss-20b-free', name: 'gpt-oss-20b (free)', provider: 'opencode', description: 'Open source free model.' },
-  { id: 'opencode/minimax-m2.5-free-or', name: 'MiniMax M2.5 (free)', provider: 'opencode', description: 'MiniMax free model.' },
-  { id: 'opencode/gpt-oss-120b-free', name: 'gpt-oss-120b (free)', provider: 'opencode', description: 'Large-scale open source free model.' },
-  { id: 'opencode/nemotron-3-super-free', name: 'Nemotron 3 Super Free', provider: 'opencode', description: 'High-performance free vision/text model.' },
-  { id: 'opencode/gemma-4-26b-a4b-free', name: 'Gemma 4 26B A4B (free)', provider: 'opencode', description: 'Gemma 4 free model.' },
-  { id: 'opencode/nemotron-3-nano-omni-free', name: 'Nemotron 3 Nano Omni (free)', provider: 'opencode', description: 'Nano omni free model.' },
-  { id: 'opencode/lfm-2.5-1.2b-thinking-free', name: 'LFM 2.5-1.2B-Thinking (free)', provider: 'opencode', description: 'Thinking free model.' },
-  { id: 'opencode/llama-3.2-3b-instruct-free', name: 'Llama 3.2 3B Instruct (free)', provider: 'opencode', description: 'Compact free instruction model.' },
-  { id: 'opencode/llama-3.3-70b-instruct-free', name: 'Llama 3.3 70B Instruct (free)', provider: 'opencode', description: 'Flagship-level free instruction model.' },
-  { id: 'opencode/hermes-3-405b-instruct-free', name: 'Hermes 3 405B Instruct (free)', provider: 'opencode', description: 'Elite reasoning free model.' },
-  { id: 'opencode/gemini-3-flash-preview-free', name: 'Gemini 3 Flash Preview (free)', provider: 'opencode', description: 'Next-gen speed and intelligence (Free).' },
+  {
+    id: 'opencode/big-pickle',
+    name: 'Big Pickle',
+    provider: 'opencode',
+    description: 'Stealth model optimized for coding agents. Currently free.',
+    specs: { contextWindow: '200K', trainingData: '2026', maxOutput: '8K', modality: 'Text' }
+  },
+  {
+    id: 'opencode/deepseek-v4-flash-free',
+    name: 'DeepSeek V4 Flash (Free)',
+    provider: 'opencode',
+    description: 'Fast DeepSeek model for quick tasks. Free on Zen.',
+    specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' }
+  },
+  {
+    id: 'opencode/minimax-m2.5-free',
+    name: 'MiniMax M2.5 (Free)',
+    provider: 'opencode',
+    description: 'Strong at coding and reasoning. Free on Zen.',
+    specs: { contextWindow: '200K', trainingData: '2025', maxOutput: '8K', modality: 'Text' }
+  },
+  {
+    id: 'opencode/ring-2.6-1t-free',
+    name: 'Ring 2.6 1T (Free)',
+    provider: 'opencode',
+    description: 'High-capacity reasoning model. Free on Zen.',
+    specs: { contextWindow: '200K', trainingData: '2025', maxOutput: '16K', modality: 'Text' }
+  },
+  {
+    id: 'opencode/nemotron-3-super-free',
+    name: 'Nemotron 3 Super (Free)',
+    provider: 'opencode',
+    description: "NVIDIA's open-weight model. Free on Zen.",
+    specs: { contextWindow: '1M', trainingData: '2025', maxOutput: '8K', modality: 'Text' }
+  },
 ];
+
+const RAW_AVAILABLE_MODELS: ModelOption[] = [
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // OPENROUTER - FREE MODELS (Current)
+  // ═══════════════════════════════════════════════════════════════════════════════
+  { id: 'openrouter/owl-alpha', name: 'OpenRouter OWL Alpha', provider: 'openrouter', description: 'OpenRouter flagship reasoning model', specs: { contextWindow: '1M', trainingData: '2025', maxOutput: '32K', modality: 'Text' } },
+  { id: 'openrouter/free', name: 'OpenRouter Auto (Free)', provider: 'openrouter', description: 'Auto-routes to best free model', specs: { contextWindow: '200K', trainingData: 'Dynamic', maxOutput: '8K', modality: 'Text' } },
+  { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (Free)', provider: 'openrouter', description: "Google's latest Gemma flagship", specs: { contextWindow: '262K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'google/gemma-4-26b-a4b-it:free', name: 'Gemma 4 26B (Free)', provider: 'openrouter', description: "Google's efficient Gemma 4 model", specs: { contextWindow: '262K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'deepseek/deepseek-v4-flash:free', name: 'DeepSeek V4 Flash (Free)', provider: 'openrouter', description: 'DeepSeek latest with 1M context', specs: { contextWindow: '1M', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'deepseek/deepseek-chat-v3.2:free', name: 'DeepSeek V3.2 (Free)', provider: 'openrouter', description: 'DeepSeek V3 with excellent coding', specs: { contextWindow: '64K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', provider: 'openrouter', description: "Meta's best free model - GPT-4 level", specs: { contextWindow: '131K', trainingData: '2024', maxOutput: '32K', modality: 'Text' } },
+  { id: 'meta-llama/llama-3.2-3b-instruct:free', name: 'Llama 3.2 3B (Free)', provider: 'openrouter', description: "Meta's efficient small model", specs: { contextWindow: '131K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'Nemotron 3 Super (Free)', provider: 'openrouter', description: "NVIDIA's 262K context flagship", specs: { contextWindow: '262K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/nemotron-3-nano-30b-a3b:free', name: 'Nemotron 3 Nano (Free)', provider: 'openrouter', description: "NVIDIA's efficient 30B model", specs: { contextWindow: '256K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', name: 'Nemotron 3 Nano Reasoning (Free)', provider: 'openrouter', description: 'NVIDIA reasoning model with vision', specs: { contextWindow: '256K', trainingData: '2025', maxOutput: '16K', modality: 'Text' } },
+  { id: 'qwen/qwen3-next-80b-a3b-instruct:free', name: 'Qwen3 Next 80B (Free)', provider: 'openrouter', description: 'Qwen latest for agents and RAG', specs: { contextWindow: '262K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'qwen/qwen3-coder:free', name: 'Qwen3 Coder (Free)', provider: 'openrouter', description: 'Qwen 480B coding model', specs: { contextWindow: '262K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'minimax/minimax-m2.5:free', name: 'MiniMax M2.5 (Free)', provider: 'openrouter', description: 'Strong coding and reasoning', specs: { contextWindow: '205K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'openai/gpt-oss-120b:free', name: 'GPT-OSS 120B (Free)', provider: 'openrouter', description: "OpenAI's first open-weight model", specs: { contextWindow: '131K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'openai/gpt-oss-20b:free', name: 'GPT-OSS 20B (Free)', provider: 'openrouter', description: "OpenAI's compact open model", specs: { contextWindow: '131K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'z-ai/glm-4.5-air:free', name: 'GLM 4.5 Air (Free)', provider: 'openrouter', description: "Zhipu's efficient model", specs: { contextWindow: '131K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'baidu/cobuddy:free', name: 'CoBuddy (Free)', provider: 'openrouter', description: "Baidu's multilingual model", specs: { contextWindow: '131K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'arcee-ai/trinity-large-thinking:free', name: 'Trinity Large Thinking (Free)', provider: 'openrouter', description: 'Arcee AI reasoning model', specs: { contextWindow: '262K', trainingData: '2025', maxOutput: '32K', modality: 'Text' } },
+  { id: 'poolside/laguna-m.1:free', name: 'Laguna M (Free)', provider: 'openrouter', description: 'Poolside latest model', specs: { contextWindow: '131K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'poolside/laguna-xs.2:free', name: 'Laguna XS (Free)', provider: 'openrouter', description: 'Poolside efficient model', specs: { contextWindow: '131K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nousresearch/hermes-3-llama-3.1-405b:free', name: 'Hermes 3 405B (Free)', provider: 'openrouter', description: 'Nous Research flagship', specs: { contextWindow: '131K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'liquid/lfm-2.5-1.2b-thinking:free', name: 'LFM 2.5 1.2B Thinking (Free)', provider: 'openrouter', description: 'LiquidAI reasoning model', specs: { contextWindow: '33K', trainingData: '2024', maxOutput: '4K', modality: 'Text' } },
+  { id: 'liquid/lfm-2.5-1.2b-instruct:free', name: 'LFM 2.5 1.2B (Free)', provider: 'openrouter', description: 'LiquidAI efficient model', specs: { contextWindow: '33K', trainingData: '2024', maxOutput: '4K', modality: 'Text' } },
+  { id: 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free', name: 'Dolphin Mistral 24B (Free)', provider: 'openrouter', description: 'Venice optimized Mistral', specs: { contextWindow: '32K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // OPENROUTER - PAID MODELS
+  // ═══════════════════════════════════════════════════════════════════════════════
+  { id: 'openrouter/auto', name: 'OpenRouter Auto', provider: 'openrouter', description: 'Auto-routes to best performing model', specs: { contextWindow: 'Varies', trainingData: 'Dynamic', maxOutput: 'Varies', modality: 'Text' } },
+  { id: 'google/gemma-3-27b-it', name: 'Gemma 3 27B', provider: 'openrouter', description: "Google's latest Gemma with reasoning", specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'google/gemma-2-9b-it', name: 'Gemma 2 9B', provider: 'openrouter', description: "Google's efficient instruction-tuned", specs: { contextWindow: '8K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3 70B', provider: 'openrouter', description: "Meta's flagship with excellent reasoning", specs: { contextWindow: '128K', trainingData: '2024', maxOutput: '32K', modality: 'Text' } },
+  { id: 'meta-llama/llama-3.1-8b-instruct', name: 'Llama 3.1 8B', provider: 'openrouter', description: "Meta's efficient 8B model", specs: { contextWindow: '128K', trainingData: 'July 2024', maxOutput: '4K', modality: 'Text' } },
+  { id: 'mistralai/mistral-small-3.1-24b', name: 'Mistral Small 3.1', provider: 'openrouter', description: "Mistral's latest with great speed", specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '32K', modality: 'Text' } },
+  { id: 'mistralai/mistral-7b-instruct', name: 'Mistral 7B', provider: 'openrouter', description: 'High-performance dense model', specs: { contextWindow: '32K', trainingData: '2023', maxOutput: '8K', modality: 'Text' } },
+  { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', provider: 'openrouter', description: 'DeepSeek V3 with coding capabilities', specs: { contextWindow: '64K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'qwen/qwen-2.5-72b-instruct', name: 'Qwen 2.5 72B', provider: 'openrouter', description: "Alibaba's powerful multilingual", specs: { contextWindow: '32K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'microsoft/phi-4', name: 'Phi-4', provider: 'openrouter', description: "Microsoft's latest reasoning model", specs: { contextWindow: '16K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'anthropic/claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'openrouter', description: "Anthropic's latest Sonnet model", specs: { contextWindow: '200K', trainingData: '2025', maxOutput: '32K', modality: 'Text' } },
+  { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'openrouter', description: "Anthropic's strong coding model", specs: { contextWindow: '200K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // GEMINI DIRECT - Gemini 2.5 Series
+  // ═══════════════════════════════════════════════════════════════════════════════
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini', description: "Previous Generation (Highly Stable) Flash model.", specs: { contextWindow: '1M', trainingData: '2025', maxOutput: '32K', modality: 'Multimodal' } },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'gemini', description: "Previous Generation (Highly Stable) Pro model.", specs: { contextWindow: '2M', trainingData: '2025', maxOutput: '64K', modality: 'Multimodal' } },
+
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // GEMINI DIRECT - Gemma 4 Series (Open Models)
+  // ═══════════════════════════════════════════════════════════════════════════════
+  { id: 'gemma-4-31b-it', name: 'Gemma 4 31B', provider: 'gemini', description: "Google's best open weights model - reasoning and math", specs: { contextWindow: '256K', trainingData: '2026', maxOutput: '8K', modality: 'Text' } },
+  { id: 'google/gemma-4-27b-it', name: 'Gemma 4 27B', provider: 'openrouter', description: "Google's high-performance 27B open weights model for advanced reasoning.", specs: { contextWindow: '256K', trainingData: '2026', maxOutput: '8K', modality: 'Text' } },
+  { id: 'gemma-4-26b-a4b-it', name: 'Gemma 4 26B MoE', provider: 'gemini', description: "Google's efficient MoE open weights model", specs: { contextWindow: '256K', trainingData: '2026', maxOutput: '8K', modality: 'Text' } },
+  { id: 'gemma-4-e4b-it', name: 'Gemma 4 E4B (Edge)', provider: 'gemini', description: "Google's edge open weights model - 4.5B effective parameters", specs: { contextWindow: '128K', trainingData: '2026', maxOutput: '4K', modality: 'Text' } },
+  { id: 'gemma-4-e2b-it', name: 'Gemma 4 E2B (Edge)', provider: 'gemini', description: "Google's smallest open weights model - 2.3B params", specs: { contextWindow: '128K', trainingData: '2026', maxOutput: '4K', modality: 'Text' } },
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // GEMMA (Google Open Models)
+  // ═══════════════════════════════════════════════════════════════════════════════
+  { id: 'google/gemma-4-31b-it', name: 'Gemma 4 31B', provider: 'openrouter', description: "Google's best open model - #3 on Arena AI (1452 Elo)", specs: { contextWindow: '256K', trainingData: '2026', maxOutput: '8K', modality: 'Text' } },
+  { id: 'google/gemma-4-26b-a4b-it', name: 'Gemma 4 26B MoE', provider: 'openrouter', description: "Google's efficient MoE model - #6 on Arena AI (1441 Elo)", specs: { contextWindow: '256K', trainingData: '2026', maxOutput: '8K', modality: 'Text' } },
+  { id: 'google/gemma-4-e4b-it', name: 'Gemma 4 E4B (Edge)', provider: 'openrouter', description: "Google's edge model - 4.5B effective params, multimodal", specs: { contextWindow: '128K', trainingData: '2026', maxOutput: '4K', modality: 'Text' } },
+  { id: 'google/gemma-4-e2b-it', name: 'Gemma 4 E2B (Edge)', provider: 'openrouter', description: "Google's smallest model - 2.3B params for mobile/edge", specs: { contextWindow: '128K', trainingData: '2026', maxOutput: '4K', modality: 'Text' } },
+  { id: 'google/gemma-3-27b-it', name: 'Gemma 3 27B', provider: 'openrouter', description: "Google's previous flagship open model", specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'google/gemma-3-12b-it', name: 'Gemma 3 12B', provider: 'openrouter', description: "Google's mid-size open model", specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'google/gemma-2-9b-it', name: 'Gemma 2 9B', provider: 'openrouter', description: "Google's efficient open model", specs: { contextWindow: '8K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // NVIDIA NIM - FREE MODELS (No API Key Required)
+  // ═══════════════════════════════════════════════════════════════════════════════
+  { id: 'nvidia/llama-3.1-8b-instruct', name: 'Llama 3.1 8B (NIM)', provider: 'nvidia', description: 'Meta 8B via NVIDIA NIM - Free', specs: { contextWindow: '128K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (NIM)', provider: 'nvidia', description: 'Meta 70B via NVIDIA NIM - Free', specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5', name: 'Llama 3.3 Nemotron Super 49B (NIM)', provider: 'nvidia', description: 'NVIDIA optimized Llama 3.3 - Free', specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '32K', modality: 'Text' } },
+  { id: 'nvidia/nemotron-3-super-120b-a12b', name: 'Nemotron 3 Super (NIM)', provider: 'nvidia', description: "NVIDIA's 262K context flagship", specs: { contextWindow: '262K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/nemotron-3-nano-9b-v2', name: 'Nemotron 3 Nano 9B (NIM)', provider: 'nvidia', description: 'NVIDIA efficient model', specs: { contextWindow: '128K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/gemma-3-27b-it', name: 'Gemma 3 27B (NIM)', provider: 'nvidia', description: "Google via NVIDIA NIM - Free", specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/gemma-2-9b-it', name: 'Gemma 2 9B (NIM)', provider: 'nvidia', description: "Google via NVIDIA NIM - Free", specs: { contextWindow: '128K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/phi-4', name: 'Phi-4 (NIM)', provider: 'nvidia', description: "Microsoft via NVIDIA NIM - Free", specs: { contextWindow: '16K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/ministral-8b', name: 'Mistral 8B (NIM)', provider: 'nvidia', description: 'Mistral via NVIDIA NIM - Free', specs: { contextWindow: '128K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // OPENCODE ZEN - Free Models
+  // ═══════════════════════════════════════════════════════════════════════════════
+  { id: 'opencode/big-pickle', name: 'Big Pickle', provider: 'opencode', description: 'Stealth model optimized for coding agents. Currently free.', specs: { contextWindow: '200K', trainingData: '2026', maxOutput: '32K', modality: 'Text' } },
+  { id: 'opencode/deepseek-v4-flash-free', name: 'DeepSeek V4 Flash (Free)', provider: 'opencode', description: 'Fast DeepSeek model for quick tasks. Free on Zen.', specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'opencode/minimax-m2.5-free', name: 'MiniMax M2.5 (Free)', provider: 'opencode', description: 'Strong at coding and reasoning. Free on Zen.', specs: { contextWindow: '200K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'opencode/ring-2.6-1t-free', name: 'Ring 2.6 1T (Free)', provider: 'opencode', description: 'High-capacity reasoning model. Free on Zen.', specs: { contextWindow: '200K', trainingData: '2025', maxOutput: '16K', modality: 'Text' } },
+  { id: 'opencode/nemotron-3-super-free', name: 'Nemotron 3 Super (Free)', provider: 'opencode', description: "NVIDIA's open-weight model. Free on Zen.", specs: { contextWindow: '1M', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'opencode/qwen3-30b-a3b-free', name: 'Qwen3 30B (Free)', provider: 'opencode', description: 'Alibaba Qwen3 model - free on Zen.', specs: { contextWindow: '131K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'opencode/qwen3-coder-14b-free', name: 'Qwen3 Coder 14B (Free)', provider: 'opencode', description: 'Specialized coding model - free on Zen.', specs: { contextWindow: '32K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'opencode/llama-3.3-70b-free', name: 'Llama 3.3 70B (Free)', provider: 'opencode', description: "Meta's latest Llama - free on Zen.", specs: { contextWindow: '131K', trainingData: '2024', maxOutput: '32K', modality: 'Text' } },
+  { id: 'opencode/gemma-3-27b-it-free', name: 'Gemma 3 27B (Free)', provider: 'opencode', description: "Google's latest Gemma - free on Zen.", specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+];
+
+export const AVAILABLE_MODELS: ModelOption[] = RAW_AVAILABLE_MODELS.filter(m =>
+  ['gemini', 'openrouter', 'nvidia', 'opencode'].includes(m.provider)
+);
