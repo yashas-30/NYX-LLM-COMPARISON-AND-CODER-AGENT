@@ -1,11 +1,11 @@
-# 🌌 NYX — Premium Multi-Model Arena & Coder Playground
+# 🌌 NYX — Premium AI Coder Playground & Agent Runner
 
 [![Vite](https://img.shields.io/badge/Vite-6.x-646CFF.svg?style=flat-square&logo=vite)](https://vite.dev)
 [![React](https://img.shields.io/badge/React-19.x-61DAFB.svg?style=flat-square&logo=react)](https://react.dev)
 [![Fastify](https://img.shields.io/badge/Fastify-5.x-000000.svg?style=flat-square&logo=fastify)](https://fastify.dev)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4.0-38B2AC.svg?style=flat-square&logo=tailwind-css)](https://tailwindcss.com)
 
-**NYX** is a state-of-the-art, high-fidelity developer playground designed for side-by-side LLM comparison, advanced code generation, and direct proxy routing with unified caching. Designed around a "clinical-modern" user interface, it provides millisecond-level responsive streaming, modular IDE controls, deep comparison metrics, and robust API keys credential handling.
+**NYX** is a state-of-the-art, high-fidelity developer playground designed for advanced code generation and interactive running of AI agents, featuring direct proxy routing, unified caching, and a robust model registry. Designed around a "clinical-modern" user interface, it provides millisecond-level responsive streaming, modular IDE controls, and secure local API key credential handling.
 
 ---
 
@@ -17,11 +17,9 @@ NYX uses a highly optimized dual-server architecture that leverages the modulari
 graph TD
     %% Frontend Client
     subgraph Frontend [React 19 SPA client]
-        A[App.tsx / LandingPage] --> B[CompareDashboard]
-        B --> C[Grid Mode / Compare]
-        B --> D[Analysis Mode / Evaluator]
-        B --> E[Coder Page / IDE]
-        B --> F[Model Registry Forge]
+        A[App.tsx / LandingPage] --> B[CoderDashboard]
+        B --> C[Coder Page / IDE]
+        B --> D[Model Registry Forge]
     end
 
     %% Express Gateway
@@ -57,36 +55,29 @@ graph TD
     L -->|Local loopback HTTP| S
 ```
 
----
-
 ## ✨ Core Pillars & Features
 
-### 1. 🤼 Side-by-Side Model Arena
-- Compare outputs of two distinct models concurrently in a high-fidelity visual grid.
-- Synchronized prompt submission with customized model configurations.
-- Real-time token streaming with syntax-highlighted code blocks, copy utilities, and status tracking.
+### 1. 💻 Coder Mode IDE Workspace
+- Full-screen coder interface supporting multiline editor windows, contextual prompts, and variable LLM settings.
+- Structured code execution and live session-level audits.
 
-### 2. ⚡ Streaming Optimization Engine (Fastify & Express)
+### 2. 🎛️ Model Registry & Forge
+- Clean, searchable model registry dashboard displaying capabilities, cost ratios, and latency status.
+- Support for **Local Models** via automatic host loopback discovery (Ollama and LM Studio).
+- Instant switching and state persistence.
+
+### 3. ⚡ Streaming Optimization Engine (Fastify & Express)
 - **Fastify Router Bridging**: SSE streams bypass Express compression bottlenecks, utilizing Fastify's zero-copy write loops for instant data flushing.
 - **Nagle's Algorithm Disabling**: TCP sockets are initialized with `setNoDelay(true)`, eliminating the 40ms network buffering delay.
 - **DNS Lookup Warmup**: Background lookups to Cloudflare DNS (`1.1.1.1` and `8.8.8.8`) bypass Windows local host resolver latency.
 - **Connection Keep-Alives**: Persistent sockets stay active for 75 seconds, eliminating HTTPS handshakes on consecutive prompts.
 
-### 3. 💾 Ultra-Fast Local Disk Caching
+### 4. 💾 Ultra-Fast Local Disk Caching
 - Key generation compiles the request structure (provider, model, prompt, system prompt, conversation history, settings) into a unique **SHA-256 hash**.
 - High-efficiency disk cache residing under the `.nyx-cache/` directory.
 - Features complete stats tracking (hits, misses, storage size, itemized logs) and single-click flushing.
 
-### 4. 🎛️ Model Registry & Forge
-- Clean, searchable model registry dashboard displaying capabilities, cost ratios, and latency status.
-- Support for **Local Models** via automatic host loopback discovery (Ollama and LM Studio).
-- Instant switching, column scaling, and state persistence.
-
-### 5. 💻 Coder Mode IDE Workspace
-- Full-screen coder interface supporting multiline editor windows, contextual prompts, and variable LLM settings.
-- Structured code execution and live session-level audits.
-
-### 6. 🔑 Unified Settings & API Key Manager
+### 5. 🔑 Unified Settings & API Key Manager
 - **Secure Local Storage**: Custom provider API keys are saved directly in your browser's secure `localStorage`. They are never stored on any remote database or sent to third-party tracking systems.
 - **Dynamic Quota Discovery**: Instantly verify your remaining quota (USD credits or token limit) directly inside the Settings tab for connected API providers (e.g. OpenRouter, Google Gemini).
 - **Custom Gateways**: Configure custom gateway URLs for each provider to route requests via alternate endpoints or self-hosted API gateways.
@@ -108,10 +99,10 @@ NYX/
 │   └── routes/              # Specialized API router files (Gemini, Nvidia, OpenRouter, Ollama)
 ├── src/                     # React 19 SPA source files
 │   ├── components/          # Reusable presentation and layout components
-│   │   ├── dashboard/       # AnalysisView, Sidebar, ModelRegistryView, SettingsView, HistoryView
+│   │   ├── dashboard/       # ModelRegistryView, SettingsView
 │   │   ├── landing/         # AppPreview, LiveTerminal, WebGLShader
-│   │   ├── model-card/      # Side-by-side output display panels
 │   │   ├── ui/              # Atom-level layout buttons, tooltips, and icons
+│   │   ├── CoderDashboard.tsx # Global layout and state coordinator
 │   │   └── LandingPage.tsx  # Clinical-modern welcome hub & animation sequence
 │   ├── config/              # Model listings, system configurations, agent catalogs
 │   ├── context/             # Global contexts (e.g. ThemeContext)
