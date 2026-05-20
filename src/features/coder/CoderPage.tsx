@@ -327,76 +327,7 @@ export const CoderPage: React.FC<CoderPageProps> = ({
             <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(currentColor 1.5px, transparent 1.5px)', backgroundSize: '32px 32px' }} />
           </div>
 
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex gap-2.5 p-1 bg-white/40 dark:bg-zinc-900/60 backdrop-blur-2xl border border-white/20 dark:border-white/10 rounded-2xl shadow-xl">
-            <button 
-              onClick={() => setShowModelSelector(!showModelSelector)}
-              className="flex items-center gap-2 px-3.5 py-1.5 hover:bg-white/20 dark:hover:bg-white/10 rounded-xl transition-all group"
-            >
-              <div className={`w-2 h-2 rounded-full ${badgeStatus === 'success' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : badgeStatus === 'loading' ? 'bg-amber-500 animate-pulse' : 'bg-muted-foreground/30'}`} />
-              <span className="text-[11px] font-semibold tracking-tight text-foreground/90">{currentModel?.name || 'Select Model'}</span>
-              <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-500 ${showModelSelector ? 'rotate-180' : ''}`} />
-            </button>
-            <div className="w-px h-4 bg-white/20 dark:bg-white/10 my-auto" />
-            <button 
-              onClick={() => setShowSettings(!showSettings)}
-              className={`p-1.5 rounded-xl transition-all group ${showSettings ? 'bg-primary/20 text-primary' : 'hover:bg-white/20 dark:hover:bg-white/10 text-muted-foreground'}`} 
-              title="Model Settings"
-            >
-              <SettingsIcon size={13} strokeWidth={1.5} className="group-hover:rotate-45 transition-transform duration-300" />
-            </button>
-          </div>
 
-          {/* Model Settings Panel Overlay */}
-          <AnimatePresence>
-            {showSettings && (
-              <motion.div 
-                initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                className="absolute top-18 left-1/2 -translate-x-1/2 z-50 w-72 bg-white/80 dark:bg-zinc-900/90 backdrop-blur-3xl border border-white/20 dark:border-white/10 rounded-3xl shadow-2xl p-5 space-y-4"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Parameters</span>
-                  <button onClick={() => setShowSettings(false)} className="text-muted-foreground hover:text-foreground"><Check size={14} strokeWidth={1.5} /></button>
-                </div>
-                
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-[8px] font-bold uppercase text-muted-foreground">
-                      <span>Temperature</span>
-                      <span>{modelSettings.temperature}</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="1" step="0.1" 
-                      value={modelSettings.temperature}
-                      onChange={(e) => setModelSettings({ ...modelSettings, temperature: parseFloat(e.target.value) })}
-                      className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-[8px] font-bold uppercase text-muted-foreground">
-                      <span>Max Tokens</span>
-                      <span>{modelSettings.maxTokens}</span>
-                    </div>
-                    <input 
-                      type="range" min="256" max="16384" step="256" 
-                      value={modelSettings.maxTokens}
-                      onChange={(e) => setModelSettings({ ...modelSettings, maxTokens: parseInt(e.target.value) })}
-                      className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                    />
-                  </div>
-                </div>
-                
-                <div className="pt-2 border-t border-border-strong/40">
-                  <div className="flex items-center gap-1.5 text-[8px] text-muted-foreground font-medium">
-                    <Info className="w-2.5 h-2.5" />
-                    <span>Settings apply to next command</span>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           <div ref={consoleRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar relative p-4">
             <div className="w-full space-y-6 pb-4">
@@ -522,37 +453,7 @@ export const CoderPage: React.FC<CoderPageProps> = ({
             )}
           </AnimatePresence>
 
-          <AnimatePresence>
-             {showModelSelector && (
-               <ModelSelector
-                 currentModelId={currentModelId}
-                 allModels={allModels}
-                 ollamaModels={ollamaModels}
-                 lmStudioModels={lmStudioModels}
-                 selectedProvider={selectedProvider}
-                 searchTerm={modelSearch}
-                 onProviderChange={setSelectedProvider}
-                 onSearchChange={setModelSearch}
-                 onSelect={(id) => {
-                   setModel(id);
-                   setShowModelSelector(false);
-                   setModelSearch('');
-                 }}
-                 onClose={() => setShowModelSelector(false)}
-                 providerStatuses={providerStatuses}
-                 ollamaBaseUrl={ollamaBaseUrl}
-                 lmStudioBaseUrl={lmStudioBaseUrl}
-                 isCoder={true}
-                 onResetContext={() => {
-                   clearHistory();
-                   toast.success('Context reset successful');
-                 }}
-                 gatewayUrls={gatewayUrls}
-                 localModelsEnabled={localModelsEnabled}
-                 setLocalModelsEnabled={setLocalModelsEnabled}
-               />
-             )}
-          </AnimatePresence>
+
 
           {/* Speed Reader Overlay */}
           {speedReadText && (
@@ -587,31 +488,106 @@ export const CoderPage: React.FC<CoderPageProps> = ({
               </AnimatePresence>
 
               <form onSubmit={handleSubmit} className="relative group">
-                <div className={`flex items-center gap-2 px-2.5 py-1.5 bg-white/30 dark:bg-zinc-900/70 backdrop-blur-xl border rounded-2xl transition-all duration-500 shadow-xl ${
+                {/* Model Selector Dropdown Popover */}
+                <AnimatePresence>
+                  {showModelSelector && (
+                    <ModelSelector
+                      currentModelId={currentModelId}
+                      allModels={allModels}
+                      ollamaModels={ollamaModels}
+                      lmStudioModels={lmStudioModels}
+                      selectedProvider={selectedProvider}
+                      searchTerm={modelSearch}
+                      onProviderChange={setSelectedProvider}
+                      onSearchChange={setModelSearch}
+                      onSelect={(id) => {
+                        setModel(id);
+                        setShowModelSelector(false);
+                        setModelSearch('');
+                      }}
+                      onClose={() => setShowModelSelector(false)}
+                      providerStatuses={providerStatuses}
+                      ollamaBaseUrl={ollamaBaseUrl}
+                      lmStudioBaseUrl={lmStudioBaseUrl}
+                      isCoder={true}
+                      onResetContext={() => {
+                        clearHistory();
+                        toast.success('Context reset successful');
+                      }}
+                      gatewayUrls={gatewayUrls}
+                      localModelsEnabled={localModelsEnabled}
+                      setLocalModelsEnabled={setLocalModelsEnabled}
+                      dropdown={true}
+                    />
+                  )}
+                </AnimatePresence>
+
+                {/* Model Settings Parameter Popover */}
+                <AnimatePresence>
+                  {showSettings && (
+                    <>
+                      <div className="fixed inset-0 z-[499] bg-transparent" onClick={() => setShowSettings(false)} />
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                        className="absolute bottom-full left-0 mb-3 z-[500] w-72 bg-card/95 border border-border-strong rounded-3xl shadow-2xl p-5 space-y-4 text-left backdrop-blur-3xl"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Parameters</span>
+                          <button type="button" onClick={() => setShowSettings(false)} className="text-muted-foreground hover:text-foreground"><Check size={14} strokeWidth={1.5} /></button>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-[8px] font-bold uppercase text-muted-foreground">
+                              <span>Temperature</span>
+                              <span>{modelSettings.temperature}</span>
+                            </div>
+                            <input 
+                              type="range" min="0" max="1" step="0.1" 
+                              value={modelSettings.temperature}
+                              onChange={(e) => setModelSettings({ ...modelSettings, temperature: parseFloat(e.target.value) })}
+                              className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-[8px] font-bold uppercase text-muted-foreground">
+                              <span>Max Tokens</span>
+                              <span>{modelSettings.maxTokens}</span>
+                            </div>
+                            <input 
+                              type="range" min="256" max="16384" step="256" 
+                              value={modelSettings.maxTokens}
+                              onChange={(e) => setModelSettings({ ...modelSettings, maxTokens: parseInt(e.target.value) })}
+                              className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="pt-2 border-t border-border-strong/40">
+                          <div className="flex items-center gap-1.5 text-[8px] text-muted-foreground font-medium">
+                            <Info className="w-2.5 h-2.5" />
+                            <span>Settings apply to next command</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+
+                {/* Prompt Card/Container */}
+                <div className={`flex flex-col gap-2 p-2 bg-white/30 dark:bg-zinc-900/70 backdrop-blur-xl border rounded-2xl transition-all duration-500 shadow-xl ${
                   activeAgent === 'nyx'
                     ? 'border-emerald-500/30 focus-within:border-emerald-500/60 focus-within:ring-1 focus-within:ring-emerald-500/10'
                     : 'border-white/30 dark:border-white/15 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/10'
                 }`}>
-                  {/* Left Controls */}
-                  <div className="shrink-0 flex items-center px-0.5 gap-1">
+                  {/* Text Area Row */}
+                  <div className="flex-1 relative flex items-start group/input">
                     {activeAgent === 'nyx' && (
-                      <span className="text-[10px] font-mono text-emerald-400 font-bold px-1 select-none">nyx$</span>
+                      <span className="shrink-0 text-[10px] font-mono text-emerald-400 font-bold px-1.5 py-1 select-none">nyx$</span>
                     )}
-                    <button type="button" onClick={clearHistory} className="w-5 h-5 rounded-full flex items-center justify-center text-muted-foreground/35 hover:text-muted-foreground hover:bg-white/20 dark:hover:bg-white/10 transition-all">
-                      <History size={12} strokeWidth={1.5} />
-                    </button>
-                  </div>
-
-                  {/* Text Area (Single Row) with Integrated Plus */}
-                  <div className="flex-1 relative flex items-center group/input">
-                    <div className="absolute left-1 z-10">
-                      <button 
-                        type="button"
-                        className="w-4 h-4 rounded-full flex items-center justify-center text-muted-foreground/35 group-focus-within/input:text-primary group-hover/input:text-muted-foreground/60 hover:bg-primary/10 transition-all"
-                      >
-                        <Plus size={12} strokeWidth={1.5} />
-                      </button>
-                    </div>
                     <textarea
                       ref={inputRef}
                       value={prompt}
@@ -624,31 +600,76 @@ export const CoderPage: React.FC<CoderPageProps> = ({
                         } 
                       }}
                       placeholder={activeAgent === 'nyx' ? 'nyx::pipeline ~ ' : 'Ask anything...'}
-                      className={`flex-1 bg-transparent border-none focus:ring-0 text-xs py-1.5 pl-6 pr-1 resize-none min-h-[24px] max-h-[120px] font-medium outline-none text-foreground/90 placeholder:text-muted-foreground/45 scrollbar-none text-left ${activeAgent === 'nyx' ? 'font-mono text-emerald-400' : ''}`}
+                      className={`flex-1 bg-transparent border-none focus:ring-0 text-xs py-1 px-1.5 resize-none min-h-[44px] max-h-[160px] font-medium outline-none text-foreground/90 placeholder:text-muted-foreground/45 scrollbar-none text-left ${activeAgent === 'nyx' ? 'font-mono text-emerald-400' : ''}`}
                     />
                   </div>
 
-                  {/* Right Controls */}
-                  <div className="shrink-0">
-                    {isLoading ? (
-                      <button type="button" onClick={stopCoder} className="h-5 w-5 rounded-full bg-destructive/10 text-destructive flex items-center justify-center animate-pulse border border-destructive/20">
-                        <StopCircle className="w-2.5 h-2.5" />
-                      </button>
-                    ) : (
+                  {/* Bottom Toolbar Row */}
+                  <div className="flex items-center justify-between border-t border-white/5 dark:border-white/5 pt-1.5 px-1">
+                    {/* Left Controls: Selector + Settings + Clear */}
+                    <div className="flex items-center gap-1.5">
+                      {/* Model Selector Button */}
                       <button 
-                        type="submit" 
-                        disabled={!prompt.trim()} 
-                        className={`h-5 w-5 rounded-full flex items-center justify-center transition-all ${
-                          prompt.trim() 
-                            ? activeAgent === 'nyx'
-                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 scale-100 hover:scale-105'
-                              : 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-100 hover:scale-105' 
-                            : 'bg-muted/20 text-muted-foreground/30 opacity-50 cursor-not-allowed'
-                        }`}
+                        type="button"
+                        onClick={() => {
+                          setShowModelSelector(!showModelSelector);
+                          setShowSettings(false);
+                        }}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 bg-white/20 dark:bg-zinc-800/40 hover:bg-white/30 dark:hover:bg-zinc-800/70 border border-white/10 dark:border-white/5 rounded-xl text-[10px] font-semibold text-foreground/80 transition-all select-none ${showModelSelector ? 'ring-1 ring-primary/40' : ''}`}
                       >
-                        <Send size={12} strokeWidth={1.5} />
+                        <div className={`w-1.5 h-1.5 rounded-full ${badgeStatus === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : badgeStatus === 'loading' ? 'bg-amber-500 animate-pulse' : 'bg-muted-foreground/30'}`} />
+                        <span className="truncate max-w-[120px]">{currentModel?.name || 'Select Model'}</span>
+                        <ChevronDown className={`w-3 h-3 text-muted-foreground/60 transition-transform duration-300 ${showModelSelector ? 'rotate-180' : ''}`} />
                       </button>
-                    )}
+
+                      {/* Settings Button */}
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setShowSettings(!showSettings);
+                          setShowModelSelector(false);
+                        }}
+                        className={`p-1 rounded-xl bg-white/20 dark:bg-zinc-800/40 hover:bg-white/30 dark:hover:bg-zinc-800/70 border border-white/10 dark:border-white/5 text-muted-foreground hover:text-foreground transition-all group ${showSettings ? 'ring-1 ring-primary/40 text-primary' : ''}`}
+                        title="Model Settings"
+                      >
+                        <SettingsIcon size={12} strokeWidth={1.5} className="group-hover:rotate-45 transition-transform duration-300" />
+                      </button>
+
+                      {/* Clear Session / Reset Context Button */}
+                      <button 
+                        type="button" 
+                        onClick={clearHistory} 
+                        className="p-1 rounded-xl bg-white/20 dark:bg-zinc-800/40 hover:bg-white/30 dark:hover:bg-zinc-800/70 border border-white/10 dark:border-white/5 text-muted-foreground/60 hover:text-destructive hover:border-destructive/20 transition-all group"
+                        title="Clear session history"
+                      >
+                        <History size={12} strokeWidth={1.5} className="group-hover:scale-105 transition-transform" />
+                      </button>
+                    </div>
+
+                    {/* Right Controls: Send Button */}
+                    <div className="flex items-center gap-2">
+                      {isLoading ? (
+                        <button type="button" onClick={stopCoder} className="h-6 px-3 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center gap-1 animate-pulse border border-destructive/20 text-[10px] font-bold tracking-wider uppercase">
+                          <StopCircle className="w-3 h-3 animate-spin" />
+                          <span>Stop</span>
+                        </button>
+                      ) : (
+                        <button 
+                          type="submit" 
+                          disabled={!prompt.trim()} 
+                          className={`h-6 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-all text-[10px] font-bold tracking-wider uppercase ${
+                            prompt.trim() 
+                              ? activeAgent === 'nyx'
+                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 scale-100 hover:scale-[1.02]'
+                                : 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-100 hover:scale-[1.02]' 
+                              : 'bg-muted/20 text-muted-foreground/30 opacity-50 cursor-not-allowed'
+                          }`}
+                        >
+                          <span>Run</span>
+                          <Send size={10} strokeWidth={1.5} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </form>

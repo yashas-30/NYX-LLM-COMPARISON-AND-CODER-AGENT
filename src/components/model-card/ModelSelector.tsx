@@ -27,9 +27,10 @@ interface Props {
   lmStudioBaseUrl?: string;
   isCoder?: boolean;
   onResetContext?: (modelId: string) => void;
-   gatewayUrls?: Record<string, string>;
-   localModelsEnabled: boolean;
-   setLocalModelsEnabled: (enabled: boolean) => void;
+  gatewayUrls?: Record<string, string>;
+  localModelsEnabled: boolean;
+  setLocalModelsEnabled: (enabled: boolean) => void;
+  dropdown?: boolean;
 }
 
 // Structured provider order for the selector
@@ -60,7 +61,8 @@ export const ModelSelector: React.FC<Props> = ({
    onResetContext,
    gatewayUrls = {},
    localModelsEnabled,
-   setLocalModelsEnabled
+   setLocalModelsEnabled,
+   dropdown = false
 }) => {
    const getGatewayUrl = (provider: string): string => {
      return gatewayUrls[provider] || DEFAULT_GATEWAY_URLS[provider] || '';
@@ -142,20 +144,27 @@ export const ModelSelector: React.FC<Props> = ({
   }, [groupedModels, selectedProvider, searchTerm]);
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0 }} 
-        animate={{ opacity: 1 }} 
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-background/60 backdrop-blur-md cursor-pointer"
-      />
+    <div className={dropdown ? "absolute bottom-full left-0 mb-3 z-[500] w-full max-w-[440px]" : "fixed inset-0 z-[500] flex items-center justify-center p-4"}>
+      {dropdown ? (
+        <div className="fixed inset-0 z-[499] bg-transparent cursor-default" onClick={onClose} />
+      ) : (
+        <motion.div 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-background/60 backdrop-blur-md cursor-pointer"
+        />
+      )}
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 10 }} 
         animate={{ opacity: 1, scale: 1, y: 0 }} 
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-[440px] bg-card/95 border border-border-strong rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col max-h-[60vh] backdrop-blur-3xl cursor-default"
+        className={dropdown 
+          ? "relative w-full bg-card/95 border border-border-strong rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.35)] overflow-hidden flex flex-col max-h-[50vh] backdrop-blur-3xl cursor-default z-[500]"
+          : "relative w-full max-w-[440px] bg-card/95 border border-border-strong rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col max-h-[60vh] backdrop-blur-3xl cursor-default"
+        }
       >
         {/* Selector Header */}
         <div className="p-2.5 px-4 border-b border-border-strong bg-muted/5 flex items-center justify-between gap-3">
