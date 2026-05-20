@@ -392,37 +392,10 @@ export const CoderPage: React.FC<CoderPageProps> = ({
         {/* ─── Header ─── */}
         <header className="flex items-center justify-between p-3.5 sm:p-4 border-b border-white/10 dark:border-white/5 shrink-0 select-none bg-white/10 dark:bg-black/10 backdrop-blur-md">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-2xl border border-white/10 dark:border-white/5 backdrop-blur-sm">
-              <button 
-                onClick={() => setActiveAgent('open')}
-                className={`px-3.5 sm:px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-                  activeAgent === 'open' 
-                  ? 'bg-white/80 dark:bg-zinc-800/80 text-foreground shadow-sm' 
-                  : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                OpenCode
-              </button>
-              <button 
-                onClick={() => setActiveAgent('claude')}
-                className={`px-3.5 sm:px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-                  activeAgent === 'claude' 
-                  ? 'bg-white/80 dark:bg-zinc-800/80 text-foreground shadow-sm' 
-                  : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Claude Code
-              </button>
-              <button 
-                onClick={() => setActiveAgent('nyx')}
-                className={`px-3.5 sm:px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-                  activeAgent === 'nyx' 
-                  ? 'bg-purple-500/10 dark:bg-purple-400/10 text-purple-600 dark:text-purple-400 shadow-sm border border-purple-500/20' 
-                  : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                NYX
-              </button>
+            <div className="flex items-center gap-2 bg-purple-500/10 dark:bg-purple-400/10 px-3.5 sm:px-4 py-1.5 rounded-2xl border border-purple-500/20 shadow-sm select-none">
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-purple-600 dark:text-purple-400">
+                NYX Agent
+              </span>
             </div>
             <div className="h-4 w-px bg-white/15 dark:bg-white/5 mx-1 hidden sm:block" />
             <div className="flex flex-col hidden sm:flex">

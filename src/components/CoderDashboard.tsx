@@ -57,7 +57,7 @@ export const CoderDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
               active={activeMode === 'coder'} 
               onClick={() => setActiveMode('coder')}
               icon={<CoderIcon />}
-              label="Coder"
+              label="NYX Agent"
             />
             <TopBarButton 
               active={activeMode === 'registry'} 

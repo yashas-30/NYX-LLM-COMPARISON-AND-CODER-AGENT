@@ -21,7 +21,7 @@ export const useDashboardState = (onExit?: () => void) => {
   });
   
   // Coder Specific States (shared and persistent)
-  const [activeAgent, setActiveAgent] = useState<'open' | 'claude' | 'nyx'>('open');
+  const [activeAgent, setActiveAgent] = useState<'open' | 'claude' | 'nyx'>('nyx');
   const [models, setModels] = useState<Record<'open' | 'claude' | 'nyx', string>>({
     open: 'opencode/big-pickle',
     claude: 'anthropic/claude-sonnet-4-20250514',
@@ -60,7 +60,7 @@ export const useDashboardState = (onExit?: () => void) => {
       try { setModels(JSON.parse(savedModels)); } catch (e) { console.error("Models load fail", e); }
     }
     if (savedAgent) {
-      setActiveAgent(savedAgent as 'open' | 'claude' | 'nyx');
+      setActiveAgent('nyx');
     }
 
     registry.fetchOllamaModels(savedOllamaUrl ?? 'http://localhost:11434');

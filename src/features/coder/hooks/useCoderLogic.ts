@@ -38,7 +38,7 @@ export const useCoderLogic = ({
   models: propModels,
   setModel: propSetModel
 }: CoderLogicProps) => {
-  const [localActiveAgent, setLocalActiveAgent] = useState<'open' | 'claude' | 'nyx'>('open');
+  const [localActiveAgent, setLocalActiveAgent] = useState<'open' | 'claude' | 'nyx'>('nyx');
   const activeAgent = propActiveAgent ?? localActiveAgent;
   const setActiveAgent = propSetActiveAgent ?? setLocalActiveAgent;
 
