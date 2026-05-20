@@ -148,7 +148,7 @@ NYX/
    This runs `tsx watch server.ts` which fires up the Express Gateway on port `3000` and Fastify engine on port `3001`.
 
 4. **Access the Playground**:
-   Navigate to [http://localhost:3000](http://localhost:3000) on your web browser to enter the NYX Arena!
+   Navigate to [http://localhost:3000](http://localhost:3000) on your web browser to enter NYX!
 
 ---
 
@@ -166,7 +166,7 @@ NYX uses a design system tailored around **clinical-modern** visuals. Details ar
 
 NYX’s dual-server layout ensures fast UI responses and streaming proxy connections:
 
-1. **Frontend Dispatch**: When you enter a prompt in the Arena or Coder workspace, the React 19 SPA dispatches a request to the backend.
+1. **Frontend Dispatch**: When you enter a prompt in the Coder workspace, the React 19 SPA dispatches a request to the backend.
 2. **Local SHA-256 Cache Interception**: The request first hits the **Express Gateway** on Port `3000`. Express hashes your prompt, system instructions, model settings, and conversation history into a unique **SHA-256 key**. If a match exists in `.nyx-cache/`, it serves the result instantly—saving rate limits, API quota, and reducing response latency to `0ms`.
 3. **High-Performance Stream Proxying**: If the request misses the cache, it is proxied to our lightweight **Fastify Streaming Engine** running on Port `3001`.
 4. **Zero-Delay SSE Streams**: Fastify focuses exclusively on low-latency routing. It disables TCP Nagle's algorithm (`setNoDelay(true)`), uses background Cloudflare DNS pre-warming, and routes EventSource chunks back to the frontend with virtually zero buffering.
@@ -201,7 +201,7 @@ OpenRouter aggregates hundreds of models, offering completely free high-throughp
 * **Step 2**: Register or log in via GitHub, Google, or MetaMask.
 * **Step 3**: Navigate to **Settings ➔ Keys** in the dashboard.
 * **Step 4**: Click **"Create Key"**, give it a name, and copy the new key (starts with `sk-or-...`).
-* **Step 5**: Paste it into the **OpenRouter** field in Settings. Select models with a `:free` suffix in the NYX Model Arena.
+* **Step 5**: Paste it into the **OpenRouter** field in Settings. Select models with a `:free` suffix in the NYX Model Registry.
 
 ### 3. NVIDIA NIM (1,000 Free GPU Credits)
 NVIDIA NGC offers optimized API endpoints for top open-weight models, loaded with 1,000 free GPU credits upon registration.
