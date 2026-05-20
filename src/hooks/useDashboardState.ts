@@ -1,28 +1,31 @@
 /**
  * @file src/hooks/useDashboardState.ts
- * @description Monolithic state hook being progressively refactored into a modular architecture.
+ * @description Monolithic state hook refactored to manage state for CoderDashboard, registry, and settings.
  */
 
 import { useState, useEffect } from 'react';
 import { useTokenUsage } from '../context/TokenUsageContext';
-import { AVAILABLE_MODELS } from '@/src/config/models';
 
 // Modular Hooks
 import { useModelRegistry } from './dashboard/useModelRegistry';
 import { useSecurityState } from './dashboard/useSecurityState';
-import { useComparisonLogic } from './dashboard/useComparisonLogic';
-import { useTerminalPolling } from './dashboard/useTerminalPolling';
 import { useProviderStatus } from './dashboard/useProviderStatus';
 
 export const useDashboardState = (onExit?: () => void) => {
-  const [activeMode, setActiveMode] = useState<'grid' | 'analysis' | 'history' | 'settings' | 'registry' | 'coder'>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [providerFilter, setProviderFilter] = useState<string>('all');
+  const [activeMode, setActiveMode] = useState<'settings' | 'registry' | 'coder'>('coder');
   const [modelSettings, setModelSettings] = useState({
     temperature: 0.7,
     maxTokens: 4096,
     topP: 0.95,
     topK: 40
+  });
+  
+  // Coder Specific States (shared and persistent)
+  const [activeAgent, setActiveAgent] = useState<'open' | 'claude' | 'nyx'>('open');
+  const [models, setModels] = useState<Record<'open' | 'claude' | 'nyx', string>>({
+    open: 'opencode/big-pickle',
+    claude: 'anthropic/claude-sonnet-4-20250514',
+    nyx: 'anthropic/claude-sonnet-4-20250514'
   });
 
   const { usage, updateUsage: trackUsage, refreshProviderQuota } = useTokenUsage();
@@ -36,32 +39,15 @@ export const useDashboardState = (onExit?: () => void) => {
   // 3. Provider Connectivity Status
   const { statuses, refreshStatuses } = useProviderStatus(security.apiKeys, registry.lmStudioBaseUrl, registry.ollamaBaseUrl);
 
-  // 4. Comparison Logic (Benchmarking Grid)
-  const comparison = useComparisonLogic(
-    security.apiKeys,
-    registry.ollamaModels,
-    registry.lmStudioModels,
-    modelSettings,
-    trackUsage,
-    registry.lmStudioBaseUrl,
-    registry.ollamaBaseUrl,
-    security.gatewayUrls
-  );
-
-  // 5. Terminal Polling
-  useTerminalPolling(comparison.columns, comparison.setColumns);
-
   // ── Initialization Logic ───────────────────────────────────────────────
   useEffect(() => {
-    const savedHistory = localStorage.getItem('llm_ref_history');
     const savedKeys = localStorage.getItem('llm_ref_api_keys');
     const savedLegacyKey = localStorage.getItem('llm_ref_api_key');
     const savedLmUrl = localStorage.getItem('llm_ref_lmstudio_url');
     const savedOllamaUrl = localStorage.getItem('llm_ref_ollama_url');
+    const savedModels = localStorage.getItem('nyx_coder_models');
+    const savedAgent = localStorage.getItem('nyx_coder_active_agent');
 
-    if (savedHistory) {
-      try { comparison.setHistory(JSON.parse(savedHistory)); } catch (e) { console.error("History load fail", e); }
-    }
     if (savedKeys) {
       try { security.setApiKeys(JSON.parse(savedKeys)); } catch (e) { console.error("Keys load fail", e); }
     } else if (savedLegacyKey) {
@@ -69,6 +55,13 @@ export const useDashboardState = (onExit?: () => void) => {
     }
     if (savedLmUrl) registry.setLmStudioBaseUrl(savedLmUrl);
     if (savedOllamaUrl) registry.setOllamaBaseUrl(savedOllamaUrl);
+    
+    if (savedModels) {
+      try { setModels(JSON.parse(savedModels)); } catch (e) { console.error("Models load fail", e); }
+    }
+    if (savedAgent) {
+      setActiveAgent(savedAgent as 'open' | 'claude' | 'nyx');
+    }
 
     registry.fetchOllamaModels(savedOllamaUrl ?? 'http://localhost:11434');
     registry.fetchLMStudioModels(savedLmUrl ?? 'http://localhost:1234');
@@ -76,10 +69,6 @@ export const useDashboardState = (onExit?: () => void) => {
   }, []);
 
   // ── Side Effects (Persistence & Lifecycle) ─────────────────────────────
-  useEffect(() => {
-    localStorage.setItem('llm_ref_history', JSON.stringify(comparison.history));
-  }, [comparison.history]);
-
   useEffect(() => {
     localStorage.setItem('llm_ref_api_keys', JSON.stringify(security.apiKeys));
     Object.entries(security.apiKeys).forEach(([p, k]) => refreshProviderQuota(p, k));
@@ -99,23 +88,26 @@ export const useDashboardState = (onExit?: () => void) => {
   }, [registry.ollamaBaseUrl]);
 
   useEffect(() => {
-    if (comparison.columns.length === 0) {
-      import('@/src/lib/api/lmStudioClient').then(({ ejectAllLMStudio }) => {
-        ejectAllLMStudio(registry.lmStudioBaseUrl);
-      });
-    }
-  }, [comparison.columns.length, registry.lmStudioBaseUrl]);
+    localStorage.setItem('nyx_coder_models', JSON.stringify(models));
+  }, [models]);
+
+  useEffect(() => {
+    localStorage.setItem('nyx_coder_active_agent', activeAgent);
+  }, [activeAgent]);
+
+  const setModel = (mid: string) => {
+    setModels(prev => ({ ...prev, [activeAgent]: mid }));
+  };
 
   return {
     // Top-level State
     activeMode, setActiveMode,
-    searchQuery, setSearchQuery,
-    providerFilter, setProviderFilter,
     modelSettings, setModelSettings,
     onExit,
 
-    // Comparison/Grid (Benchmarking)
-    ...comparison,
+    // Coder states
+    activeAgent, setActiveAgent,
+    models, setModels, setModel,
 
     // Registry
     ...registry,
@@ -125,13 +117,6 @@ export const useDashboardState = (onExit?: () => void) => {
 
     // Connectivity
     statuses, refreshStatuses,
-
-    // History Helpers
-    deleteHistoryItem: (id: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      comparison.setHistory((prev) => prev.filter((item) => item.id !== id));
-    },
-    restoreHistory: (item: any) => comparison.restoreHistory(item, setActiveMode),
     
     // Shared usage tracker for features
     trackUsage

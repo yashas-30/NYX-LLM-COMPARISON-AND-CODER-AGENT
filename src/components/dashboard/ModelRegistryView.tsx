@@ -5,7 +5,7 @@ import {
   Search, Plus, RefreshCw, Globe, HardDrive, Info, X, Box, Monitor, Server
 } from 'lucide-react';
 import { AVAILABLE_MODELS } from '@/src/config/models';
-import { OllamaModel, ModelOption, ComparisonColumn, LMStudioModel } from '@/src/types';
+import { OllamaModel, ModelOption, LMStudioModel } from '@/src/types';
 import { Tooltip } from '../Tooltip';
 import { UI_TEXT } from '../../lib/design-system/copy';
 import { toast } from 'sonner';
@@ -16,7 +16,7 @@ import { useTokenUsage } from '@/src/context/TokenUsageContext';
  * ───────────────────────────────────────────────────────────────────────────── */
 
 interface ModelRegistryViewProps {
-  columns: ComparisonColumn[];
+  models: Record<'open' | 'claude' | 'nyx', string>;
   ollamaModels: OllamaModel[];
   ollamaStatus: 'idle' | 'loading' | 'error' | 'ok';
   ollamaError: string;
@@ -26,7 +26,7 @@ interface ModelRegistryViewProps {
   setLmStudioBaseUrl: (url: string) => void;
   onRefreshOllama: () => void;
   onRefreshLMStudio: () => void;
-  addColumn: (modelId: string) => void;
+  selectModel: (modelId: string) => void;
   apiKeys: Record<string, string>;
   providerStatuses?: Record<string, 'online' | 'offline' | 'no-key'>;
   ollamaBaseUrl: string;
@@ -244,7 +244,7 @@ const ModelCard: React.FC<{
  * ───────────────────────────────────────────────────────────────────────────── */
 
 const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
-  columns,
+  models,
   ollamaModels,
   ollamaStatus,
   ollamaError,
@@ -254,7 +254,7 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
   setLmStudioBaseUrl,
   onRefreshOllama,
   onRefreshLMStudio,
-  addColumn,
+  selectModel,
   apiKeys,
   providerStatuses,
   ollamaBaseUrl,
@@ -303,14 +303,14 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
   const showLocal = localModelsEnabled && (filter === 'all' || filter === 'local');
   const showCloud = filter === 'all' || filter === 'cloud';
 
-  const columnModelIds = useMemo(
-    () => new Set(columns.map(c => c.modelId)),
-    [columns]
+  const activeModelIds = useMemo(
+    () => new Set(Object.values(models)),
+    [models]
   );
 
   const isDuplicate = useCallback(
-    (modelId: string) => columnModelIds.has(modelId),
-    [columnModelIds]
+    (modelId: string) => activeModelIds.has(modelId),
+    [activeModelIds]
   );
 
   /* ── Render ────────────────────────────────────────────────────────────── */
@@ -487,8 +487,8 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                         modality: 'Text'
                       }}
                       isDuplicate={isDuplicate(m.name)}
-                      isDisabled={columns.length >= 2}
-                      onAdd={() => addColumn(m.name)}
+                      isDisabled={false}
+                      onAdd={() => selectModel(m.name)}
                       usage={usage['ollama']}
                       hasKey={true}
                       status={providerStatuses?.['ollama']}
@@ -566,8 +566,8 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                       provider="lmstudio"
                       description="Currently loaded in LM Studio"
                       isDuplicate={isDuplicate(m.id)}
-                      isDisabled={columns.length >= 2}
-                      onAdd={() => addColumn(m.id)}
+                      isDisabled={false}
+                      onAdd={() => selectModel(m.id)}
                       usage={usage['lmstudio']}
                       hasKey={true}
                       status={providerStatuses?.['lmstudio']}
@@ -608,8 +608,8 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                         description={m.description}
                         specs={m.specs as any}
                         isDuplicate={isDuplicate(m.id)}
-                        isDisabled={columns.length >= 2}
-                        onAdd={() => addColumn(m.id)}
+                        isDisabled={false}
+                        onAdd={() => selectModel(m.id)}
                         usage={usage[m.provider]}
                         hasKey={!!apiKeys[m.provider]}
                         status={providerStatuses?.[m.provider]}

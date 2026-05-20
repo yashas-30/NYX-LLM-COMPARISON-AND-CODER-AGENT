@@ -18,6 +18,11 @@ interface CoderLogicProps {
   ollamaModels: any[];
   lmStudioModels: any[];
   ollamaBaseUrl: string;
+  // Lifted override options
+  activeAgent?: 'open' | 'claude' | 'nyx';
+  setActiveAgent?: (agent: 'open' | 'claude' | 'nyx') => void;
+  models?: Record<'open' | 'claude' | 'nyx', string>;
+  setModel?: (modelId: string) => void;
 }
 
 export const useCoderLogic = ({
@@ -27,9 +32,16 @@ export const useCoderLogic = ({
   trackUsage,
   ollamaModels,
   lmStudioModels,
-  ollamaBaseUrl
+  ollamaBaseUrl,
+  activeAgent: propActiveAgent,
+  setActiveAgent: propSetActiveAgent,
+  models: propModels,
+  setModel: propSetModel
 }: CoderLogicProps) => {
-  const [activeAgent, setActiveAgent] = useState<'open' | 'claude' | 'nyx'>('open');
+  const [localActiveAgent, setLocalActiveAgent] = useState<'open' | 'claude' | 'nyx'>('open');
+  const activeAgent = propActiveAgent ?? localActiveAgent;
+  const setActiveAgent = propSetActiveAgent ?? setLocalActiveAgent;
+
   const [isLoading, setIsLoading] = useState(false);
   const [historyMap, setHistoryMap] = useState<Record<'open' | 'claude' | 'nyx', ChatMessage[]>>({ 
     open: [], 
@@ -42,11 +54,21 @@ export const useCoderLogic = ({
     nyx: { latency: 0, tokens: 0, tps: 0 }
   });
   const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
-  const [models, setModels] = useState<Record<'open' | 'claude' | 'nyx', string>>({
+  
+  const [localModels, setLocalModels] = useState<Record<'open' | 'claude' | 'nyx', string>>({
     open: 'opencode/big-pickle',
     claude: 'anthropic/claude-sonnet-4-20250514',
     nyx: 'anthropic/claude-sonnet-4-20250514'
   });
+  const models = propModels ?? localModels;
+  const setModel = useCallback((mid: string) => {
+    if (propSetModel) {
+      propSetModel(mid);
+    } else {
+      setLocalModels(prev => ({ ...prev, [activeAgent]: mid }));
+    }
+  }, [activeAgent, propSetModel]);
+
   const [agentPersonas, setAgentPersonas] = useState<Record<'open' | 'claude' | 'nyx', AgentPersona>>(DEFAULT_AGENTS);
   const [isUpdatingAgents, setIsUpdatingAgents] = useState(false);
 
@@ -358,9 +380,7 @@ ABSOLUTE RULE:
     setSuggestedPrompts([]);
   }, [activeAgent]);
 
-  const setModel = useCallback((mid: string) => {
-    setModels(prev => ({ ...prev, [activeAgent]: mid }));
-  }, [activeAgent]);
+
 
   return {
     activeAgent, setActiveAgent,

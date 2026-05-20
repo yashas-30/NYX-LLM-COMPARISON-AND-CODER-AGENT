@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LandingPage } from './components/LandingPage';
-import { CompareDashboard } from './components/CompareDashboard';
+import { CoderDashboard } from './components/CoderDashboard';
 import { Toaster } from 'sonner';
 import { useTheme } from './context/ThemeContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -16,7 +16,7 @@ export default function App() {
         {!isAuthenticated ? (
           <LandingPage onStart={() => setIsAuthenticated(true)} />
         ) : (
-          <CompareDashboard onExit={() => setIsAuthenticated(false)} />
+          <CoderDashboard onExit={() => setIsAuthenticated(false)} />
         )}
       </ErrorBoundary>
 

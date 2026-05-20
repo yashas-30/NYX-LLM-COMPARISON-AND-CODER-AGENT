@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 // UI Components (Shared)
-import { Button } from '@/src/components/ui/button';
+import { Button } from '@/src/components/ui/Button';
 import { StatusBadge } from '@/src/components/ui/StatusBadge';
 import { ModelSelector } from '@/src/components/model-card/ModelSelector';
 
@@ -49,6 +49,11 @@ interface CoderPageProps {
   gatewayUrls?: Record<string, string>;
   localModelsEnabled?: boolean;
   setLocalModelsEnabled?: (enabled: boolean) => void;
+  // Overridden states
+  activeAgent?: 'open' | 'claude' | 'nyx';
+  setActiveAgent?: (agent: 'open' | 'claude' | 'nyx') => void;
+  models?: Record<'open' | 'claude' | 'nyx', string>;
+  setModel?: (modelId: string) => void;
 }
 
 export const CoderPage: React.FC<CoderPageProps> = ({
@@ -68,7 +73,11 @@ export const CoderPage: React.FC<CoderPageProps> = ({
   ollamaBaseUrl,
   gatewayUrls = {},
   localModelsEnabled = false,
-  setLocalModelsEnabled = () => {}
+  setLocalModelsEnabled = () => {},
+  activeAgent: propActiveAgent,
+  setActiveAgent: propSetActiveAgent,
+  models: propModels,
+  setModel: propSetModel
 }) => {
   const {
     activeAgent, setActiveAgent,
@@ -85,7 +94,11 @@ export const CoderPage: React.FC<CoderPageProps> = ({
     trackUsage,
     ollamaModels,
     lmStudioModels,
-    ollamaBaseUrl
+    ollamaBaseUrl,
+    activeAgent: propActiveAgent,
+    setActiveAgent: propSetActiveAgent,
+    models: propModels,
+    setModel: propSetModel
   });
 
   const [prompt, setPrompt] = useState('');
@@ -236,9 +249,9 @@ export const CoderPage: React.FC<CoderPageProps> = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className="h-full w-full p-[2vw] flex flex-col min-h-0 overflow-hidden bg-gradient-to-tr from-[#FCF9F2] via-[#F3EFE3] to-[#E8EFE0] dark:from-[#141614] dark:via-[#1B1D1B] dark:to-[#1E251E] transition-colors duration-500"
+      className="h-full w-full p-4 flex flex-col min-h-0 overflow-hidden"
     >
-      <div className="flex-1 min-h-0 w-full flex flex-col bg-white/30 dark:bg-black/20 backdrop-blur-[28px] border border-white/25 dark:border-white/10 rounded-[2.5rem] overflow-hidden shadow-[0_24px_60px_-15px_rgba(0,0,0,0.06)] dark:shadow-[0_24px_60px_-15px_rgba(0,0,0,0.35)] relative transition-all duration-500">
+      <div className="flex-1 min-h-0 w-full flex flex-col bg-white/30 dark:bg-zinc-900/20 backdrop-blur-xl border border-white/20 dark:border-white/5 rounded-3xl overflow-hidden shadow-xl relative transition-all duration-500">
         {/* ─── Header ─── */}
         <header className="flex items-center justify-between p-3.5 sm:p-4 border-b border-white/10 dark:border-white/5 shrink-0 select-none bg-white/10 dark:bg-black/10 backdrop-blur-md">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -385,10 +398,10 @@ export const CoderPage: React.FC<CoderPageProps> = ({
             )}
           </AnimatePresence>
 
-          <div ref={consoleRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar relative px-6 py-6 lg:px-10">
-            <div className="w-full space-y-6 pb-20">
+          <div ref={consoleRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar relative p-4">
+            <div className="w-full space-y-6 pb-4">
               {history.length === 0 ? (
-                <div className="flex flex-col items-center justify-center min-h-[40vh] text-center space-y-4">
+                <div className="flex flex-col items-center justify-center min-h-[20vh] text-center space-y-4">
                   <div className="relative">
                     <div className="absolute inset-0 bg-primary/10 blur-3xl rounded-full scale-125 animate-pulse" />
                     <TerminalIcon className="w-8 h-8 text-primary relative z-10" />
@@ -574,7 +587,7 @@ export const CoderPage: React.FC<CoderPageProps> = ({
               </AnimatePresence>
 
               <form onSubmit={handleSubmit} className="relative group">
-                <div className={`flex items-center gap-2 px-2.5 py-1.5 bg-white/60 dark:bg-zinc-955/70 backdrop-blur-xl border rounded-2xl transition-all duration-500 shadow-xl ${
+                <div className={`flex items-center gap-2 px-2.5 py-1.5 bg-white/30 dark:bg-zinc-900/70 backdrop-blur-xl border rounded-2xl transition-all duration-500 shadow-xl ${
                   activeAgent === 'nyx'
                     ? 'border-emerald-500/30 focus-within:border-emerald-500/60 focus-within:ring-1 focus-within:ring-emerald-500/10'
                     : 'border-white/30 dark:border-white/15 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/10'
