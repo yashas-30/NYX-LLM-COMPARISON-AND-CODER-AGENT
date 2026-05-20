@@ -1,14 +1,11 @@
 // Forced HMR re-transpilation trigger comment
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Search, Plus, RefreshCw, Globe, HardDrive, Info, X, Box, Monitor, Server, Terminal as TerminalIcon, Settings as SettingsIcon
+  Search, RefreshCw, Globe, Box, Server, Terminal as TerminalIcon, Settings as SettingsIcon
 } from 'lucide-react';
 import { AVAILABLE_MODELS } from '@/src/config/models';
 import { OllamaModel, ModelOption, LMStudioModel } from '@/src/types';
-import { Tooltip } from '../Tooltip';
-import { UI_TEXT } from '../../lib/design-system/copy';
-import { toast } from 'sonner';
 import { useTokenUsage } from '@/src/context/TokenUsageContext';
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -16,7 +13,7 @@ import { useTokenUsage } from '@/src/context/TokenUsageContext';
  * ───────────────────────────────────────────────────────────────────────────── */
 
 interface ModelRegistryViewProps {
-  models: Record<'open' | 'claude' | 'nyx', string>;
+  models?: Record<'open' | 'claude' | 'nyx', string>;
   ollamaModels: OllamaModel[];
   ollamaStatus: 'idle' | 'loading' | 'error' | 'ok';
   ollamaError: string;
@@ -26,7 +23,7 @@ interface ModelRegistryViewProps {
   setLmStudioBaseUrl: (url: string) => void;
   onRefreshOllama: () => void;
   onRefreshLMStudio: () => void;
-  selectModel: (modelId: string) => void;
+  selectModel?: (modelId: string) => void;
   apiKeys: Record<string, string>;
   providerStatuses?: Record<string, 'online' | 'offline' | 'no-key'>;
   ollamaBaseUrl: string;
@@ -94,109 +91,53 @@ const EmptyState: React.FC<{ message: string; hint: string }> = ({ message, hint
   </div>
 );
 
-/** Model card with hover effects and add button */
+/** Pure display model card — library view only, no add functionality */
 const ModelCard: React.FC<{
   name: string;
   provider: string;
   description: string;
   specs?: { contextWindow: string; maxOutput: string; modality: string };
-  isDuplicate?: boolean;
-  isDisabled?: boolean;
-  onAdd: () => void;
   usage?: { used: number; remaining: number };
   hasKey?: boolean;
   status?: 'online' | 'offline' | 'no-key';
-}> = ({ name, provider, description, specs, isDuplicate, isDisabled, onAdd, usage, hasKey, status }) => {
-  const [shaking, setShaking] = useState(false);
-
-  const handleAdd = () => {
-    if (isDuplicate) {
-      setShaking(true);
-      toast.error('A node is already created using this model — change it');
-      setTimeout(() => setShaking(false), 500);
-      return;
-    }
-    if (isDisabled) {
-      setShaking(true);
-      toast.error('Maximum of 2 models allowed. Please remove one first.');
-      setTimeout(() => setShaking(false), 500);
-      return;
-    }
-    onAdd();
-  };
-
+}> = ({ name, provider, description, specs, usage, hasKey, status }) => {
   const providerLabel = provider === 'lmstudio' ? 'LM Studio' : provider;
 
   return (
     <motion.div
-      whileHover={(!isDuplicate && !isDisabled) ? { y: -2, scale: 1.01 } : undefined}
+      whileHover={{ y: -2, scale: 1.01 }}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-      className={`
-        group relative p-3 rounded-2xl border border-solid flex flex-col gap-2.5
-        transform-gpu transition-all duration-500 overflow-hidden shadow-sm
-        ${isDuplicate
-          ? 'bg-destructive/5 border-destructive/20'
-          : isDisabled
-            ? 'bg-white/20 dark:bg-zinc-900/20 border-white/10 dark:border-white/5 opacity-60'
-            : 'bg-white/40 dark:bg-zinc-900/30 backdrop-blur-md border-white/20 dark:border-white/5 hover:border-primary/30 hover:bg-white/60 dark:hover:bg-zinc-800/40'
-        }
-      `}
+      className="group relative p-3 rounded-2xl border border-solid flex flex-col gap-2.5 transform-gpu transition-all duration-500 overflow-hidden shadow-sm bg-white/40 dark:bg-zinc-900/30 backdrop-blur-md border-white/20 dark:border-white/5 hover:border-primary/30 hover:bg-white/60 dark:hover:bg-zinc-800/40"
       style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
     >
-      {/* Provider badge + Add button */}
+      {/* Provider badge + status */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <span className={`
-              inline-block text-[7px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full
-              ${isDuplicate ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}
-            `}>
+            <span className="inline-block text-[7px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-primary/10 text-primary">
               {providerLabel}
             </span>
             {status && (
               <span className={`
                 text-[7px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full
-                ${status === 'online' ? 'bg-emerald-500/10 text-emerald-500' : 
-                  status === 'offline' ? 'bg-red-500/10 text-red-500' : 
+                ${status === 'online' ? 'bg-emerald-500/10 text-emerald-500' :
+                  status === 'offline' ? 'bg-red-500/10 text-red-500' :
                   'bg-amber-500/10 text-amber-500'}
               `}>
                 {status === 'online' ? 'Online' : status === 'offline' ? 'Offline' : 'Auth'}
               </span>
             )}
           </div>
-          <h4 className={`
-            text-[12px] font-bold truncate leading-tight tracking-tight
-            ${isDuplicate ? 'text-destructive' : 'text-foreground group-hover:text-primary transition-colors'}
-          `}>
+          <h4 className="text-[12px] font-bold truncate leading-tight tracking-tight text-foreground group-hover:text-primary transition-colors">
             {name}
           </h4>
         </div>
-
-        <Tooltip content={isDuplicate ? 'Already Active' : isDisabled ? 'Max 2 Models' : UI_TEXT.registry.add}>
-          <motion.button
-            animate={shaking ? { x: [-3, 3, -3, 3, 0] } : {}}
-            transition={{ duration: 0.35 }}
-            onClick={handleAdd}
-            disabled={isDisabled && !isDuplicate}
-            className={`
-              w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 shrink-0 shadow-sm
-              ${isDuplicate
-                ? 'bg-destructive text-destructive-foreground'
-                : isDisabled
-                  ? 'bg-muted text-muted-foreground/30 cursor-not-allowed'
-                  : 'bg-primary text-white opacity-0 group-hover:opacity-100'
-              }
-            `}
-          >
-            {isDuplicate ? <X size={14} strokeWidth={1.5} /> : <Plus size={14} strokeWidth={1.5} />}
-          </motion.button>
-        </Tooltip>
       </div>
 
       {/* Description */}
       <p className="text-[9px] text-muted-foreground/80 line-clamp-2 leading-relaxed font-medium">{description}</p>
 
-      {/* Specs grid (cloud models only) */}
+      {/* Specs grid */}
       {(specs || (usage && hasKey)) && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-3 border-t border-border/30">
           {specs && (
@@ -246,7 +187,6 @@ const ModelCard: React.FC<{
  * ───────────────────────────────────────────────────────────────────────────── */
 
 const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
-  models,
   ollamaModels,
   ollamaStatus,
   ollamaError,
@@ -256,7 +196,6 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
   setLmStudioBaseUrl,
   onRefreshOllama,
   onRefreshLMStudio,
-  selectModel,
   apiKeys,
   providerStatuses,
   ollamaBaseUrl,
@@ -307,16 +246,6 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
   const showLocal = localModelsEnabled && (filter === 'all' || filter === 'local');
   const showCloud = filter === 'all' || filter === 'cloud';
 
-  const activeModelIds = useMemo(
-    () => new Set(Object.values(models)),
-    [models]
-  );
-
-  const isDuplicate = useCallback(
-    (modelId: string) => activeModelIds.has(modelId),
-    [activeModelIds]
-  );
-
   /* ── Render ────────────────────────────────────────────────────────────── */
 
   return (
@@ -361,7 +290,7 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
               <Search size={12} strokeWidth={1.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/30 transition-colors group-focus-within:text-primary" />
               <input
                 type="text"
-                placeholder={UI_TEXT.registry.search}
+                placeholder="Search models..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 onKeyDown={e => {
@@ -502,9 +431,6 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                         maxOutput: 'Dynamic',
                         modality: 'Text'
                       }}
-                      isDuplicate={isDuplicate(m.name)}
-                      isDisabled={false}
-                      onAdd={() => selectModel(m.name)}
                       usage={usage['ollama']}
                       hasKey={true}
                       status={providerStatuses?.['ollama']}
@@ -581,9 +507,6 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                       name={m.id}
                       provider="lmstudio"
                       description="Currently loaded in LM Studio"
-                      isDuplicate={isDuplicate(m.id)}
-                      isDisabled={false}
-                      onAdd={() => selectModel(m.id)}
                       usage={usage['lmstudio']}
                       hasKey={true}
                       status={providerStatuses?.['lmstudio']}
@@ -623,9 +546,6 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                         provider={m.provider}
                         description={m.description}
                         specs={m.specs as any}
-                        isDuplicate={isDuplicate(m.id)}
-                        isDisabled={false}
-                        onAdd={() => selectModel(m.id)}
                         usage={usage[m.provider]}
                         hasKey={!!apiKeys[m.provider]}
                         status={providerStatuses?.[m.provider]}
