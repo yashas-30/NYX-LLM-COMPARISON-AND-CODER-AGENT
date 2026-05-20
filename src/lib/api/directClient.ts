@@ -165,7 +165,9 @@ export async function directFetchOpenRouter(
     model,
     messages,
     stream: false,
-    ...settings,
+    temperature: settings?.temperature ?? 0.7,
+    max_tokens: settings?.maxTokens ?? 4096,
+    top_p: settings?.topP ?? 1.0,
   };
 
   const response = await fetch(url, {
@@ -237,7 +239,7 @@ export async function directFetchNvidia(
     model: realModel,
     messages,
     stream: false,
-    max_tokens: settings?.maxTokens || 512,
+    max_tokens: settings?.maxTokens ?? 4096,
     temperature: settings?.temperature ?? 0.7,
     top_p: settings?.topP ?? 1.0,
   };
@@ -310,8 +312,8 @@ export async function directFetchOpenCode(
     messages,
     stream: false,
     temperature: settings?.temperature ?? 0.7,
-    max_tokens: settings?.maxTokens ?? 512,
-    top_p: settings?.topP ?? 1,
+    max_tokens: settings?.maxTokens ?? 4096,
+    top_p: settings?.topP ?? 1.0,
   };
 
   const response = await fetch(url, {

@@ -49,7 +49,9 @@ openrouterRouter.post('/stream', async (req, res) => {
         model,
         messages,
         stream: false,
-        ...settings,
+        temperature: settings?.temperature ?? 0.7,
+        max_tokens: settings?.maxTokens ?? 4096,
+        top_p: settings?.topP ?? 1.0,
       }),
     });
 

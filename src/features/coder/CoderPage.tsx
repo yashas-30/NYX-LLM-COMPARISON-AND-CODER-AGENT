@@ -221,7 +221,14 @@ export const CoderPage: React.FC<CoderPageProps> = ({
   }, [currentModel, providerStatuses, ollamaStatus, lmStudioStatus, apiKeys, isLoading]);
 
   return (
-    <div className="h-full w-full p-[2vw] flex flex-col min-h-0 overflow-hidden bg-background">
+    <motion.div
+      key="coder"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="h-full w-full p-[2vw] flex flex-col min-h-0 overflow-hidden bg-background"
+    >
       <div className="flex-1 min-h-0 w-full flex flex-col bg-card/40 backdrop-blur-3xl border border-border-strong/30 rounded-2xl overflow-hidden shadow-2xl relative">
         {/* ─── Header ─── */}
         <header className="flex items-center justify-between p-3 sm:p-4 border-b border-border-strong/20 shrink-0 select-none bg-background/25">
@@ -597,7 +604,7 @@ export const CoderPage: React.FC<CoderPageProps> = ({
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(var(--primary), 0.2); }
       `}} />
-    </div>
+    </motion.div>
   );
 };
 

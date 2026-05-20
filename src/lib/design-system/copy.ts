@@ -25,12 +25,12 @@ export const UI_TEXT = {
   },
   dashboard: {
     sidebar: {
-      arena: 'Arena',
+      arena: 'Compare',
       history: 'History',
-      registry: 'Models',
+      registry: 'Registry',
       settings: 'Settings',
-      analysis: 'Analysis',
-      coder: 'Coder',
+      analysis: 'Evaluation',
+      coder: 'Agent',
       activeModels: 'Status',
     },
     arena: {
@@ -49,14 +49,14 @@ export const UI_TEXT = {
     }
   },
   registry: {
-    title: 'Library',
+    title: 'Registry',
     search: 'Search',
     add: 'Add',
     cloud: 'Cloud',
     local: 'Local'
   },
   analysis: {
-    title: 'Analysis',
+    title: 'Evaluation',
     button: 'Run',
     loading: 'Loading',
     tabs: {

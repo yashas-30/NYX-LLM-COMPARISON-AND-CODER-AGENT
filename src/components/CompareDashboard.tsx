@@ -70,7 +70,7 @@ export const CompareDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) 
         </div>
 
         {/* Main content — full width on mobile, flex-1 on desktop */}
-        <div className="flex-1 flex flex-col w-full h-full min-w-0 bg-background relative overflow-hidden pb-[60px] md:pb-0">
+        <div className="flex-1 flex flex-col w-full h-full min-w-0 bg-background relative overflow-hidden pb-[60px] md:pb-0 dashboard-main-container">
           <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
               <AnimatePresence mode="wait">
                 {activeMode === 'grid' ? (

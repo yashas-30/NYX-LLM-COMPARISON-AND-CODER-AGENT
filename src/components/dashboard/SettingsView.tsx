@@ -442,19 +442,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[8px] text-muted-foreground/80">
                       <div className="flex items-center gap-1.5">
                         <div className="w-1 h-1 rounded-full bg-primary shrink-0" />
-                        <span><strong>Model Arena (Grid)</strong>: Benchmark model outputs side-by-side.</span>
+                        <span><strong>Compare Workspace</strong>: Benchmark model outputs side-by-side.</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className="w-1 h-1 rounded-full bg-primary shrink-0" />
-                        <span><strong>Performance Analysis</strong>: Evaluate reasoning, response depth, & code.</span>
+                        <span><strong>Performance Evaluation</strong>: Evaluate reasoning, response depth, & code.</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className="w-1 h-1 rounded-full bg-primary shrink-0" />
-                        <span><strong>Coder Workspace</strong>: Specialized editor with multiline code playground.</span>
+                        <span><strong>Agent Workspace</strong>: Specialized editor with multiline code playground.</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <div className="w-1 h-1 rounded-full bg-primary shrink-0" />
-                        <span><strong>Model Forge</strong>: Manage model configurations & discover local instances.</span>
+                        <span><strong>Model Registry</strong>: Manage model configurations & discover local instances.</span>
                       </div>
                     </div>
                   </div>

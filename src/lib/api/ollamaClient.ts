@@ -125,7 +125,7 @@ export async function ollamaChat(opts: {
             temperature: settings?.temperature,
             top_p: settings?.topP,
             top_k: settings?.topK,
-            num_predict: settings?.maxTokens ?? 512,
+            num_predict: settings?.maxTokens ?? 4096,
             num_thread: 8,
           },
         }),

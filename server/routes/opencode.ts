@@ -58,8 +58,8 @@ opencodeRouter.post('/stream', async (req, res) => {
         messages,
         stream: false,
         temperature: settings?.temperature ?? 0.7,
-        max_tokens: settings?.maxTokens ?? 512,
-        top_p: settings?.topP ?? 1,
+        max_tokens: settings?.maxTokens ?? 4096,
+        top_p: settings?.topP ?? 1.0,
       }),
     });
 

@@ -423,3 +423,49 @@
   50% { opacity: 0; }
 }
 
+/* ── Mobile Optimization Rules ──────────────────────────────── */
+body:has(input:focus, textarea:focus) .mobile-nav-bar {
+  display: none !important;
+}
+
+body:has(input:focus, textarea:focus) .dashboard-main-container {
+  padding-bottom: 0px !important;
+}
+
+/* ── Micro-interactions & Design Spells ────────────────────── */
+.hover-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.hover-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--primary-rgb), 0.1),
+    transparent
+  );
+  transform: skewX(-25deg);
+  transition: left 0.8s var(--ease-apple);
+}
+
+.hover-shimmer:hover::after {
+  left: 150%;
+}
+
+/* Custom smooth transitions for active state */
+.btn-smooth-active {
+  transition: transform 0.2s var(--ease-apple), filter 0.2s var(--ease-apple);
+}
+
+.btn-smooth-active:active {
+  transform: scale(0.97);
+}
+
+

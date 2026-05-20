@@ -27,7 +27,7 @@ const HistoryViewComponent: React.FC<HistoryViewProps> = ({
             <div className="w-2.5 h-2.5 rounded-full bg-primary" />
             <div>
               <h2 className="text-sm font-bold tracking-tight text-foreground">{UI_TEXT.history.title}</h2>
-              <p className="text-muted-foreground text-[8px] font-black uppercase tracking-[0.2em] opacity-40">Saved Arena Sessions</p>
+              <p className="text-muted-foreground text-[8px] font-black uppercase tracking-[0.2em] opacity-40">Saved Sessions</p>
             </div>
           </div>
         </header>

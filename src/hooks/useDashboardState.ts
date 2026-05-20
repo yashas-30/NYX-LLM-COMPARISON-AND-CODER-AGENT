@@ -20,7 +20,7 @@ export const useDashboardState = (onExit?: () => void) => {
   const [providerFilter, setProviderFilter] = useState<string>('all');
   const [modelSettings, setModelSettings] = useState({
     temperature: 0.7,
-    maxTokens: 512,
+    maxTokens: 4096,
     topP: 0.95,
     topK: 40
   });

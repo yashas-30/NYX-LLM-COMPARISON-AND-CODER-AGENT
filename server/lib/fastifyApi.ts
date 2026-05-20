@@ -195,8 +195,8 @@ fastify.post('/opencode/*', async (request, reply) => {
     messages,
     stream: false,
     temperature: settings?.temperature ?? 0.7,
-    max_tokens: settings?.maxTokens ?? 512,
-    top_p: settings?.topP ?? 1
+    max_tokens: settings?.maxTokens ?? 4096,
+    top_p: settings?.topP ?? 1.0
   };
 
   try {
@@ -248,8 +248,8 @@ fastify.post('/openrouter/*', async (request, reply) => {
     messages,
     stream: false,
     temperature: settings?.temperature ?? 0.7,
-    max_tokens: settings?.maxTokens ?? 512,
-    top_p: settings?.topP ?? 1
+    max_tokens: settings?.maxTokens ?? 4096,
+    top_p: settings?.topP ?? 1.0
   };
 
   try {
@@ -317,8 +317,8 @@ fastify.post('/nvidia/*', async (request, reply) => {
     messages,
     stream: false,
     temperature: settings?.temperature ?? 0.7,
-    max_tokens: settings?.maxTokens ?? 512,
-    top_p: settings?.topP ?? 1
+    max_tokens: settings?.maxTokens ?? 4096,
+    top_p: settings?.topP ?? 1.0
   };
 
   try {

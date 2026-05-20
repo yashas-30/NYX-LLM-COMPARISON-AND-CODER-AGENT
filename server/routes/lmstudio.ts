@@ -122,7 +122,7 @@ lmStudioRouter.post('/chat', async (req, res) => {
         ],
         stream: true,
         temperature: settings?.temperature ?? 0.7,
-        max_tokens: settings?.maxTokens ?? 512,
+        max_tokens: settings?.maxTokens ?? 4096,
       }),
       signal: controller.signal,
     });

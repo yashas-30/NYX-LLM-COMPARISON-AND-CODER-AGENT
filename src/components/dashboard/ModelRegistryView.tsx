@@ -318,9 +318,10 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
   return (
     <motion.div
       key="registry"
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
       className="h-full w-full p-[2vw] flex flex-col min-h-0 overflow-hidden bg-background"
     >
       <div className="flex-1 min-h-0 w-full flex flex-col bg-card/40 backdrop-blur-3xl border border-border-strong/30 rounded-2xl overflow-hidden shadow-2xl relative">
@@ -333,7 +334,7 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
                 {UI_TEXT.registry.title}
               </h2>
               <p className="text-muted-foreground text-[8px] font-black uppercase tracking-[0.2em] opacity-40">
-                Add models to your arena
+                Manage active models
               </p>
             </div>
           </div>

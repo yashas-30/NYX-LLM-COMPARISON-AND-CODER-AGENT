@@ -132,8 +132,8 @@ export const runComparison = async ({
       // Rough estimate of input tokens
       updateUsage(provider, Math.ceil(activePrompt.length / 4));
 
-      // Enforce token cap: use the lower of user setting or 1024 to save tokens
-      const cappedSettings = { ...modelSettings, maxTokens: Math.min(modelSettings?.maxTokens || 1024, 1024) };
+      // Respect user maxTokens setting, defaulting to 4096 if not set
+      const cappedSettings = { ...modelSettings, maxTokens: modelSettings?.maxTokens || 4096 };
 
       const result = await callAI(
         column.modelId,

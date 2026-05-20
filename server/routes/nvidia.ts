@@ -51,7 +51,7 @@ nvidiaRouter.post('/stream', async (req, res) => {
       model: realModel,
       messages,
       stream: false,
-      max_tokens: settings?.maxTokens || 512,
+      max_tokens: settings?.maxTokens ?? 4096,
       temperature: settings?.temperature ?? 0.7,
       top_p: settings?.topP ?? 1.0,
     };

@@ -230,7 +230,7 @@ const AnalysisViewComponent: React.FC<AnalysisViewProps> = ({
                       className="absolute right-0 top-full mt-1.5 w-64 bg-card/95 backdrop-blur-3xl border border-border-strong rounded-xl shadow-[0_0_40px_rgba(0,0,0,0.4)] overflow-hidden z-50"
                     >
                       <div className="p-2 border-b border-border-strong/30">
-                        <span className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground/40 px-2">Analysis Judge</span>
+                        <span className="text-[7px] font-black uppercase tracking-[0.2em] text-muted-foreground/40 px-2">Evaluation Judge</span>
                       </div>
                       <div className="max-h-60 overflow-y-auto custom-scrollbar p-1.5 space-y-0.5">
                         {analysisModels.map(m => (
@@ -297,13 +297,13 @@ const AnalysisViewComponent: React.FC<AnalysisViewProps> = ({
               </div>
               <h3 className="text-xl font-bold tracking-tight text-foreground mb-2">No Model Outputs</h3>
               <p className="text-[11px] font-medium text-muted-foreground/70 max-w-md leading-relaxed mb-6">
-                Switch to the Arena tab and run a comparison to generate model responses. Then return here to analyze the results.
+                Switch to the Compare tab and run a comparison to generate model responses. Then return here to evaluate the results.
               </p>
               <button
                 onClick={() => setActiveMode('grid')}
                 className="px-6 py-2 rounded-full bg-primary text-white text-[9px] font-bold uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95"
               >
-                Go to Arena
+                Go to Compare
               </button>
             </div>
           ) : isLoading ? (
