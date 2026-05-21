@@ -39,6 +39,40 @@ const STAGE1_BANNER = `> ⚙️ **Architect Agent** — analysing the problem an
 const STAGE2_BANNER = `\n> 💻 **Coder Agent** — writing the complete implementation from the blueprint...`;
 const STAGE3_BANNER = `\n> ⚡ **Optimizer Agent** — finalising and delivering your answer...\n\n`;
 
+// Direct, concise instruction override for simple prompts in NYX mode
+const SIMPLE_NYX_INSTRUCTION = `You are NYX 2.0, a direct coding assistant.
+
+ABSOLUTE RULES:
+- Output ONLY the direct answer or code. Nothing else.
+- NEVER describe what the user said or wrote.
+- NEVER use phrases like "The user said", "You asked", "This is a".
+- NEVER greet, introduce, or acknowledge the prompt.
+- NEVER add closing remarks or offers to help.
+- If the input is a greeting: respond with a brief acknowledgment only.
+- If asked for code: output ONLY the code blocks or files requested.
+- Start immediately with the answer. Zero preamble.`;
+
+// Simple prompt detection heuristic
+const isSimplePrompt = (prompt: string): boolean => {
+  const normalized = prompt.trim().toLowerCase();
+  if (normalized.length < 150) {
+    return true;
+  }
+  const simpleKeywords = [
+    /hello\s*world/i,
+    /write\s+(?:a\s+)?hello\s*world/i,
+    /^hi$/i,
+    /^hello$/i,
+    /^how\s+are\s+you/i,
+    /^explain\s+/i,
+    /^what\s+is\s+/i,
+    /^how\s+to\s+(?:print|install|run|compile|use)\s+/i,
+    /simple\s+(?:html|script|css|python|js|function|code)/i,
+    /quick\s+example/i
+  ];
+  return simpleKeywords.some(pattern => pattern.test(normalized));
+};
+
 export const useAgentPipeline = ({
   activeAgent,
   models,
@@ -75,7 +109,11 @@ export const useAgentPipeline = ({
 
     try {
       if (activeAgent === 'nyx') {
-        await runMultiAgentPipeline(prompt, controller, controllerRef);
+        if (isSimplePrompt(prompt)) {
+          await runSingleAgentPipeline(prompt, controller, controllerRef, SIMPLE_NYX_INSTRUCTION);
+        } else {
+          await runMultiAgentPipeline(prompt, controller, controllerRef);
+        }
       } else {
         await runSingleAgentPipeline(prompt, controller, controllerRef);
       }
@@ -303,8 +341,14 @@ End your response with a "## How to Use" section with clear implementation steps
     updateMetrics(activeAgent, finalMetrics);
   };
 
-  const runSingleAgentPipeline = async (prompt: string, controller: AbortController, controllerRef: React.MutableRefObject<AbortController | null>) => {
+  const runSingleAgentPipeline = async (
+    prompt: string, 
+    controller: AbortController, 
+    controllerRef: React.MutableRefObject<AbortController | null>,
+    systemPromptOverride?: string
+  ) => {
     const persona = agentPersonas[activeAgent];
+    const systemPrompt = systemPromptOverride || persona.systemPrompt;
     const currentModelId = models[activeAgent];
     const provider = detectProvider(currentModelId, ollamaModels, lmStudioModels);
     const apiKey = getEffectiveApiKey(provider, apiKeys);
@@ -313,7 +357,7 @@ End your response with a "## How to Use" section with clear implementation steps
 
     const startTime = Date.now();
     const result = await AIService.execute(
-      currentModelId, provider, prompt, apiKey, persona.systemPrompt, modelSettings,
+      currentModelId, provider, prompt, apiKey, systemPrompt, modelSettings,
       (accumulatedText) => {
         const elapsed = Date.now() - startTime;
         const tokens = Math.floor(accumulatedText.length / 4);

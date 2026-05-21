@@ -19,10 +19,15 @@ interface CoderHeaderProps {
   onClear: () => void;
 }
 
-/** Format latency: shows ms below 1000, then switches to X.Xs format */
+/** Format latency: shows ms below 1000, then switches to X.Xs or Xm Y.Ys format */
 function formatLatency(ms: number): string {
   if (ms <= 0) return '—';
   if (ms < 1000) return `${ms}ms`;
+  if (ms >= 60000) {
+    const mins = Math.floor(ms / 60000);
+    const secs = ((ms % 60000) / 1000).toFixed(1);
+    return `${mins}m ${secs}s`;
+  }
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
@@ -103,7 +108,7 @@ export const CoderHeader: React.FC<CoderHeaderProps> = ({
           ) : (
             <Zap className="w-3 h-3 text-amber-500 dark:text-amber-400 group-hover:scale-110 transition-transform" />
           )}
-          <div className="flex flex-col min-w-[52px]">
+          <div className="flex flex-col min-w-[68px]">
             <span className="text-[7px] font-bold text-muted-foreground uppercase tracking-wider leading-none">
               {isLoading ? 'Elapsed' : 'Latency'}
             </span>
