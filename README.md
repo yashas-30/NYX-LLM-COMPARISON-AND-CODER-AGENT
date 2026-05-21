@@ -9,6 +9,30 @@
 
 ---
 
+## 🚀 What's New in NYX 2.0
+
+### 🤖 Multi-Agent Pipeline (NYX Agent)
+The NYX agent now runs a **3-stage sequential pipeline** internally, delivering elite-quality output:
+
+| Stage | Agent | Role |
+|---|---|---|
+| 1 | **Architect Agent** | Designs the system blueprint & architecture |
+| 2 | **Coder Agent** | Implements complete production code from the blueprint |
+| 3 | **Optimizer Agent** | Audits, refines, and delivers the final answer |
+
+During stages 1 & 2 a compact progress banner is shown. **The final output is only the Optimizer's clean, complete response** — no intermediate stages are exposed to the user.
+
+### ✨ Key Improvements
+- **Clean Final Output** — No Stage 1/Stage 2/Stage 3 labels in the response. You get complete code + a `## How to Use` section, every time.
+- **Never-Truncated Code** — All pipeline stages now use **16,384 max tokens** (up from 4,096), so even large HTML/CSS/JS files are always output in full.
+- **Syntax-Highlighted Code Blocks** — Responses render rich Markdown with dark-themed, language-aware syntax highlighting (powered by `react-syntax-highlighter`).
+- **"Select Model" Placeholder** — The model selector no longer pre-selects a default. It shows an amber **"Select Model"** prompt until you choose a model. The Run button is disabled until a model is selected.
+- **Real-Time Latency & TPS** — The header shows live elapsed time (switching between `ms` and `s` dynamically) and token-per-second throughput updated in real time during generation.
+- **Provider-Aware Routing** — Uses your selected model's provider for API key resolution. No more false "Anthropic API error" when using Gemini models.
+
+---
+
+
 ## 🛠️ System Architecture
 
 NYX uses a highly optimized dual-server architecture that leverages the modularity of **Express** alongside the extreme streaming throughput of **Fastify**. This ensures zero-overhead EventSource (SSE) flushing, persistent TCP connection keep-alives, and automatic fallback capabilities.
