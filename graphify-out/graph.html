@@ -53,6 +53,21 @@ h3{font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.0
 .spinner{width:40px;height:40px;border:3px solid var(--bg-3);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading-text{color:var(--text-2);font-size:14px}
+/* Progress Bar */
+.progress-container {
+  width: 240px;
+  height: 6px;
+  background: var(--bg-3);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.progress-bar {
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
 /* ═══ DROP ZONE ═══ */
 #drop-zone{position:absolute;inset:0;z-index:150;background:rgba(15,15,26,.92);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;border:3px dashed var(--accent);border-radius:12px;margin:16px}
 #drop-zone.visible{display:flex}
@@ -82,10 +97,10 @@ h3{font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.0
 /* ═══ BOTTOM CONTROLS ═══ */
 #bottom-controls{position:absolute;bottom:12px;left:12px;z-index:50;display:flex;gap:6px;align-items:center}
 /* ═══ SIDEBAR ═══ */
-#sidebar{width:300px;background:var(--bg-2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;z-index:60;transition:transform .3s ease}
+#sidebar{width:300px;background:var(--bg-2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-x:hidden;overflow-y:auto;z-index:60;transition:transform .3s ease}
 #sheet-handle{display:none}
 /* Search */
-#search-wrap{padding:10px;border-bottom:1px solid var(--border);position:relative}
+#search-wrap{padding:10px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;background:var(--bg-2)}
 #search{width:100%;background:var(--bg-1);border:1px solid var(--border);color:var(--text-1);padding:7px 12px 7px 30px;border-radius:var(--radius);font:13px var(--font);outline:none;transition:border-color .2s}
 #search:focus{border-color:var(--accent)}
 #search-icon{position:absolute;left:20px;top:50%;transform:translateY(-50%);color:var(--text-3);pointer-events:none;font-size:13px}
@@ -123,7 +138,7 @@ h3{font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.0
 .toggle::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;background:#fff;border-radius:50%;transition:transform .2s}
 .toggle.on::after{transform:translateX(12px)}
 /* Legend */
-#legend-wrap{flex:1;overflow:hidden;display:flex;flex-direction:column}
+#legend-wrap{flex:1;min-height:200px;overflow:hidden;display:flex;flex-direction:column}
 #legend-header{padding:10px 12px 6px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
 #legend-header h3{flex:1;margin:0}
 .legend-actions{display:flex;gap:2px}
@@ -144,7 +159,7 @@ h3{font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.0
 #sel-all-cb:indeterminate{background:var(--accent);border-color:var(--accent)}
 #sel-all-cb:indeterminate::after{content:'';position:absolute;left:2px;top:5px;width:8px;height:2px;background:#fff;border:none;transform:none}
 /* Stats */
-#stats{padding:6px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3);display:flex;justify-content:space-between}
+#stats{padding:6px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3);display:flex;justify-content:space-between;position:sticky;bottom:0;z-index:10;background:var(--bg-2)}
 /* ═══ MINIMAP ═══ */
 #minimap-wrap{position:absolute;bottom:12px;right:310px;z-index:50;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--bg-2);cursor:crosshair;box-shadow:0 4px 16px var(--shadow)}
 #minimap-wrap.hidden{display:none}
@@ -236,19 +251,30 @@ kbd{background:var(--bg-3);padding:2px 8px;border-radius:4px;font:12px var(--mon
 
 <div id="graph-container" role="application" aria-label="Codebase dependency graph">
   <div class="print-header" aria-hidden="true"><h1>Graphify v3</h1><p id="print-stats"></p></div>
-  <div id="loading-overlay" role="alert" aria-label="Loading graph"><div class="spinner"></div><div class="loading-text">Initializing graph…</div></div>
-  <div id="drop-zone" aria-label="Drop JSON file here"><div class="drop-content"><h2>📂 Drop JSON Here</h2><p>Schema: { nodes: [{id,label,community,sourcePath,degree,fileType}], edges: [{from,to}] }</p><button class="action-btn primary" id="btn-load-demo" style="margin-top:12px">Load Demo Data</button></div></div>
-  <div id="toolbar" role="toolbar" aria-label="Graph controls">
-    <div class="filter-pills" id="filter-pills" role="group" aria-label="File type filters"></div>
-    <div class="layout-toggle" role="radiogroup" aria-label="Layout mode">
-      <button class="layout-btn active" data-layout="force" role="radio" aria-checked="true" tabindex="0">Force</button>
-      <button class="layout-btn" data-layout="hierarchy" role="radio" aria-checked="false" tabindex="-1">Hierarchy</button>
-      <button class="layout-btn" data-layout="radial" role="radio" aria-checked="false" tabindex="-1">Radial</button>
-    </div>
-    <button class="action-btn" id="btn-analyze" aria-label="Analyze centrality" tabindex="0">📊 Centrality</button>
-    <button class="action-btn" id="btn-cycles" aria-label="Detect cycles" tabindex="0">🔄 Cycles</button>
-    <button class="action-btn" id="btn-reset" aria-label="Reset view" tabindex="0">⟳ Reset</button>
+  <div id="loading-overlay" role="alert" aria-label="Loading graph">
+    <div class="spinner" id="loading-spinner"></div>
+    <div class="loading-text" id="loading-text">Initializing graph…</div>
+    <div class="progress-container"><div class="progress-bar" id="loading-progress"></div></div>
   </div>
+  <div id="drop-zone" aria-label="Drop JSON file here"><div class="drop-content"><h2>📂 Drop JSON Here</h2><p>Schema: { nodes: [{id,label,community,sourcePath,degree,fileType}], edges: [{from,to}] }</p><button class="action-btn primary" id="btn-load-demo" style="margin-top:12px">Load Demo Data</button></div></div>
+  
+  <div id="toolbar" role="toolbar" aria-label="Graph controls" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+    <div class="toolbar-row" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; width: 100%;">
+      <div class="filter-pills" id="filter-pills" role="group" aria-label="File type filters"></div>
+      <div class="layout-toggle" role="radiogroup" aria-label="Layout mode">
+        <button class="layout-btn active" data-layout="force" role="radio" aria-checked="true" tabindex="0">Force</button>
+        <button class="layout-btn" data-layout="hierarchy" role="radio" aria-checked="false" tabindex="-1">Hierarchy</button>
+        <button class="layout-btn" data-layout="radial" role="radio" aria-checked="false" tabindex="-1">Radial</button>
+      </div>
+      <button class="action-btn" id="btn-analyze" aria-label="Analyze centrality" tabindex="0">📊 Centrality</button>
+      <button class="action-btn" id="btn-cycles" aria-label="Detect cycles" tabindex="0">🔄 Cycles</button>
+      <button class="action-btn" id="btn-reset" aria-label="Reset view" tabindex="0">⟳ Reset</button>
+    </div>
+    <div class="toolbar-row" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; width: 100%;">
+      <div class="filter-pills" id="edge-filter-pills" role="group" aria-label="Edge type filters"></div>
+    </div>
+  </div>
+
   <div id="graph" tabindex="0" role="img" aria-label="Dependency graph canvas"></div>
   <div id="minimap-wrap" aria-hidden="true"><canvas id="minimap" width="200" height="140"></canvas></div>
   <div id="path-bar" class="bar-overlay" role="alert"><span id="path-text"></span><span class="bar-close" id="path-close" tabindex="0" role="button" aria-label="Clear path">&times;</span></div>
@@ -305,6 +331,7 @@ kbd{background:var(--bg-3);padding:2px 8px;border-radius:4px;font:12px var(--mon
       <label>Damping <input type="range" id="phys-damp" min="10" max="100" value="40"></label>
     </div>
     <div class="settings-section"><label class="toggle-label"><div class="toggle on" id="minimap-toggle" role="switch" aria-checked="true" tabindex="0"></div>Show minimap</label></div>
+    <div class="settings-section"><label class="toggle-label"><div class="toggle" id="perf-toggle" role="switch" aria-checked="false" tabindex="0"></div>Simplified view (performance)</label></div>
     <button class="action-btn full" id="settings-reset" style="margin-top:12px">Reset Defaults</button>
   </div>
 </div>
@@ -315,6 +342,8 @@ kbd{background:var(--bg-3);padding:2px 8px;border-radius:4px;font:12px var(--mon
     <kbd>H</kbd><span>Help overlay</span><kbd>Ctrl+K</kbd><span>Command palette</span>
     <kbd>+</kbd><span>Zoom in</span><kbd>-</kbd><span>Zoom out</span>
     <kbd>0</kbd><span>Fit to view</span><kbd>← → ↑ ↓</kbd><span>Pan graph</span>
+    <kbd>P</kbd><span>Pin/Unpin selected node</span><kbd>Ctrl+Z</kbd><span>Undo last action</span>
+    <kbd>Ctrl+Y</kbd><span>Redo last action</span>
   </div><button id="help-close" class="action-btn primary full" style="margin-top:16px" tabindex="0">Got it</button></div>
 </div>
 
@@ -359,13 +388,57 @@ const CFG = {
     deuteranopia: ['#0072B2','#E69F00','#CC79A7','#009E73','#56B4E9','#D55E00','#F0E442','#999999','#88CCEE','#DDCC77','#AA4499','#332288'],
     protanopia:   ['#0072B2','#E69F00','#CC79A7','#009E73','#56B4E9','#D55E00','#F0E442','#999999','#44AA99','#882255','#DDCC77','#117733']
   },
-  EDGE_CLR: { imports:'#4b5563', calls:'#3b82f6', renders:'#ec4899', defines:'#8b5cf6', contains:'#22c55e', extends:'#f97316' },
-  COM_MAP: {
-    'src/components/ui':'UI Components','server/lib':'AI Gateway','server/routes':'LLM Inference',
-    'server':'Server Runtime','src/components/model-card':'Model Registry',
-    'src/lib/design-system':'Design System','src/hooks':'React Hooks',
-    'src/pages':'Pages','scratch':'Scratch Scripts','src/lib':'Utils',
-    'src/styles':'Stylesheets','src/App.tsx':'Pages','tailwind.config.ts':'Stylesheets'
+  EDGE_CLR: { imports:'#4b5563', calls:'#3b82f6', renders:'#ec4899', defines:'#8b5cf6', contains:'#22c55e', extends:'#f97316' }
+};
+
+/* ─── DOM UTILITY ───────────────────────────────────────────────── */
+const Dom = {
+  el(tag, attrs, ...children) {
+    const e = document.createElement(tag);
+    if (attrs) {
+      Object.entries(attrs).forEach(([k, v]) => {
+        if (k === 'style' && typeof v === 'object') {
+          Object.assign(e.style, v);
+        } else if (k.startsWith('on') && typeof v === 'function') {
+          e.addEventListener(k.slice(2).toLowerCase(), v);
+        } else if (k === 'className') {
+          e.className = v;
+        } else if (k === 'checked') {
+          e.checked = !!v;
+        } else {
+          e.setAttribute(k, v);
+        }
+      });
+    }
+    children.forEach(c => {
+      if (typeof c === 'string' || typeof c === 'number') {
+        e.appendChild(document.createTextNode(String(c)));
+      } else if (c) {
+        e.appendChild(c);
+      }
+    });
+    return e;
+  },
+  text(s) { return document.createTextNode(s); },
+  escXml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); },
+  escCsv(s) { return '"' + String(s).replace(/"/g, '""') + '"'; }
+};
+
+/* ─── PROGRESS BAR LOADER ───────────────────────────────────────── */
+const Progress = {
+  set(percent, text) {
+    const bar = document.getElementById('loading-progress');
+    const txt = document.getElementById('loading-text');
+    if (bar) bar.style.width = percent + '%';
+    if (txt && text) txt.textContent = text;
+  },
+  hide() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.classList.add('hidden');
+  },
+  show() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.classList.remove('hidden');
   }
 };
 
@@ -381,21 +454,166 @@ const bus = {
 const S = {
   nodes: [], edges: [], communities: new Map(),
   vN: null, vE: null, net: null, fuse: null,
-  selNode: null, hidCom: new Set(), hidFT: new Set(),
+  selNode: null, hidCom: new Set(), hidFT: new Set(), hidEdgeTypes: new Set(),
   orphans: false, layout: 'force', theme: 'dark', palette: 'default',
   cycles: [], hlPath: [],
   pathMode: false, pathStart: null,
-  centralityDone: false
+  centralityDone: false,
+  pinned: new Set(), pinnedCoords: new Map(),
+  simplified: false
 };
+window.S = S;
 
-/* ─── TOAST ─────────────────────────────────────────────────────── */
-function toast(msg, ms) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('visible');
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.classList.remove('visible'), ms || 3000);
-}
+/* ─── TOAST QUEUE ───────────────────────────────────────────────── */
+const Toast = {
+  _queue: [],
+  _active: false,
+  _timeoutId: null,
+  _transTimeoutId: null,
+  show(msg, ms = 3000) {
+    this._queue = [{ msg, ms }];
+    if (!this._active) {
+      this._next();
+    } else {
+      this._abortCurrent();
+    }
+  },
+  _abortCurrent() {
+    if (this._timeoutId) { clearTimeout(this._timeoutId); this._timeoutId = null; }
+    if (this._transTimeoutId) { clearTimeout(this._transTimeoutId); this._transTimeoutId = null; }
+    const el = document.getElementById('toast');
+    if (el) el.classList.remove('visible');
+    this._transTimeoutId = setTimeout(() => {
+      this._transTimeoutId = null;
+      this._next();
+    }, 100);
+  },
+  _next() {
+    if (!this._queue.length) { this._active = false; return; }
+    this._active = true;
+    const { msg, ms } = this._queue.shift();
+    const el = document.getElementById('toast');
+    if (el) {
+      el.textContent = msg;
+      el.classList.add('visible');
+      this._timeoutId = setTimeout(() => {
+        this._timeoutId = null;
+        el.classList.remove('visible');
+        this._transTimeoutId = setTimeout(() => {
+          this._transTimeoutId = null;
+          this._next();
+        }, 300);
+      }, ms);
+    } else {
+      this._active = false;
+    }
+  }
+};
+function toast(msg, ms) { Toast.show(msg, ms); }
+
+/* ─── UNDOSTACK ─────────────────────────────────────────────────── */
+const Undo = {
+  _stack: [],
+  _redo: [],
+  _maxSize: 50,
+  snap() {
+    this._stack.push({
+      hidCom: new Set(S.hidCom),
+      hidFT: new Set(S.hidFT),
+      hidEdgeTypes: new Set(S.hidEdgeTypes),
+      orphans: S.orphans,
+      layout: S.layout,
+      selNode: S.selNode ? S.selNode.id : null,
+      hlPath: [...S.hlPath],
+      pinned: new Set(S.pinned)
+    });
+    if (this._stack.length > this._maxSize) this._stack.shift();
+    this._redo = [];
+  },
+  undo() {
+    if (!this._stack.length) { toast('Nothing to undo'); return; }
+    this._redo.push({
+      hidCom: new Set(S.hidCom),
+      hidFT: new Set(S.hidFT),
+      hidEdgeTypes: new Set(S.hidEdgeTypes),
+      orphans: S.orphans,
+      layout: S.layout,
+      selNode: S.selNode ? S.selNode.id : null,
+      hlPath: [...S.hlPath],
+      pinned: new Set(S.pinned)
+    });
+    const s = this._stack.pop();
+    this._restore(s);
+    toast('Undo');
+  },
+  redo() {
+    if (!this._redo.length) { toast('Nothing to redo'); return; }
+    this._stack.push({
+      hidCom: new Set(S.hidCom),
+      hidFT: new Set(S.hidFT),
+      hidEdgeTypes: new Set(S.hidEdgeTypes),
+      orphans: S.orphans,
+      layout: S.layout,
+      selNode: S.selNode ? S.selNode.id : null,
+      hlPath: [...S.hlPath],
+      pinned: new Set(S.pinned)
+    });
+    const s = this._redo.pop();
+    this._restore(s);
+    toast('Redo');
+  },
+  _restore(s) {
+    S.hidCom = s.hidCom;
+    S.hidFT = s.hidFT;
+    S.hidEdgeTypes = s.hidEdgeTypes;
+    S.orphans = s.orphans;
+    S.layout = s.layout;
+    S.pinned = s.pinned;
+    
+    const tog = document.getElementById('orphan-toggle');
+    if (tog) {
+      tog.classList.toggle('on', S.orphans);
+      tog.setAttribute('aria-checked', String(S.orphans));
+    }
+    
+    Filters.updateEdgePillsUI();
+    Filters.updateFileTypePillsUI();
+    
+    document.querySelectorAll('[data-layout]').forEach(btn => {
+      const active = btn.dataset.layout === S.layout;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-checked', String(active));
+    });
+    
+    const nodesUpdate = S.nodes.map(n => {
+      const isPinned = S.pinned.has(n.id);
+      if (isPinned) {
+        const pos = S.net.getPositions([n.id])[n.id];
+        return { id: n.id, fixed: { x: true, y: true }, x: pos.x, y: pos.y };
+      } else {
+        return { id: n.id, fixed: false };
+      }
+    });
+    S.vN.update(nodesUpdate);
+    
+    Graph.filter();
+    Legend.render();
+    
+    if (s.selNode) {
+      Graph.select(s.selNode);
+    } else {
+      Graph.deselect();
+    }
+    
+    if (s.hlPath.length) {
+      Graph.hlPath(s.hlPath);
+    } else {
+      Graph.clearHL();
+    }
+    
+    Persist.save();
+  }
+};
 
 /* ─── ANNOUNCE (a11y) ───────────────────────────────────────────── */
 function announce(msg) {
@@ -417,16 +635,44 @@ const Data = {
     try {
       const r = await fetch('sampleData.json');
       if (!r.ok) throw new Error(r.status);
-      return this.process(await r.json());
+      const json = await r.json();
+      const err = this.validate(json);
+      if (err) {
+        toast('Validation error in sampleData.json: ' + err);
+        return this.process(this.demo());
+      }
+      return this.process(json);
     } catch (e) {
       toast('Using embedded demo data');
       return this.process(this.demo());
     }
   },
 
+  validate(json) {
+    if (!json || typeof json !== 'object') return 'Not a JSON object';
+    if (!Array.isArray(json.nodes)) return 'Missing nodes[]';
+    if (!Array.isArray(json.edges)) return 'Missing edges[]';
+    if (json.nodes.length === 0) return 'nodes[] is empty';
+    
+    const ids = new Set();
+    for (const n of json.nodes) {
+      if (!n.id) return 'Nodes must have an "id" field';
+      if (ids.has(n.id)) return `Duplicate node ID: ${n.id}`;
+      ids.add(n.id);
+    }
+    
+    for (const e of json.edges) {
+      if (!e.from || !e.to) return 'Edges must have "from" and "to" fields';
+      if (!ids.has(e.from)) return `Edge references unknown node: ${e.from}`;
+      if (!ids.has(e.to)) return `Edge references unknown node: ${e.to}`;
+    }
+    return null;
+  },
+
   process(raw) {
-    const nodes = raw.nodes.map(n => this.node(n));
-    const edges = raw.edges.map((e, i) => this.edge(e, i, raw.nodes));
+    const pathPrefix = raw.pathPrefix || this.autoStripPrefix(raw.nodes);
+    const nodes = raw.nodes.map(n => this.node(n, pathPrefix));
+    const edges = raw.edges.map((e, i) => this.edge(e, i, nodes));
     const cm = new Map();
     nodes.forEach(n => {
       if (!cm.has(n.community)) cm.set(n.community, { id: n.community, name: n.communityName, color: pal(n.community), count: 0, collapsed: false });
@@ -435,30 +681,49 @@ const Data = {
     return { nodes, edges, communities: cm };
   },
 
-  node(n) {
-    const cp = n.sourcePath.replace(CFG.PATH_STRIP, '');
-    const cn = this.comName(cp, n.community);
-    let lbl = n.label;
+  autoStripPrefix(nodes) {
+    if (!nodes || !nodes.length) return '';
+    const paths = nodes.map(n => n.sourcePath ? n.sourcePath.replace(/\\/g, '/') : '').filter(Boolean);
+    if (!paths.length) return '';
+    let prefix = paths[0];
+    for (const p of paths) {
+      while (prefix && !p.startsWith(prefix)) {
+        const lastSlash = prefix.lastIndexOf('/');
+        if (lastSlash === -1) {
+          prefix = '';
+        } else {
+          prefix = prefix.slice(0, lastSlash);
+        }
+      }
+    }
+    return prefix ? prefix + '/' : '';
+  },
+
+  node(n, pathPrefix) {
+    const sp = n.sourcePath ? n.sourcePath.replace(/\\/g, '/') : `root/${n.label || n.id}`;
+    const cp = pathPrefix ? sp.replace(pathPrefix, '') : sp;
+    const cn = n.communityName || this.comName(cp);
+    let lbl = n.label || n.id;
     if (lbl.length <= CFG.MICRO_MAX) {
       const parts = cp.split('/');
       const parent = parts.length >= 2 ? parts[parts.length - 2] : '';
       if (parent) lbl = parent + '/' + lbl;
     }
-    return { ...n, cleanPath: cp, communityName: cn, label: lbl, origLabel: n.label, color: pal(n.community) };
+    return { ...n, sourcePath: sp, cleanPath: cp, communityName: cn, label: lbl, origLabel: n.label || n.id, color: pal(n.community) };
   },
 
-  comName(path, cid) {
-    const sorted = Object.keys(CFG.COM_MAP).sort((a, b) => b.length - a.length);
-    for (const pfx of sorted) { if (path.startsWith(pfx)) return CFG.COM_MAP[pfx]; }
-    const dir = path.split('/').slice(0, -1).join('/');
-    if (dir) { const seg = dir.split('/'); return seg[seg.length - 1].charAt(0).toUpperCase() + seg[seg.length - 1].slice(1); }
-    return 'Config';
+  comName(path) {
+    const segs = path.split('/').filter(Boolean);
+    if (segs.length <= 1) return 'Root';
+    const lastDirIndex = segs.length - 2;
+    const last = segs[lastDirIndex];
+    return last.charAt(0).toUpperCase() + last.slice(1);
   },
 
-  edge(e, i, rawNodes) {
-    const from = rawNodes.find(n => n.id === e.from);
-    const to   = rawNodes.find(n => n.id === e.to);
-    const type = this.edgeType(from, to);
+  edge(e, i, nodes) {
+    const from = nodes.find(n => n.id === e.from);
+    const to   = nodes.find(n => n.id === e.to);
+    const type = e.type || this.edgeType(from, to);
     return {
       id: 'e' + i, from: e.from, to: e.to, type,
       color: { color: CFG.EDGE_CLR[type] || '#4b5563', opacity: 0.5 },
@@ -469,21 +734,78 @@ const Data = {
 
   edgeType(f, t) {
     if (!f || !t) return 'imports';
-    if (t.id.includes('type') || t.id.includes('Type')) return 'defines';
-    if ((f.fileType === 'tsx' || f.fileType === 'jsx') && (t.fileType === 'tsx' || t.fileType === 'jsx')) return 'renders';
-    if (f.id.startsWith('hk_') && f.fileType === 'ts') return 'calls';
+    const fDir = f.sourcePath ? f.sourcePath.split('/').slice(0, -1).join('/') : '';
+    const tDir = t.sourcePath ? t.sourcePath.split('/').slice(0, -1).join('/') : '';
+    if (fDir && tDir && tDir.startsWith(fDir + '/')) return 'contains';
+    if (f.community === t.community && ['tsx','jsx'].includes(f.fileType) && ['tsx','jsx'].includes(t.fileType)) return 'renders';
+    if (f.label && f.label.startsWith('use') && t.fileType === 'ts') return 'calls';
+    if (t.label && (t.label.match(/types?\.ts$/i) || t.label.match(/\.d\.ts$/))) return 'defines';
+    if (f.fileType === t.fileType && f.label && f.label.includes('Base')) return 'extends';
     return 'imports';
   },
 
   demo() {
     return {
       nodes: [
-        { id: 'app', label: 'App.tsx', community: 1, sourcePath: 'src/App.tsx', degree: 4, fileType: 'tsx' },
-        { id: 'home', label: 'Home.tsx', community: 1, sourcePath: 'src/pages/Home.tsx', degree: 3, fileType: 'tsx' },
-        { id: 'btn', label: 'Button.tsx', community: 2, sourcePath: 'src/ui/Button.tsx', degree: 2, fileType: 'tsx' },
-        { id: 'util', label: 'utils.ts', community: 3, sourcePath: 'src/lib/utils.ts', degree: 1, fileType: 'ts' }
+        { id: 'ui_btn', label: 'Button.tsx', community: 1, sourcePath: 'src/components/ui/Button.tsx', degree: 5, fileType: 'tsx' },
+        { id: 'ui_card', label: 'Card.tsx', community: 1, sourcePath: 'src/components/ui/Card.tsx', degree: 4, fileType: 'tsx' },
+        { id: 'ui_dialog', label: 'Dialog.tsx', community: 1, sourcePath: 'src/components/ui/Dialog.tsx', degree: 3, fileType: 'tsx' },
+        { id: 'ui_input', label: 'Input.tsx', community: 1, sourcePath: 'src/components/ui/Input.tsx', degree: 2, fileType: 'tsx' },
+        { id: 'ui_select', label: 'Select.tsx', community: 1, sourcePath: 'src/components/ui/Select.tsx', degree: 2, fileType: 'tsx' },
+        { id: 'srv_main', label: 'server.ts', community: 2, sourcePath: 'server/server.ts', degree: 7, fileType: 'ts' },
+        { id: 'srv_routes', label: 'routes.ts', community: 2, sourcePath: 'server/routes.ts', degree: 5, fileType: 'ts' },
+        { id: 'srv_auth', label: 'auth.ts', community: 2, sourcePath: 'server/auth.ts', degree: 3, fileType: 'ts' },
+        { id: 'srv_db', label: 'db.ts', community: 2, sourcePath: 'server/db.ts', degree: 2, fileType: 'ts' },
+        { id: 'gw_main', label: 'gateway.ts', community: 3, sourcePath: 'server/lib/gateway.ts', degree: 6, fileType: 'ts' },
+        { id: 'gw_stream', label: 'stream.ts', community: 3, sourcePath: 'server/lib/stream.ts', degree: 4, fileType: 'ts' },
+        { id: 'gw_retry', label: 'retry.ts', community: 3, sourcePath: 'server/lib/retry.ts', degree: 3, fileType: 'ts' },
+        { id: 'gw_cache', label: 'cache.ts', community: 3, sourcePath: 'server/lib/cache.ts', degree: 2, fileType: 'ts' },
+        { id: 'hk_chat', label: 'useChat.ts', community: 4, sourcePath: 'src/hooks/useChat.ts', degree: 5, fileType: 'ts' },
+        { id: 'hk_theme', label: 'useTheme.ts', community: 4, sourcePath: 'src/hooks/useTheme.ts', degree: 3, fileType: 'ts' },
+        { id: 'hk_auth', label: 'useAuth.ts', community: 4, sourcePath: 'src/hooks/useAuth.ts', degree: 3, fileType: 'ts' },
+        { id: 'pg_app', label: 'App.tsx', community: 5, sourcePath: 'src/App.tsx', degree: 8, fileType: 'tsx' },
+        { id: 'pg_dash', label: 'Dashboard.tsx', community: 5, sourcePath: 'src/pages/Dashboard.tsx', degree: 6, fileType: 'tsx' },
+        { id: 'pg_settings', label: 'Settings.tsx', community: 5, sourcePath: 'src/pages/Settings.tsx', degree: 4, fileType: 'tsx' },
+        { id: 'pg_chat', label: 'ChatView.tsx', community: 5, sourcePath: 'src/pages/ChatView.tsx', degree: 5, fileType: 'tsx' },
+        { id: 'ut_cn', label: 'utils.ts', community: 6, sourcePath: 'src/lib/utils.ts', degree: 5, fileType: 'ts' },
+        { id: 'ut_api', label: 'api.ts', community: 6, sourcePath: 'src/lib/api.ts', degree: 4, fileType: 'ts' },
+        { id: 'ut_storage', label: 'storage.ts', community: 6, sourcePath: 'src/lib/storage.ts', degree: 3, fileType: 'ts' },
+        { id: 'sc_test', label: 'test.py', community: 7, sourcePath: 'scratch/test.py', degree: 0, fileType: 'py' },
+        { id: 'sc_seed', label: 'seed.py', community: 7, sourcePath: 'scratch/seed.py', degree: 0, fileType: 'py' }
       ],
-      edges: [{ from: 'app', to: 'home' }, { from: 'app', to: 'btn' }, { from: 'home', to: 'btn' }, { from: 'btn', to: 'util' }]
+      edges: [
+        { from: 'pg_app', to: 'pg_dash' },
+        { from: 'pg_app', to: 'pg_settings' },
+        { from: 'pg_app', to: 'pg_chat' },
+        { from: 'pg_app', to: 'hk_theme' },
+        { from: 'pg_dash', to: 'ui_card' },
+        { from: 'pg_dash', to: 'ui_btn' },
+        { from: 'pg_dash', to: 'ut_api' },
+        { from: 'pg_chat', to: 'hk_chat' },
+        { from: 'pg_chat', to: 'ui_btn' },
+        { from: 'pg_chat', to: 'ui_input' },
+        { from: 'pg_settings', to: 'ui_card' },
+        { from: 'pg_settings', to: 'ui_select' },
+        { from: 'pg_settings', to: 'hk_auth' },
+        { from: 'ui_btn', to: 'ut_cn' },
+        { from: 'ui_card', to: 'ut_cn' },
+        { from: 'ui_dialog', to: 'ut_cn' },
+        { from: 'srv_main', to: 'srv_routes' },
+        { from: 'srv_main', to: 'srv_auth' },
+        { from: 'srv_main', to: 'srv_db' },
+        { from: 'srv_routes', to: 'gw_main' },
+        { from: 'gw_main', to: 'gw_stream' },
+        { from: 'gw_main', to: 'gw_retry' },
+        { from: 'gw_main', to: 'gw_cache' },
+        { from: 'hk_chat', to: 'ut_api' },
+        { from: 'hk_auth', to: 'ut_api' },
+        { from: 'hk_theme', to: 'ut_storage' },
+        { from: 'ut_api', to: 'ut_storage' },
+        { from: 'gw_stream', to: 'gw_retry' },
+        { from: 'gw_retry', to: 'gw_main' },
+        { from: 'ut_cn', to: 'ut_api' },
+        { from: 'ut_api', to: 'ut_cn' }
+      ]
     };
   }
 };
@@ -498,13 +820,24 @@ const Graph = {
     S.vE = new vis.DataSet(edges);
     S.net = new vis.Network(container, { nodes: S.vN, edges: S.vE }, this.opts(S.layout));
 
-    S.net.once('stabilized', () => {
+    S.net.on('stabilizationProgress', params => {
+      const pct = 60 + Math.round((params.iterations / params.total) * 40);
+      Progress.set(pct, `Stabilizing physics (${params.iterations}/${params.total})…`);
+    });
+
+    let done = false;
+    const onDone = () => {
+      if (done) return;
+      done = true;
       S.net.setOptions({ physics: false });
-      document.getElementById('loading-overlay').classList.add('hidden');
+      Progress.set(100, 'Stabilized ✓');
+      setTimeout(() => Progress.hide(), 400);
       toast('Graph stabilized ✓');
       this.stats();
       bus.emit('stabilized');
-    });
+    };
+    S.net.once('stabilized', onDone);
+    S.net.once('stabilizationIterationsDone', onDone);
 
     S.net.on('click', p => {
       if (S.pathMode && p.nodes.length) { this.finishPath(p.nodes[0]); return; }
@@ -520,11 +853,16 @@ const Graph = {
   vNode(n) {
     const sz = Math.max(8, Math.min(45, 8 + n.degree * 1.5));
     const shapes = { tsx: 'dot', ts: 'diamond', jsx: 'dot', js: 'triangle', css: 'square', json: 'star', py: 'triangleDown', sh: 'hexagon', md: 'text', env: 'database', gitignore: 'text' };
+    const isPinned = S.pinned && S.pinned.has(n.id);
+    const coords = isPinned && S.pinnedCoords ? S.pinnedCoords.get(n.id) : null;
     return {
       id: n.id, label: n.label, size: sz, shape: shapes[n.fileType] || 'dot',
       color: { background: n.color, border: n.color, highlight: { background: '#fff', border: n.color }, hover: { background: n.color + 'cc', border: '#fff' } },
-      font: { color: '#e2e8f0', size: Math.max(10, 12 + n.degree * 0.3), face: 'Inter, sans-serif' },
+      font: { color: S.theme === 'light' ? '#1a1a2e' : '#e2e8f0', size: S.simplified ? 0 : Math.max(10, 12 + n.degree * 0.3), face: 'Inter, sans-serif' },
       title: n.cleanPath + '\nDegree: ' + n.degree + ' · ' + n.communityName,
+      fixed: isPinned ? { x: true, y: true } : false,
+      x: coords ? coords.x : undefined,
+      y: coords ? coords.y : undefined,
       _d: n
     };
   },
@@ -570,7 +908,23 @@ const Graph = {
       return { id: n.id, hidden: h };
     });
     S.vN.update(upd);
+    
+    const edgeUpd = S.edges.map(e => {
+      const fromNode = S.nodes.find(n => n.id === e.from);
+      const toNode = S.nodes.find(n => n.id === e.to);
+      const fromHidden = fromNode ? (S.hidCom.has(fromNode.community) || S.hidFT.has(fromNode.fileType) || (!S.orphans && fromNode.degree === 0)) : false;
+      const toHidden = toNode ? (S.hidCom.has(toNode.community) || S.hidFT.has(toNode.fileType) || (!S.orphans && toNode.degree === 0)) : false;
+      
+      const typeHidden = S.hidEdgeTypes.has(e.type);
+      return { id: e.id, hidden: fromHidden || toHidden || typeHidden };
+    });
+    S.vE.update(edgeUpd);
+
     this.stats();
+  },
+
+  filterEdges() {
+    this.filter();
   },
 
   hlPath(ids) {
@@ -619,7 +973,9 @@ const Graph = {
     if (path) {
       this.hlPath(path);
       const names = path.map(id => { const n = S.nodes.find(x => x.id === id); return n ? n.label : id; });
-      document.getElementById('path-text').textContent = 'Path (' + path.length + ' hops): ' + names.join(' → ');
+      const pathTextEl = document.getElementById('path-text');
+      pathTextEl.textContent = '';
+      pathTextEl.appendChild(Dom.text('Path (' + path.length + ' hops): ' + names.join(' → ')));
       document.getElementById('path-bar').classList.add('visible');
       toast('Path: ' + path.length + ' hops');
     } else { toast('No path found'); }
@@ -631,9 +987,16 @@ const Graph = {
   stats() {
     const vn = S.vN.get({ filter: n => !n.hidden }).length;
     const ve = S.vE.get({ filter: e => !e.hidden }).length;
-    document.getElementById('stats-text').textContent = vn + ' nodes · ' + ve + ' edges · ' + S.communities.size + ' communities';
+    
+    const statsTextEl = document.getElementById('stats-text');
+    statsTextEl.textContent = '';
+    statsTextEl.appendChild(Dom.text(vn + ' nodes · ' + ve + ' edges · ' + S.communities.size + ' communities'));
+    
     const ps = document.getElementById('print-stats');
-    if (ps) ps.textContent = vn + ' nodes · ' + ve + ' edges · ' + S.communities.size + ' communities';
+    if (ps) {
+      ps.textContent = '';
+      ps.appendChild(Dom.text(vn + ' nodes · ' + ve + ' edges · ' + S.communities.size + ' communities'));
+    }
   },
 
   recolor() {
@@ -641,6 +1004,40 @@ const Graph = {
     S.vN.update(S.nodes.map(n => ({ id: n.id, color: { background: n.color, border: n.color, highlight: { background: '#fff', border: n.color }, hover: { background: n.color + 'cc', border: '#fff' } } })));
     S.communities.forEach((c, id) => { c.color = pal(id); });
     Legend.render();
+  },
+
+  applyPerfMode() {
+    if (!S.net) return;
+    if (S.simplified) {
+      S.net.setOptions({
+        interaction: { hover: false },
+        physics: { minVelocity: 0.8 }
+      });
+      S.net.setOptions({
+        nodes: { font: { size: 0 } }
+      });
+      const edgeUpd = S.vE.get().map(e => {
+        const orig = S.edges.find(oe => oe.id === e.id);
+        const col = orig ? orig.color.color : '#4b5563';
+        return { id: e.id, color: { color: col, opacity: 0.08 } };
+      });
+      S.vE.update(edgeUpd);
+    } else {
+      S.net.setOptions({
+        interaction: { hover: true },
+        physics: { minVelocity: 0.1 }
+      });
+      const nodesUpd = S.nodes.map(n => ({
+        id: n.id,
+        font: { size: Math.max(10, 12 + n.degree * 0.3) }
+      }));
+      S.vN.update(nodesUpd);
+      const edgeUpd = S.vE.get().map(e => {
+        const orig = S.edges.find(oe => oe.id === e.id);
+        return { id: e.id, color: orig ? orig.color : { color: '#4b5563', opacity: 0.5 } };
+      });
+      S.vE.update(edgeUpd);
+    }
   }
 };
 
@@ -649,6 +1046,7 @@ const PF = {
   adj() {
     const m = new Map();
     S.edges.forEach(e => {
+      if (S.hidEdgeTypes.has(e.type)) return;
       if (!m.has(e.from)) m.set(e.from, []);
       if (!m.has(e.to)) m.set(e.to, []);
       m.get(e.from).push(e.to);
@@ -682,7 +1080,11 @@ const PF = {
 const Cycles = {
   detect() {
     const adj = new Map();
-    S.edges.forEach(e => { if (!adj.has(e.from)) adj.set(e.from, []); adj.get(e.from).push(e.to); });
+    S.edges.forEach(e => {
+      if (S.hidEdgeTypes.has(e.type)) return;
+      if (!adj.has(e.from)) adj.set(e.from, []);
+      adj.get(e.from).push(e.to);
+    });
     const visited = new Set(), rec = new Set(), path = [], cycles = [];
     const dfs = (node) => {
       visited.add(node); rec.add(node); path.push(node);
@@ -702,22 +1104,23 @@ const Cycles = {
     const panel = document.getElementById('cycles-panel');
     const content = document.getElementById('cycles-content');
     panel.style.display = 'block';
+    content.textContent = '';
     if (!cycles.length) {
-      content.innerHTML = '<p style="color:var(--ok);font-size:12px">🎉 No circular dependencies found!</p>';
+      content.appendChild(Dom.el('p', { style: { color: 'var(--ok)', fontSize: '12px' } }, '🎉 No circular dependencies found!'));
       toast('No cycles found ✓');
       announce('No circular dependencies');
       return;
     }
     toast(cycles.length + ' cycle(s) detected');
     announce(cycles.length + ' circular dependencies found');
-    let html = '';
+    
     cycles.forEach((c, i) => {
       const names = c.map(id => { const n = S.nodes.find(x => x.id === id); return n ? n.label : id; });
-      html += '<div class="cycle-item" data-idx="' + i + '">Cycle ' + (i + 1) + ': ' + names.join(' → ') + '</div>';
-    });
-    content.innerHTML = html;
-    content.querySelectorAll('.cycle-item').forEach(el => {
-      el.addEventListener('click', () => { Graph.hlPath(cycles[+el.dataset.idx]); });
+      const item = Dom.el('div', {
+        className: 'cycle-item',
+        onclick: () => { Graph.hlPath(c); }
+      }, 'Cycle ' + (i + 1) + ': ' + names.join(' → '));
+      content.appendChild(item);
     });
     Graph.hlPath(cycles[0]);
   }
@@ -727,52 +1130,59 @@ const Cycles = {
    CENTRALITY (Web Worker via Blob URL)
    ═══════════════════════════════════════════════════════════════════ */
 const Centrality = {
+  _workerUrl: null,
+  _ensureWorker() {
+    if (!this._workerUrl) {
+      const workerCode = `
+        self.onmessage = function(e) {
+          const { nodes, edges } = e.data;
+          const adj = {};
+          nodes.forEach(n => { adj[n.id] = []; });
+          edges.forEach(e => {
+            if (adj[e.from]) adj[e.from].push(e.to);
+          });
+          const degree = {}, between = {};
+          nodes.forEach(n => {
+            degree[n.id] = (adj[n.id] || []).length;
+            between[n.id] = 0;
+          });
+          nodes.forEach(s => {
+            const stack = [], pred = {}, sigma = {}, dist = {};
+            nodes.forEach(n => { pred[n.id] = []; sigma[n.id] = 0; dist[n.id] = -1; });
+            sigma[s.id] = 1; dist[s.id] = 0;
+            const queue = [s.id];
+            while (queue.length) {
+              const v = queue.shift(); stack.push(v);
+              for (const w of (adj[v] || [])) {
+                if (dist[w] < 0) { queue.push(w); dist[w] = dist[v] + 1; }
+                if (dist[w] === dist[v] + 1) { sigma[w] += sigma[v]; pred[w].push(v); }
+              }
+            }
+            const delta = {};
+            nodes.forEach(n => { delta[n.id] = 0; });
+            while (stack.length) {
+              const w = stack.pop();
+              for (const v of pred[w]) { delta[v] += (sigma[v] / sigma[w]) * (1 + delta[w]); }
+              if (w !== s.id) between[w] += delta[w];
+            }
+          });
+          const n = nodes.length;
+          const factor = n > 2 ? 1 / ((n - 1) * (n - 2)) : 1;
+          nodes.forEach(nd => { between[nd.id] *= factor; });
+          self.postMessage({ degree, between });
+        };
+      `;
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      this._workerUrl = URL.createObjectURL(blob);
+    }
+    return new Worker(this._workerUrl);
+  },
+
   run() {
     toast('Computing centrality…');
-    const workerCode = `
-      self.onmessage = function(e) {
-        const { nodes, edges } = e.data;
-        const adj = {};
-        nodes.forEach(n => { adj[n.id] = []; });
-        edges.forEach(e => { if (adj[e.from]) adj[e.from].push(e.to); if (adj[e.to]) adj[e.to].push(e.from); });
-        const degree = {}, between = {};
-        nodes.forEach(n => {
-          degree[n.id] = (adj[n.id] || []).length;
-          between[n.id] = 0;
-        });
-        // Brandes betweenness (simplified)
-        nodes.forEach(s => {
-          const stack = [], pred = {}, sigma = {}, dist = {};
-          nodes.forEach(n => { pred[n.id] = []; sigma[n.id] = 0; dist[n.id] = -1; });
-          sigma[s.id] = 1; dist[s.id] = 0;
-          const queue = [s.id];
-          while (queue.length) {
-            const v = queue.shift(); stack.push(v);
-            for (const w of (adj[v] || [])) {
-              if (dist[w] < 0) { queue.push(w); dist[w] = dist[v] + 1; }
-              if (dist[w] === dist[v] + 1) { sigma[w] += sigma[v]; pred[w].push(v); }
-            }
-          }
-          const delta = {};
-          nodes.forEach(n => { delta[n.id] = 0; });
-          while (stack.length) {
-            const w = stack.pop();
-            for (const v of pred[w]) { delta[v] += (sigma[v] / sigma[w]) * (1 + delta[w]); }
-            if (w !== s.id) between[w] += delta[w];
-          }
-        });
-        // Normalize
-        const n = nodes.length;
-        const factor = n > 2 ? 2 / ((n - 1) * (n - 2)) : 1;
-        nodes.forEach(nd => { between[nd.id] *= factor; });
-        self.postMessage({ degree, between });
-      };
-    `;
-    const blob = new Blob([workerCode], { type: 'application/javascript' });
-    const w = new Worker(URL.createObjectURL(blob));
+    const w = this._ensureWorker();
     w.postMessage({ nodes: S.nodes.map(n => ({ id: n.id })), edges: S.edges.map(e => ({ from: e.from, to: e.to })) });
     w.onmessage = (e) => {
-      URL.revokeObjectURL(blob);
       w.terminate();
       this.display(e.data);
       S.centralityDone = true;
@@ -785,19 +1195,44 @@ const Centrality = {
     const panel = document.getElementById('centrality-panel');
     const content = document.getElementById('centrality-content');
     panel.style.display = 'block';
+    content.textContent = '';
     const sorted = S.nodes.filter(n => n.degree > 0)
       .map(n => ({ id: n.id, label: n.label, color: n.color, deg: data.degree[n.id] || 0, btw: data.between[n.id] || 0 }))
       .sort((a, b) => b.btw - a.btw).slice(0, 15);
-    let html = '<table class="ct-table"><thead><tr><th>Node</th><th>Deg</th><th>Betweenness</th></tr></thead><tbody>';
+    
+    if (sorted.length === 0) {
+      content.appendChild(Dom.el('p', { className: 'empty' }, 'All nodes have zero betweenness centrality. This suggests the graph is fully disconnected.'));
+      return;
+    }
+    
+    const tbody = Dom.el('tbody');
     sorted.forEach(r => {
-      html += '<tr data-id="' + r.id + '"><td><span class="legend-dot" style="background:' + r.color + ';display:inline-block;vertical-align:middle;margin-right:4px"></span>' + r.label + '</td><td>' + r.deg + '</td><td>' + r.btw.toFixed(3) + '</td></tr>';
+      const tr = Dom.el('tr', {
+        'data-id': r.id,
+        onclick: () => { Search.goTo(r.id); }
+      },
+        Dom.el('td', {},
+          Dom.el('span', { className: 'legend-dot', style: { background: r.color, display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' } }),
+          Dom.text(r.label)
+        ),
+        Dom.el('td', {}, Dom.text(String(r.deg))),
+        Dom.el('td', {}, Dom.text(r.btw.toFixed(3)))
+      );
+      tbody.appendChild(tr);
     });
-    html += '</tbody></table>';
-    content.innerHTML = html;
-    content.querySelectorAll('tr[data-id]').forEach(tr => {
-      tr.addEventListener('click', () => { Search.goTo(tr.dataset.id); });
-    });
-    // Resize hub nodes
+    
+    const table = Dom.el('table', { className: 'ct-table' },
+      Dom.el('thead', {},
+        Dom.el('tr', {},
+          Dom.el('th', {}, 'Node'),
+          Dom.el('th', {}, 'Deg'),
+          Dom.el('th', {}, 'Betweenness')
+        )
+      ),
+      tbody
+    );
+    content.appendChild(table);
+    
     sorted.slice(0, 5).forEach(r => {
       S.vN.update([{ id: r.id, size: Math.max(20, 12 + r.btw * 200) }]);
     });
@@ -827,39 +1262,57 @@ const Search = {
   run(term) {
     const box = document.getElementById('search-results');
     const cnt = document.getElementById('search-count');
-    box.innerHTML = '';
+    box.textContent = '';
     if (!term || term.length < 2) { cnt.textContent = ''; Graph.clearHL(); return; }
     const results = S.fuse.search(term).slice(0, 20);
     cnt.textContent = results.length + ' found';
-    if (!results.length) return;
+    if (!results.length) {
+      box.appendChild(Dom.el('div', { className: 'search-item empty' }, `No matches for '${term}'`));
+      return;
+    }
     results.forEach((r, i) => {
-      const div = document.createElement('div');
-      div.className = 'search-item' + (i === 0 ? ' sel' : '');
-      div.dataset.id = r.item.id;
-      div.innerHTML = '<span class="legend-dot" style="background:' + r.item.color + '"></span>' + this.hl(r) + '<small style="color:var(--text-3);margin-left:auto;font-size:10px">' + r.item.communityName + '</small>';
-      div.addEventListener('click', () => this.goTo(r.item.id));
+      const div = Dom.el('div', {
+        className: 'search-item' + (i === 0 ? ' sel' : ''),
+        'data-id': r.item.id,
+        onclick: () => this.goTo(r.item.id)
+      },
+        Dom.el('span', { className: 'legend-dot', style: { background: r.item.color } }),
+        this.hl(r),
+        Dom.el('small', { style: { color: 'var(--text-3)', marginLeft: 'auto', fontSize: '10px' } }, r.item.communityName)
+      );
       box.appendChild(div);
     });
-    // Dim non-matching nodes
     const ids = new Set(results.map(r => r.item.id));
     S.vN.update(S.vN.getIds().map(id => ({ id, opacity: ids.has(id) ? 1 : 0.1 })));
   },
 
   hl(res) {
-    let t = res.item.label;
+    const t = res.item.label;
     if (res.matches) {
       const m = res.matches.find(x => x.key === 'label');
       if (m && m.indices.length) {
-        let out = '', last = 0;
-        m.indices.forEach(([s, e]) => { out += t.slice(last, s) + '<mark>' + t.slice(s, e + 1) + '</mark>'; last = e + 1; });
-        t = out + t.slice(last);
+        const frag = document.createDocumentFragment();
+        let last = 0;
+        m.indices.forEach(([s, e]) => {
+          if (s > last) {
+            frag.appendChild(document.createTextNode(t.slice(last, s)));
+          }
+          const mark = document.createElement('mark');
+          mark.textContent = t.slice(s, e + 1);
+          frag.appendChild(mark);
+          last = e + 1;
+        });
+        if (last < t.length) {
+          frag.appendChild(document.createTextNode(t.slice(last)));
+        }
+        return frag;
       }
     }
-    return t;
+    return Dom.text(t);
   },
 
   clear() {
-    document.getElementById('search-results').innerHTML = '';
+    document.getElementById('search-results').textContent = '';
     document.getElementById('search-count').textContent = '';
     Graph.clearHL();
   },
@@ -880,7 +1333,12 @@ const Search = {
   },
 
   goTo(id) {
-    document.getElementById('search-results').innerHTML = '';
+    const input = document.getElementById('search');
+    if (input) {
+      input.value = '';
+      input.blur();
+    }
+    document.getElementById('search-results').textContent = '';
     document.getElementById('search-count').textContent = '';
     S.net.focus(id, { scale: 1.5, animation: { duration: 400 } });
     S.net.selectNodes([id]);
@@ -894,22 +1352,38 @@ const Search = {
 const Legend = {
   render() {
     const el = document.getElementById('legend');
-    el.innerHTML = '';
+    el.textContent = '';
     S.communities.forEach((c, id) => {
-      const div = document.createElement('div');
-      div.className = 'legend-item' + (S.hidCom.has(id) ? ' dimmed' : '');
-      div.setAttribute('role', 'listitem');
-      div.innerHTML = '<input type="checkbox" class="lg-cb" ' + (S.hidCom.has(id) ? '' : 'checked') + ' tabindex="-1"><span class="legend-dot" style="background:' + c.color + '"></span><span class="legend-label">' + c.name + '</span><span class="legend-count">' + c.count + '</span>';
-      div.addEventListener('click', e => {
-        if (e.target.classList.contains('lg-cb')) return;
-        if (S.hidCom.has(id)) S.hidCom.delete(id); else S.hidCom.add(id);
-        this.render(); Graph.filter(); Persist.save(); this.syncAll();
+      const cb = Dom.el('input', {
+        type: 'checkbox',
+        className: 'lg-cb',
+        checked: !S.hidCom.has(id),
+        tabIndex: -1,
+        onchange: () => {
+          Undo.snap();
+          if (cb.checked) S.hidCom.delete(id); else S.hidCom.add(id);
+          this.render(); Graph.filter(); Persist.save(); this.syncAll();
+        }
       });
-      const cb = div.querySelector('.lg-cb');
-      cb.addEventListener('change', () => {
-        if (cb.checked) S.hidCom.delete(id); else S.hidCom.add(id);
-        this.render(); Graph.filter(); Persist.save(); this.syncAll();
-      });
+      const div = Dom.el('div', {
+        className: 'legend-item' + (S.hidCom.has(id) ? ' dimmed' : ''),
+        role: 'listitem',
+        onclick: e => {
+          if (e.target === cb) return;
+          Undo.snap();
+          if (S.hidCom.has(id)) S.hidCom.delete(id); else S.hidCom.add(id);
+          this.render(); Graph.filter(); Persist.save(); this.syncAll();
+        },
+        ondblclick: () => {
+          const members = S.nodes.filter(n => n.community === id).map(n => n.id);
+          if (members.length && S.net) S.net.fit({ nodes: members, animation: { duration: 500 } });
+        }
+      },
+        cb,
+        Dom.el('span', { className: 'legend-dot', style: { background: c.color } }),
+        Dom.el('span', { className: 'legend-label' }, c.name),
+        Dom.el('span', { className: 'legend-count' }, String(c.count))
+      );
       el.appendChild(div);
     });
     this.syncAll();
@@ -936,64 +1410,114 @@ const Info = {
 
   show(node) {
     const el = document.getElementById('info-content');
-    const inc = S.edges.filter(e => e.to === node.id);
-    const out = S.edges.filter(e => e.from === node.id);
-    let html = '<div class="field"><b>File:</b> ' + node.cleanPath + '</div>';
-    html += '<div class="field"><b>Type:</b> .' + node.fileType + '</div>';
-    html += '<div class="field"><b>Community:</b> <span style="color:' + node.color + '">' + node.communityName + '</span></div>';
-    html += '<div class="field"><b>Degree:</b> ' + node.degree + ' (' + inc.length + ' in / ' + out.length + ' out)</div>';
-    html += '<div class="info-actions">';
-    html += '<button class="copy-btn" id="act-copy">📋 Copy Path</button>';
-    html += '<button class="copy-btn" id="act-path">🔗 Find Path</button>';
-    html += '<button class="copy-btn" id="act-blast">💥 Blast Radius</button>';
-    html += '</div>';
+    el.textContent = '';
+
+    const inc = S.edges.filter(e => e.to === node.id && !e.hidden);
+    const out = S.edges.filter(e => e.from === node.id && !e.hidden);
+    
+    const field = (label, val, valStyle) => {
+      const valEl = Dom.el('span', valStyle ? { style: valStyle } : {}, val);
+      return Dom.el('div', { className: 'field' },
+        Dom.el('b', {}, label + ': '),
+        valEl
+      );
+    };
+
+    const isPinned = S.pinned && S.pinned.has(node.id);
+    const pinBtn = Dom.el('button', {
+      className: 'copy-btn',
+      onclick: () => {
+        Undo.snap();
+        if (isPinned) {
+          S.pinned.delete(node.id);
+          S.vN.update([{ id: node.id, fixed: false }]);
+          toast('Unpinned ' + node.label);
+        } else {
+          S.pinned.add(node.id);
+          const pos = S.net.getPositions([node.id])[node.id];
+          S.vN.update([{ id: node.id, fixed: { x: true, y: true }, x: pos.x, y: pos.y }]);
+          toast('Pinned ' + node.label);
+        }
+        this.show(node);
+      }
+    }, (isPinned ? '📌 Unpin Node' : '📍 Pin Node'));
+
+    const actions = Dom.el('div', { className: 'info-actions' },
+      Dom.el('button', {
+        className: 'copy-btn',
+        onclick: () => {
+          navigator.clipboard.writeText(node.cleanPath).then(() => toast('Copied ✓')).catch(() => toast('Copy failed'));
+        }
+      }, '📋 Copy Path'),
+      Dom.el('button', {
+        className: 'copy-btn',
+        onclick: () => Graph.startPath(node.id)
+      }, '🔗 Find Path'),
+      Dom.el('button', {
+        className: 'copy-btn',
+        onclick: () => {
+          const hit = PF.blast(node.id);
+          Graph.hlPath([...hit]);
+          document.getElementById('blast-text').textContent = '💥 ' + hit.size + ' nodes in blast radius of ' + node.label;
+          document.getElementById('blast-bar').classList.add('visible');
+          toast(hit.size + ' nodes affected');
+        }
+      }, '💥 Blast Radius'),
+      pinBtn
+    );
+
+    el.appendChild(field('File', node.cleanPath));
+    el.appendChild(field('Type', '.' + node.fileType));
+    el.appendChild(field('Community', node.communityName, { color: node.color }));
+    el.appendChild(field('Degree', `${node.degree} (${inc.length} in / ${out.length} out)`));
+    el.appendChild(actions);
 
     if (inc.length) {
-      html += '<h3 style="margin-top:10px">← Imported by (' + inc.length + ')</h3><div id="nb-list">';
-      inc.forEach(e => { const n2 = S.nodes.find(x => x.id === e.from); if (n2) html += this.nbLink(n2, e.type); });
-      html += '</div>';
+      el.appendChild(Dom.el('h3', { style: { marginTop: '10px' } }, `← Imported by (${inc.length})`));
+      const nbList = Dom.el('div', { id: 'nb-list' });
+      inc.forEach(e => {
+        const n2 = S.nodes.find(x => x.id === e.from);
+        if (n2) nbList.appendChild(this.nbLink(n2, e.type));
+      });
+      el.appendChild(nbList);
     }
     if (out.length) {
-      html += '<h3 style="margin-top:10px">→ Imports (' + out.length + ')</h3><div id="nb-list">';
-      out.forEach(e => { const n2 = S.nodes.find(x => x.id === e.to); if (n2) html += this.nbLink(n2, e.type); });
-      html += '</div>';
+      el.appendChild(Dom.el('h3', { style: { marginTop: '10px' } }, `→ Imports (${out.length})`));
+      const nbList = Dom.el('div', { id: 'nb-list' });
+      out.forEach(e => {
+        const n2 = S.nodes.find(x => x.id === e.to);
+        if (n2) nbList.appendChild(this.nbLink(n2, e.type));
+      });
+      el.appendChild(nbList);
     }
-    el.innerHTML = html;
-
-    document.getElementById('act-copy').addEventListener('click', () => {
-      navigator.clipboard.writeText(node.cleanPath).then(() => toast('Copied ✓')).catch(() => toast('Copy failed'));
-    });
-    document.getElementById('act-path').addEventListener('click', () => {
-      Graph.startPath(node.id);
-    });
-    document.getElementById('act-blast').addEventListener('click', () => {
-      const hit = PF.blast(node.id);
-      Graph.hlPath([...hit]);
-      document.getElementById('blast-text').textContent = '💥 ' + hit.size + ' nodes in blast radius of ' + node.label;
-      document.getElementById('blast-bar').classList.add('visible');
-      toast(hit.size + ' nodes affected');
-    });
-
-    el.querySelectorAll('.nb-link').forEach(el => {
-      el.addEventListener('click', () => Search.goTo(el.dataset.id));
-    });
   },
 
   nbLink(n, type) {
-    return '<div class="nb-link" data-id="' + n.id + '" style="border-left-color:' + n.color + '">' + n.label + ' <small style="color:var(--text-3)">' + type + '</small></div>';
+    return Dom.el('div', {
+      className: 'nb-link',
+      'data-id': n.id,
+      style: { borderLeftColor: n.color },
+      onclick: () => Search.goTo(n.id)
+    },
+      Dom.text(n.label + ' '),
+      Dom.el('small', { style: { color: 'var(--text-3)' } }, type)
+    );
   },
 
   reset() {
-    document.getElementById('info-content').innerHTML = '<span class="empty">Click a node to inspect</span>';
+    const el = document.getElementById('info-content');
+    el.textContent = '';
+    el.appendChild(Dom.el('span', { className: 'empty' }, 'Click a node to inspect'));
   }
 };
 
 /* ═══════════════════════════════════════════════════════════════════
-   FILTER BAR — File type pills
+   FILTER BAR — File & Edge type pills
    ═══════════════════════════════════════════════════════════════════ */
 const Filters = {
   init() {
     this.types();
+    this.edges();
     this.orphan();
     this.layout();
     this.selAll();
@@ -1002,16 +1526,61 @@ const Filters = {
   types() {
     const bar = document.getElementById('filter-pills');
     const fts = [...new Set(S.nodes.map(n => n.fileType))].sort();
-    bar.innerHTML = '';
+    bar.textContent = '';
     fts.forEach(ft => {
-      const btn = document.createElement('button');
-      btn.className = 'pill' + (S.hidFT.has(ft) ? '' : ' active');
-      btn.textContent = '.' + ft;
-      btn.addEventListener('click', () => {
-        if (S.hidFT.has(ft)) { S.hidFT.delete(ft); btn.classList.add('active'); } else { S.hidFT.add(ft); btn.classList.remove('active'); }
-        Graph.filter(); Persist.save();
-      });
+      const btn = Dom.el('button', {
+        className: 'pill' + (S.hidFT.has(ft) ? '' : ' active'),
+        onclick: () => {
+          Undo.snap();
+          if (S.hidFT.has(ft)) { S.hidFT.delete(ft); btn.classList.add('active'); } else { S.hidFT.add(ft); btn.classList.remove('active'); }
+          Graph.filter(); Persist.save();
+        }
+      }, '.' + ft);
       bar.appendChild(btn);
+    });
+  },
+
+  edges() {
+    const bar = document.getElementById('edge-filter-pills');
+    if (!bar) return;
+    const types = ['imports', 'calls', 'renders', 'defines', 'contains', 'extends'];
+    bar.textContent = '';
+    types.forEach(t => {
+      const btn = Dom.el('button', {
+        className: 'pill' + (S.hidEdgeTypes.has(t) ? '' : ' active'),
+        style: { borderLeft: `3px solid ${CFG.EDGE_CLR[t] || '#4b5563'}` },
+        onclick: () => {
+          Undo.snap();
+          if (S.hidEdgeTypes.has(t)) {
+            S.hidEdgeTypes.delete(t);
+            btn.classList.add('active');
+          } else {
+            S.hidEdgeTypes.add(t);
+            btn.classList.remove('active');
+          }
+          Graph.filterEdges();
+          Persist.save();
+        }
+      }, t);
+      bar.appendChild(btn);
+    });
+  },
+
+  updateEdgePillsUI() {
+    const bar = document.getElementById('edge-filter-pills');
+    if (!bar) return;
+    bar.querySelectorAll('button').forEach(btn => {
+      const t = btn.textContent.trim();
+      btn.classList.toggle('active', !S.hidEdgeTypes.has(t));
+    });
+  },
+
+  updateFileTypePillsUI() {
+    const bar = document.getElementById('filter-pills');
+    if (!bar) return;
+    bar.querySelectorAll('button').forEach(btn => {
+      const ft = btn.textContent.trim().replace(/^\./, '');
+      btn.classList.toggle('active', !S.hidFT.has(ft));
     });
   },
 
@@ -1020,6 +1589,7 @@ const Filters = {
     if (S.orphans) tog.classList.add('on');
     tog.setAttribute('aria-checked', String(S.orphans));
     tog.addEventListener('click', () => {
+      Undo.snap();
       S.orphans = !S.orphans;
       tog.classList.toggle('on', S.orphans);
       tog.setAttribute('aria-checked', String(S.orphans));
@@ -1032,6 +1602,7 @@ const Filters = {
     document.querySelectorAll('[data-layout]').forEach(btn => {
       if (btn.dataset.layout === S.layout) btn.classList.add('active');
       btn.addEventListener('click', () => {
+        Undo.snap();
         document.querySelectorAll('[data-layout]').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-checked', 'false'); });
         btn.classList.add('active');
         btn.setAttribute('aria-checked', 'true');
@@ -1044,6 +1615,7 @@ const Filters = {
   selAll() {
     const cb = document.getElementById('sel-all-cb');
     cb.addEventListener('change', () => {
+      Undo.snap();
       if (cb.checked) { S.hidCom.clear(); } else { S.communities.forEach((_, id) => S.hidCom.add(id)); }
       Legend.render(); Graph.filter(); Persist.save();
     });
@@ -1055,9 +1627,22 @@ const Filters = {
    ═══════════════════════════════════════════════════════════════════ */
 const Persist = {
   save() {
-    const d = { hc: [...S.hidCom], hf: [...S.hidFT], orphans: S.orphans, layout: S.layout, theme: S.theme, palette: S.palette };
+    const d = {
+      hc: [...S.hidCom],
+      hf: [...S.hidFT],
+      he: [...S.hidEdgeTypes],
+      orphans: S.orphans,
+      layout: S.layout,
+      theme: S.theme,
+      palette: S.palette,
+      simplified: S.simplified,
+      pinned: [...S.pinned].map(id => {
+        const pos = S.net ? S.net.getPositions([id])[id] : null;
+        return pos ? { id, x: pos.x, y: pos.y } : { id };
+      })
+    };
     try { localStorage.setItem(CFG.LS_KEY, JSON.stringify(d)); } catch (_) {}
-    try { history.replaceState(null, '', '#' + btoa(JSON.stringify({ c: d.hc, f: d.hf }))); } catch (_) {}
+    try { history.replaceState(null, '', '#' + btoa(JSON.stringify({ c: d.hc, f: d.hf, e: d.he }))); } catch (_) {}
   },
   load() {
     try {
@@ -1065,6 +1650,7 @@ const Persist = {
         const h = JSON.parse(atob(location.hash.slice(1)));
         if (h.c) h.c.forEach(c => S.hidCom.add(c));
         if (h.f) h.f.forEach(f => S.hidFT.add(f));
+        if (h.e) h.e.forEach(e => S.hidEdgeTypes.add(e));
       }
     } catch (_) {}
     try {
@@ -1073,10 +1659,24 @@ const Persist = {
         const d = JSON.parse(raw);
         if (d.hc) d.hc.forEach(c => S.hidCom.add(c));
         if (d.hf) d.hf.forEach(f => S.hidFT.add(f));
+        if (d.he) d.he.forEach(e => S.hidEdgeTypes.add(e));
         if (d.orphans !== undefined) S.orphans = d.orphans;
         if (d.layout) S.layout = d.layout;
         if (d.theme) S.theme = d.theme;
         if (d.palette) S.palette = d.palette;
+        if (d.simplified !== undefined) S.simplified = d.simplified;
+        if (d.pinned) {
+          S.pinned = new Set();
+          S.pinnedCoords = new Map();
+          d.pinned.forEach(p => {
+            if (typeof p === 'object') {
+              S.pinned.add(p.id);
+              if (p.x !== undefined) S.pinnedCoords.set(p.id, { x: p.x, y: p.y });
+            } else {
+              S.pinned.add(p);
+            }
+          });
+        }
       }
     } catch (_) {}
   }
@@ -1093,6 +1693,26 @@ const Keys = {
         if (e.key === 'Escape') { e.target.blur(); Search.clear(); CmdPal.close(); }
         return;
       }
+      
+      if (e.key === 'z' || e.key === 'Z') {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          if (e.shiftKey) {
+            Undo.redo();
+          } else {
+            Undo.undo();
+          }
+          return;
+        }
+      }
+      if (e.key === 'y' || e.key === 'Y') {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          Undo.redo();
+          return;
+        }
+      }
+
       switch (e.key) {
         case 'f': case 'F': if (!e.ctrlKey && !e.metaKey) { e.preventDefault(); document.getElementById('search').focus(); } break;
         case 'h': case 'H': if (!e.ctrlKey) this.help(); break;
@@ -1106,6 +1726,25 @@ const Keys = {
         case 'ArrowRight': S.net.moveTo({ position: { x: S.net.getViewPosition().x + 60, y: S.net.getViewPosition().y } }); break;
         case 'k': case 'K': if (e.ctrlKey || e.metaKey) { e.preventDefault(); CmdPal.toggle(); } break;
         case 'c': case 'C': if (!e.ctrlKey && !e.metaKey) Cycles.show(); break;
+        case 'p': case 'P':
+          if (!e.ctrlKey && !e.metaKey && S.selNode) {
+            e.preventDefault();
+            const id = S.selNode.id;
+            const isPinned = S.pinned.has(id);
+            Undo.snap();
+            if (isPinned) {
+              S.pinned.delete(id);
+              S.vN.update([{ id, fixed: false }]);
+              toast('Unpinned ' + S.selNode.label);
+            } else {
+              S.pinned.add(id);
+              const pos = S.net.getPositions([id])[id];
+              S.vN.update([{ id, fixed: { x: true, y: true }, x: pos.x, y: pos.y }]);
+              toast('Pinned ' + S.selNode.label);
+            }
+            Info.show(S.selNode);
+          }
+          break;
       }
     });
   },
@@ -1165,35 +1804,43 @@ const CmdPal = {
 
   search(term) {
     const box = document.getElementById('cmd-results');
-    box.innerHTML = '';
+    box.textContent = '';
     const lterm = term.toLowerCase();
-    // Commands
+    
     const cmds = lterm ? this.cmds.filter(c => c.name.toLowerCase().includes(lterm)) : this.cmds;
     if (cmds.length) {
-      box.innerHTML += '<div class="cmd-cat">Commands</div>';
+      box.appendChild(Dom.el('div', { className: 'cmd-cat' }, 'Commands'));
       cmds.slice(0, 6).forEach((c, i) => {
-        const d = document.createElement('div');
-        d.className = 'cmd-item' + (i === 0 && !lterm ? '' : i === 0 ? ' sel' : '');
-        d.innerHTML = '<span class="cmd-icon">' + c.icon + '</span><span class="cmd-label">' + c.name + '</span>';
-        d.addEventListener('click', () => { c.fn(); this.close(); });
+        const d = Dom.el('div', {
+          className: 'cmd-item' + (i === 0 && !lterm ? '' : i === 0 ? ' sel' : ''),
+          onclick: () => { c.fn(); this.close(); }
+        },
+          Dom.el('span', { className: 'cmd-icon' }, c.icon),
+          Dom.el('span', { className: 'cmd-label' }, c.name)
+        );
         box.appendChild(d);
       });
     }
-    // Nodes
+    
     if (lterm && S.fuse) {
       const res = S.fuse.search(lterm).slice(0, 8);
       if (res.length) {
-        box.innerHTML += '<div class="cmd-cat">Nodes</div>';
+        box.appendChild(Dom.el('div', { className: 'cmd-cat' }, 'Nodes'));
         res.forEach(r => {
-          const d = document.createElement('div');
-          d.className = 'cmd-item';
-          d.innerHTML = '<span class="cmd-icon"><span class="legend-dot" style="background:' + r.item.color + '"></span></span><span class="cmd-label">' + r.item.label + '</span><span class="cmd-hint">' + r.item.communityName + '</span>';
-          d.addEventListener('click', () => { Search.goTo(r.item.id); this.close(); });
+          const d = Dom.el('div', {
+            className: 'cmd-item',
+            onclick: () => { Search.goTo(r.item.id); this.close(); }
+          },
+            Dom.el('span', { className: 'cmd-icon' },
+              Dom.el('span', { className: 'legend-dot', style: { background: r.item.color } })
+            ),
+            Dom.el('span', { className: 'cmd-label' }, r.item.label),
+            Dom.el('span', { className: 'cmd-hint' }, r.item.communityName)
+          );
           box.appendChild(d);
         });
       }
     }
-    // Ensure first is selected
     const first = box.querySelector('.cmd-item');
     if (first && !box.querySelector('.cmd-item.sel')) first.classList.add('sel');
   },
@@ -1216,14 +1863,12 @@ const CmdPal = {
 const Theme = {
   init() {
     document.documentElement.setAttribute('data-theme', S.theme);
-    // Sync settings radio
     const r = document.querySelector('input[name="theme"][value="' + S.theme + '"]');
     if (r) r.checked = true;
   },
   set(t) {
     S.theme = t;
     document.documentElement.setAttribute('data-theme', t);
-    // Update font color for light theme
     if (S.net) {
       const fc = t === 'light' ? '#1a1a2e' : '#e2e8f0';
       S.vN.update(S.vN.getIds().map(id => ({ id, font: { color: fc } })));
@@ -1258,14 +1903,16 @@ const Export = {
   },
   csv() {
     let csv = 'id,label,community,communityName,cleanPath,degree,fileType\n';
-    S.nodes.forEach(n => { csv += '"' + n.id + '","' + n.label + '",' + n.community + ',"' + n.communityName + '","' + n.cleanPath + '",' + n.degree + ',"' + n.fileType + '"\n'; });
+    S.nodes.forEach(n => {
+      csv += Dom.escCsv(n.id) + ',' + Dom.escCsv(n.label) + ',' + n.community + ',' + Dom.escCsv(n.communityName) + ',' + Dom.escCsv(n.cleanPath) + ',' + n.degree + ',' + Dom.escCsv(n.fileType) + '\n';
+    });
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a'); a.download = 'graphify.csv'; a.href = URL.createObjectURL(blob); a.click(); toast('CSV exported ✓');
   },
   graphml() {
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<graphml xmlns="http://graphml.graphstudio.org">\n<graph edgedefault="directed">\n';
-    S.nodes.forEach(n => { xml += '  <node id="' + n.id + '"><data key="label">' + n.label + '</data></node>\n'; });
-    S.edges.forEach(e => { xml += '  <edge source="' + e.from + '" target="' + e.to + '"/>\n'; });
+    S.nodes.forEach(n => { xml += '  <node id="' + Dom.escXml(n.id) + '"><data key="label">' + Dom.escXml(n.label) + '</data></node>\n'; });
+    S.edges.forEach(e => { xml += '  <edge source="' + Dom.escXml(e.from) + '" target="' + Dom.escXml(e.to) + '"/>\n'; });
     xml += '</graph>\n</graphml>';
     const blob = new Blob([xml], { type: 'application/xml' });
     const a = document.createElement('a'); a.download = 'graphify.graphml'; a.href = URL.createObjectURL(blob); a.click(); toast('GraphML exported ✓');
@@ -1274,7 +1921,6 @@ const Export = {
     try {
       const c = document.querySelector('#graph canvas');
       if (!c) { toast('No canvas'); return; }
-      // Canvas → data URL → embed in SVG wrapper
       const dataUrl = c.toDataURL('image/png');
       const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + c.width + '" height="' + c.height + '"><image href="' + dataUrl + '" width="' + c.width + '" height="' + c.height + '"/></svg>';
       const blob = new Blob([svg], { type: 'image/svg+xml' });
@@ -1293,8 +1939,10 @@ const MMap = {
     this.ctx = this.canvas.getContext('2d');
     bus.on('stabilized', () => this.draw());
     bus.on('afterDraw', () => this.draw());
-    // Click to navigate
-    this.canvas.addEventListener('click', e => {
+    
+    this._dragging = false;
+    
+    const handlePan = (e) => {
       if (!S.net) return;
       const rect = this.canvas.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
@@ -1307,7 +1955,23 @@ const MMap = {
       const px = (mxX - mnX) * 0.1 || 50, py = (mxY - mnY) * 0.1 || 50;
       const targetX = mnX - px + (mxX - mnX + 2 * px) * x;
       const targetY = mnY - py + (mxY - mnY + 2 * py) * y;
-      S.net.moveTo({ position: { x: targetX, y: targetY }, animation: { duration: 300 } });
+      S.net.moveTo({ position: { x: targetX, y: targetY }, animation: { duration: 100 } });
+    };
+
+    this.canvas.addEventListener('pointerdown', e => {
+      this._dragging = true;
+      this.canvas.setPointerCapture(e.pointerId);
+      handlePan(e);
+    });
+    this.canvas.addEventListener('pointermove', e => {
+      if (this._dragging) handlePan(e);
+    });
+    this.canvas.addEventListener('pointerup', e => {
+      this._dragging = false;
+      this.canvas.releasePointerCapture(e.pointerId);
+    });
+    this.canvas.addEventListener('pointercancel', e => {
+      this._dragging = false;
     });
   },
 
@@ -1331,12 +1995,14 @@ const MMap = {
     ctx.strokeStyle = S.theme === 'light' ? 'rgba(100,116,139,0.2)' : 'rgba(100,116,139,0.25)';
     ctx.lineWidth = 0.5;
     S.vE.get().forEach(e => {
+      if (e.hidden) return;
       const f = pos[e.from], t = pos[e.to];
       if (f && t) { ctx.beginPath(); ctx.moveTo((f.x - mnX) * sc + ox, (f.y - mnY) * sc + oy); ctx.lineTo((t.x - mnX) * sc + ox, (t.y - mnY) * sc + oy); ctx.stroke(); }
     });
     // Nodes
     ids.forEach(id => {
       const p = pos[id], n = S.nodes.find(x => x.id === id);
+      if (n && S.vN.get(id)?.hidden) return;
       ctx.fillStyle = n ? n.color : '#64748b';
       ctx.beginPath();
       ctx.arc((p.x - mnX) * sc + ox, (p.y - mnY) * sc + oy, 2, 0, Math.PI * 2);
@@ -1374,20 +2040,36 @@ const Drop = {
       try {
         const text = await file.text();
         const json = JSON.parse(text);
-        if (!json.nodes || !json.edges) { toast('Invalid: needs nodes[] and edges[]'); return; }
+        const err = Data.validate(json);
+        if (err) { toast('Validation error: ' + err); return; }
         toast('Loading ' + file.name + '…');
         await this.reload(json);
         toast('Loaded ' + S.nodes.length + ' nodes from ' + file.name);
-      } catch (_) { toast('Failed to parse file'); }
+      } catch (ex) { toast('Failed to parse file: ' + ex.message); }
     });
   },
 
   async reload(json) {
+    Progress.show();
+    Progress.set(30, 'Processing nodes & edges…');
     const d = Data.process(json);
     S.nodes = d.nodes; S.edges = d.edges; S.communities = d.communities;
-    S.hidCom.clear(); S.hidFT.clear();
+    S.hidCom.clear(); S.hidFT.clear(); S.hidEdgeTypes.clear(); S.pinned.clear(); S.pinnedCoords.clear();
+    
+    if (S.nodes.length > 1000) {
+      S.simplified = true;
+      const perfTog = document.getElementById('perf-toggle');
+      if (perfTog) {
+        perfTog.classList.add('on');
+        perfTog.setAttribute('aria-checked', 'true');
+      }
+      toast('Large graph detected — enabling simplified view for performance', 5000);
+    }
+    
+    Progress.set(60, 'Initializing graph layout…');
     Graph.init(S.nodes, S.edges);
-    Search.init(); Legend.render(); Filters.types(); Graph.stats();
+    Search.init(); Legend.render(); Filters.types(); Filters.edges(); Graph.stats();
+    Graph.applyPerfMode();
   }
 };
 
@@ -1404,19 +2086,16 @@ const Settings = {
     close.addEventListener('click', () => overlay.classList.remove('visible'));
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('visible'); });
 
-    // Theme radios
     document.querySelectorAll('input[name="theme"]').forEach(r => {
       r.addEventListener('change', () => { if (r.checked) Theme.set(r.value); });
     });
 
-    // Palette radios
     document.querySelectorAll('input[name="palette"]').forEach(r => {
       r.addEventListener('change', () => {
         if (r.checked) { S.palette = r.value; Graph.recolor(); Persist.save(); toast('Palette: ' + r.value); }
       });
     });
 
-    // Physics sliders
     document.getElementById('phys-grav').addEventListener('input', e => {
       S.net.setOptions({ physics: { enabled: true, forceAtlas2Based: { gravitationalConstant: +e.target.value } } });
       S.net.once('stabilized', () => S.net.setOptions({ physics: false }));
@@ -1430,14 +2109,25 @@ const Settings = {
       S.net.once('stabilized', () => S.net.setOptions({ physics: false }));
     });
 
-    // Minimap toggle
     const mmTog = document.getElementById('minimap-toggle');
     mmTog.addEventListener('click', () => {
       mmTog.classList.toggle('on');
       document.getElementById('minimap-wrap').classList.toggle('hidden');
     });
 
-    // Reset
+    const perfTog = document.getElementById('perf-toggle');
+    if (S.simplified) perfTog.classList.add('on');
+    perfTog.setAttribute('aria-checked', String(S.simplified));
+    perfTog.addEventListener('click', () => {
+      Undo.snap();
+      S.simplified = !S.simplified;
+      perfTog.classList.toggle('on', S.simplified);
+      perfTog.setAttribute('aria-checked', String(S.simplified));
+      Graph.applyPerfMode();
+      Persist.save();
+      toast(S.simplified ? 'Simplified view enabled' : 'Simplified view disabled');
+    });
+
     document.getElementById('settings-reset').addEventListener('click', () => {
       localStorage.removeItem(CFG.LS_KEY);
       location.hash = '';
@@ -1465,29 +2155,22 @@ const Tour = {
    WIRE UP REMAINING UI BUTTONS
    ═══════════════════════════════════════════════════════════════════ */
 function wireUI() {
-  // Help
   document.getElementById('btn-help').addEventListener('click', () => Keys.help());
   document.getElementById('help-close').addEventListener('click', () => document.getElementById('help-overlay').classList.remove('visible'));
   document.getElementById('help-overlay').addEventListener('click', e => { if (e.target.id === 'help-overlay') e.target.classList.remove('visible'); });
 
-  // Reset
   document.getElementById('btn-reset').addEventListener('click', () => { Graph.clearHL(); Graph.fit(); toast('View reset'); });
 
-  // Centrality
   document.getElementById('btn-analyze').addEventListener('click', () => Centrality.run());
   document.getElementById('centrality-close').addEventListener('click', () => { document.getElementById('centrality-panel').style.display = 'none'; });
 
-  // Cycles
   document.getElementById('btn-cycles').addEventListener('click', () => Cycles.show());
   document.getElementById('cycles-close').addEventListener('click', () => { document.getElementById('cycles-panel').style.display = 'none'; Graph.clearHL(); });
 
-  // Path bar close
   document.getElementById('path-close').addEventListener('click', () => { document.getElementById('path-bar').classList.remove('visible'); Graph.clearHL(); });
 
-  // Blast bar close
   document.getElementById('blast-close').addEventListener('click', () => { document.getElementById('blast-bar').classList.remove('visible'); Graph.clearHL(); });
 
-  // Export menu
   const expBtn = document.getElementById('btn-export');
   const expMenu = document.getElementById('export-menu');
   expBtn.addEventListener('click', () => { expMenu.style.display = expMenu.style.display === 'none' ? 'block' : 'none'; });
@@ -1504,36 +2187,34 @@ function wireUI() {
     });
   });
 
-  // Share
   document.getElementById('btn-share').addEventListener('click', () => {
     Persist.save();
     navigator.clipboard.writeText(location.href).then(() => toast('Share URL copied ✓')).catch(() => toast('Copy failed'));
   });
 
-  // Load demo button inside drop zone
   const loadDemo = document.getElementById('btn-load-demo');
   if (loadDemo) loadDemo.addEventListener('click', async () => {
     document.getElementById('drop-zone').classList.remove('visible');
     const d = Data.process(Data.demo());
     S.nodes = d.nodes; S.edges = d.edges; S.communities = d.communities;
-    Graph.init(S.nodes, S.edges); Search.init(); Legend.render(); Filters.types();
+    Graph.init(S.nodes, S.edges); Search.init(); Legend.render(); Filters.types(); Filters.edges();
   });
 
-  // Collapse/Expand all
   document.getElementById('btn-collapse-all').addEventListener('click', () => {
+    Undo.snap();
     S.communities.forEach((_, id) => S.hidCom.add(id));
     Legend.render(); Graph.filter(); Persist.save();
   });
   document.getElementById('btn-expand-all').addEventListener('click', () => {
+    Undo.snap();
     S.hidCom.clear();
     Legend.render(); Graph.filter(); Persist.save();
   });
 
-  // Mobile bottom sheet drag
   const handle = document.getElementById('sheet-handle');
   const sidebar = document.getElementById('sidebar');
   if (handle) {
-    let startY, startH;
+    let startY;
     handle.addEventListener('pointerdown', e => {
       startY = e.clientY;
       handle.setPointerCapture(e.pointerId);
@@ -1549,24 +2230,32 @@ function wireUI() {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   APP INIT
-   ═══════════════════════════════════════════════════════════════════ */
+/* ─── APP INIT ──────────────────────────────────────────────────── */
 async function init() {
-  // 1. Load persisted state
+  Progress.show();
+  Progress.set(0, 'Loading persisted settings…');
+  
   Persist.load();
   Theme.init();
 
-  // 2. Load data
+  Progress.set(20, 'Fetching dependency data…');
   const data = await Data.load();
   S.nodes = data.nodes;
   S.edges = data.edges;
   S.communities = data.communities;
 
-  // 3. Init graph engine
-  Graph.init(S.nodes, S.edges);
+  Progress.set(40, 'Processing nodes & edges…');
+  
+  if (S.nodes.length > 1000) {
+    S.simplified = true;
+    const perfTog = document.getElementById('perf-toggle');
+    if (perfTog) {
+      perfTog.classList.add('on');
+      perfTog.setAttribute('aria-checked', 'true');
+    }
+  }
 
-  // 4. Init all modules
+  Graph.init(S.nodes, S.edges);
   Search.init();
   Legend.render();
   Info.init();
@@ -1579,10 +2268,11 @@ async function init() {
   Tour.init();
   wireUI();
 
+  Graph.applyPerfMode();
+
   announce('Graphify loaded with ' + S.nodes.length + ' nodes');
 }
 
-// Boot
 init().catch(err => {
   console.error('Graphify init failed:', err);
   toast('Initialization failed — check console');
