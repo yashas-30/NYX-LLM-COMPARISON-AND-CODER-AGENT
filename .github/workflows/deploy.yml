@@ -40,6 +40,12 @@ jobs:
         env:
           GITHUB_ACTIONS: "true"
 
+      - name: Copy Graphify Assets
+        run: |
+          mkdir -p dist/graphify-out
+          cp graphify-out/graph.html dist/graphify-out/
+          cp graphify-out/sampleData.json dist/graphify-out/
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

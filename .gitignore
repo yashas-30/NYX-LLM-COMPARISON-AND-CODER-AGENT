@@ -9,5 +9,10 @@ coverage/
 !.env.example
 .nyx-cache/
 .claude/
-graphify-out/
+graphify-out/*
+!graphify-out/graph.html
+!graphify-out/sampleData.json
+!graphify-out/verify.ps1
+!graphify-out/extract.ps1
+!graphify-out/extract2.ps1
 scratch/
