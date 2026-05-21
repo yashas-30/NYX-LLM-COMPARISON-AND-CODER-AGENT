@@ -141,6 +141,11 @@ export const useAgentPipeline = ({
 
     const startTime = Date.now();
 
+    // ── Pipeline settings: always use max output tokens so code is NEVER cut off ──
+    // Users may have 4096 as their global setting, which truncates large files.
+    // The pipeline overrides this with the maximum safe value per provider.
+    const pipelineSettings = { ...modelSettings, maxTokens: 16384 };
+
     // ── System Instructions ────────────────────────────────────────────────
     const architectInstruction = `You are the Principal Software Architect Agent. Given the user's prompt, formulate a highly detailed architectural plan and system design blueprint.
 Focus on:
@@ -162,18 +167,20 @@ RULES:
 1. Audit and fully optimize the draft code for speed, memory, accessibility (WCAG 2.2 AA), and clean architecture.
 2. Deliver the COMPLETE, FINAL, production-ready code to the user.
 
-STRICT OUTPUT FORMAT:
-- Output the COMPLETE optimized code in properly labeled code blocks (e.g. \`\`\`html, \`\`\`typescript, etc.)
-- Do NOT reference stages, agents, or internal pipeline steps.
-- Do NOT use placeholders, TODOs, or partial snippets — every file must be 100% complete.
-- After all code blocks, add a "## How to Use" section with clear, concise implementation steps.
+CRITICAL RULES — VIOLATIONS WILL BREAK THE OUTPUT:
+- NEVER truncate or abbreviate code. Every file must be 100% complete from first character to last.
+- NEVER write comments like "/* rest of styles */", "// ... existing code ...", or "[rest of code here]" — these are forbidden.
+- If a file is long, output ALL of it anyway. Do not cut corners.
+- Output each file in a properly labeled code block (e.g. \`\`\`html, \`\`\`typescript, \`\`\`css, etc.)
+- Do NOT reference stages, agents, or internal pipeline steps in your response.
+- After all code blocks, add a ## How to Use section with numbered steps (save as X, open in Y, etc.)
 - Keep the tone direct and professional.`;
 
     // ── Stage 1: Architect (internal — user sees banner only) ──────────────
     let architectText = '';
 
     const architectResult = await AIService.execute(
-      architectModelId, architectProvider, prompt, architectApiKey, architectInstruction, modelSettings,
+      architectModelId, architectProvider, prompt, architectApiKey, architectInstruction, pipelineSettings,
       (_accumulatedText) => {
         // Stage 1 output is internal — keep the banner visible but don't expose raw architect text
         const elapsed = Date.now() - startTime;
@@ -207,7 +214,7 @@ ${architectText}
 Implement the complete system codebase. Cover all files, functions, and edge cases specified by the architect. Output complete and functional code only.`;
 
     const coderResult = await AIService.execute(
-      coderModelId, coderProvider, coderPrompt, coderApiKey, coderInstruction, modelSettings,
+      coderModelId, coderProvider, coderPrompt, coderApiKey, coderInstruction, pipelineSettings,
       (_accumulatedText) => {
         // Stage 2 output is internal — keep the banner visible but don't expose raw coder text
         const elapsed = Date.now() - startTime;
@@ -247,7 +254,7 @@ Deliver the final complete code to the user — no placeholders, no partial snip
 End your response with a "## How to Use" section with clear implementation steps.`;
 
     const optimizerResult = await AIService.execute(
-      optimizerModelId, optimizerProvider, optimizerPrompt, optimizerApiKey, optimizerInstruction, modelSettings,
+      optimizerModelId, optimizerProvider, optimizerPrompt, optimizerApiKey, optimizerInstruction, pipelineSettings,
       (accumulatedText) => {
         optimizerText = accumulatedText;
         const elapsed = Date.now() - startTime;

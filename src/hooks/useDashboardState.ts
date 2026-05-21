@@ -15,7 +15,7 @@ export const useDashboardState = (onExit?: () => void) => {
   const [activeMode, setActiveMode] = useState<'settings' | 'registry' | 'coder'>('coder');
   const [modelSettings, setModelSettings] = useState({
     temperature: 0.7,
-    maxTokens: 4096,
+    maxTokens: 16384,
     topP: 0.95,
     topK: 40
   });
