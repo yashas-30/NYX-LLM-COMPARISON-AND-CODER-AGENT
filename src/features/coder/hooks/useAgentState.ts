@@ -27,9 +27,9 @@ export const useAgentState = ({
   const setActiveAgent = propSetActiveAgent ?? setLocalActiveAgent;
 
   const [localModels, setLocalModels] = useState<Record<AgentKey, string>>({
-    open: 'opencode/big-pickle',
-    claude: 'gemini-2.5-flash',
-    nyx: 'gemini-2.5-flash'
+    open: '',
+    claude: '',
+    nyx: ''
   });
   const models = propModels ?? localModels;
   const setModel = useCallback((mid: string) => {

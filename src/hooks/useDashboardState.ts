@@ -23,9 +23,9 @@ export const useDashboardState = (onExit?: () => void) => {
   // Coder Specific States (shared and persistent)
   const [activeAgent, setActiveAgent] = useState<'open' | 'claude' | 'nyx'>('nyx');
   const [models, setModels] = useState<Record<'open' | 'claude' | 'nyx', string>>({
-    open: 'opencode/big-pickle',
-    claude: 'gemini-2.5-flash',
-    nyx: 'gemini-2.5-flash'
+    open: '',
+    claude: '',
+    nyx: ''
   });
 
   const { usage, updateUsage: trackUsage, refreshProviderQuota } = useTokenUsage();
@@ -59,10 +59,18 @@ export const useDashboardState = (onExit?: () => void) => {
     if (savedModels) {
       try {
         const parsed = JSON.parse(savedModels);
+        // Treat old defaults as "no selection" so selector shows placeholder
+        const STALE_DEFAULTS = [
+          'anthropic/claude-sonnet-4-20250514',
+          'gemini-2.5-flash',
+          'opencode/big-pickle',
+        ];
+        const clean = (v: string, fallback = '') =>
+          STALE_DEFAULTS.includes(v) ? fallback : (v || fallback);
         setModels({
-          open: parsed.open || 'opencode/big-pickle',
-          claude: parsed.claude || 'gemini-2.5-flash',
-          nyx: parsed.nyx || 'gemini-2.5-flash'
+          open: clean(parsed.open),
+          claude: clean(parsed.claude),
+          nyx: clean(parsed.nyx)
         });
       } catch (e) {
         console.error("Models load fail", e);

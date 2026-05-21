@@ -291,11 +291,15 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                     setShowModelSelector(true);
                     setShowSettings(false);
                   }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium text-foreground/80 transition-all select-none hover:bg-white/30 dark:hover:bg-zinc-800/70"
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all select-none ${
+                    currentModel
+                      ? 'text-foreground/80 hover:bg-white/30 dark:hover:bg-zinc-800/70'
+                      : 'text-amber-500 dark:text-amber-400 ring-1 ring-amber-400/40 bg-amber-500/5 hover:bg-amber-500/10 font-bold'
+                  }`}
                 >
-                  {currentModel ? getCustomModelIcon(currentModel) : <Bot className="w-3.5 h-3.5 text-muted-foreground/70" />}
-                  <span className="truncate max-w-[100px]">{currentModel?.name || 'Select Model'}</span>
-                  <ChevronDown className="w-3 h-3 text-muted-foreground/60" />
+                  {currentModel ? getCustomModelIcon(currentModel) : <Bot className="w-3.5 h-3.5 text-amber-400/80" />}
+                  <span className="truncate max-w-[120px]">{currentModel?.name || 'Select Model'}</span>
+                  <ChevronDown className="w-3 h-3 opacity-60" />
                 </button>
 
                 <button 
