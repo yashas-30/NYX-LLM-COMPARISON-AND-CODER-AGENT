@@ -1,11 +1,11 @@
 /**
  * @file src/features/coder/components/CoderHeader.tsx
- * @description Header bar with mode tabs, agent info, latency, status badge, and clear button.
+ * @description Header bar with mode tabs, agent info, real-time latency, status badge, and clear button.
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { TerminalIcon, Box, Settings as SettingsIcon, Zap, Trash2 } from 'lucide-react';
+import { TerminalIcon, Box, Settings as SettingsIcon, Zap, Trash2, Timer } from 'lucide-react';
 import { StatusBadge } from '@/src/components/ui/StatusBadge';
 import { AgentPersona } from '@/src/core/types';
 
@@ -19,6 +19,13 @@ interface CoderHeaderProps {
   onClear: () => void;
 }
 
+/** Format latency: shows ms below 1000, then switches to X.Xs format */
+function formatLatency(ms: number): string {
+  if (ms <= 0) return '—';
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
 export const CoderHeader: React.FC<CoderHeaderProps> = ({
   activeMode,
   onModeChange,
@@ -28,6 +35,31 @@ export const CoderHeader: React.FC<CoderHeaderProps> = ({
   badgeStatus,
   onClear
 }) => {
+  // Live elapsed timer while loading
+  const [liveElapsed, setLiveElapsed] = useState(0);
+  const [loadStart, setLoadStart] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isLoading) {
+      const start = Date.now();
+      setLoadStart(start);
+      setLiveElapsed(0);
+
+      const interval = setInterval(() => {
+        setLiveElapsed(Date.now() - start);
+      }, 50); // Update every 50ms for smooth display
+
+      return () => clearInterval(interval);
+    } else {
+      setLoadStart(null);
+      setLiveElapsed(0);
+    }
+  }, [isLoading]);
+
+  // Decide what to show: if loading → live counter; if done → final latency from metrics
+  const displayLatency = isLoading ? liveElapsed : metrics.latency;
+  const latencyText = formatLatency(displayLatency);
+
   return (
     <header className="flex items-center justify-between p-2.5 sm:p-3 border-b border-white/10 dark:border-white/5 shrink-0 select-none bg-white/10 dark:bg-black/10 backdrop-blur-md">
       <div className="flex items-center gap-2 sm:gap-3">
@@ -64,17 +96,51 @@ export const CoderHeader: React.FC<CoderHeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Latency Display */}
         <div className="hidden sm:flex items-center gap-2 bg-white/20 dark:bg-white/5 px-2.5 py-1 rounded-xl border border-white/10 dark:border-white/5 shadow-sm group">
-          <Zap className="w-3 h-3 text-amber-500 dark:text-amber-400 group-hover:scale-110 transition-transform" />
-          <div className="flex flex-col min-w-[42px]">
-            <span className="text-[7px] font-bold text-muted-foreground uppercase tracking-wider leading-none">Latency</span>
-            <span className="text-[10px] font-mono font-bold leading-none mt-0.5 text-foreground/85">
-              {isLoading && metrics.latency === 0 ? (
-                <motion.span animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1.5 }}>...</motion.span>
-              ) : `${metrics.latency}ms`}
+          {isLoading ? (
+            <Timer className="w-3 h-3 text-primary animate-pulse" />
+          ) : (
+            <Zap className="w-3 h-3 text-amber-500 dark:text-amber-400 group-hover:scale-110 transition-transform" />
+          )}
+          <div className="flex flex-col min-w-[52px]">
+            <span className="text-[7px] font-bold text-muted-foreground uppercase tracking-wider leading-none">
+              {isLoading ? 'Elapsed' : 'Latency'}
+            </span>
+            <span className={`text-[10px] font-mono font-bold leading-none mt-0.5 tabular-nums transition-colors ${
+              isLoading
+                ? 'text-primary'
+                : metrics.latency > 5000
+                  ? 'text-amber-500'
+                  : 'text-foreground/85'
+            }`}>
+              {isLoading ? (
+                <motion.span
+                  key={latencyText}
+                  initial={{ opacity: 0.7 }}
+                  animate={{ opacity: 1 }}
+                >
+                  {latencyText}
+                </motion.span>
+              ) : (
+                latencyText
+              )}
             </span>
           </div>
         </div>
+
+        {/* TPS Display */}
+        {(metrics.tps > 0 || (!isLoading && metrics.tokens > 0)) && (
+          <div className="hidden sm:flex items-center gap-2 bg-white/20 dark:bg-white/5 px-2.5 py-1 rounded-xl border border-white/10 dark:border-white/5 shadow-sm">
+            <Zap className="w-3 h-3 text-emerald-500" />
+            <div className="flex flex-col min-w-[42px]">
+              <span className="text-[7px] font-bold text-muted-foreground uppercase tracking-wider leading-none">TPS</span>
+              <span className="text-[10px] font-mono font-bold leading-none mt-0.5 text-foreground/85 tabular-nums">
+                {metrics.tps > 0 ? metrics.tps : '—'}
+              </span>
+            </div>
+          </div>
+        )}
 
         <StatusBadge status={badgeStatus} />
         

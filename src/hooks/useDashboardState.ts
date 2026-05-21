@@ -24,8 +24,8 @@ export const useDashboardState = (onExit?: () => void) => {
   const [activeAgent, setActiveAgent] = useState<'open' | 'claude' | 'nyx'>('nyx');
   const [models, setModels] = useState<Record<'open' | 'claude' | 'nyx', string>>({
     open: 'opencode/big-pickle',
-    claude: 'anthropic/claude-sonnet-4-20250514',
-    nyx: 'anthropic/claude-sonnet-4-20250514'
+    claude: 'gemini-2.5-flash',
+    nyx: 'gemini-2.5-flash'
   });
 
   const { usage, updateUsage: trackUsage, refreshProviderQuota } = useTokenUsage();
@@ -61,8 +61,8 @@ export const useDashboardState = (onExit?: () => void) => {
         const parsed = JSON.parse(savedModels);
         setModels({
           open: parsed.open || 'opencode/big-pickle',
-          claude: parsed.claude || 'anthropic/claude-sonnet-4-20250514',
-          nyx: parsed.nyx || 'anthropic/claude-sonnet-4-20250514'
+          claude: parsed.claude || 'gemini-2.5-flash',
+          nyx: parsed.nyx || 'gemini-2.5-flash'
         });
       } catch (e) {
         console.error("Models load fail", e);

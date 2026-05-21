@@ -28,8 +28,8 @@ export const useAgentState = ({
 
   const [localModels, setLocalModels] = useState<Record<AgentKey, string>>({
     open: 'opencode/big-pickle',
-    claude: 'anthropic/claude-sonnet-4-20250514',
-    nyx: 'anthropic/claude-sonnet-4-20250514'
+    claude: 'gemini-2.5-flash',
+    nyx: 'gemini-2.5-flash'
   });
   const models = propModels ?? localModels;
   const setModel = useCallback((mid: string) => {

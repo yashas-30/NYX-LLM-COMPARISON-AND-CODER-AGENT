@@ -167,9 +167,10 @@ RULES:
       architectModelId, architectProvider, prompt, architectApiKey, architectInstruction, modelSettings,
       (accumulatedText) => {
         architectText = accumulatedText;
-        const latency = 0;
+        const elapsed = Date.now() - startTime;
         const tokens = Math.floor(architectText.length / 4);
-        const currentMetrics = { latency, tokens, tps: 0 };
+        const tps = elapsed > 0 ? Math.round(tokens / (elapsed / 1000)) : 0;
+        const currentMetrics = { latency: elapsed, tokens, tps };
         updateHistory(activeAgent, prev => {
           const history = [...prev];
           const last = history[history.length - 1];
@@ -202,9 +203,10 @@ Implement the complete system codebase. Cover all files, functions, and edge cas
       coderModelId, coderProvider, coderPrompt, coderApiKey, coderInstruction, modelSettings,
       (accumulatedText) => {
         coderText = accumulatedText;
-        const latency = 0;
+        const elapsed = Date.now() - startTime;
         const totalTokens = architectResult.metrics.tokens + Math.floor(coderText.length / 4);
-        const currentMetrics = { latency, tokens: totalTokens, tps: 0 };
+        const tps = elapsed > 0 ? Math.round(totalTokens / (elapsed / 1000)) : 0;
+        const currentMetrics = { latency: elapsed, tokens: totalTokens, tps };
         updateHistory(activeAgent, prev => {
           const history = [...prev];
           const last = history[history.length - 1];
@@ -240,9 +242,10 @@ Audit this implementation. Apply maximum optimizations for speed, memory efficie
       optimizerModelId, optimizerProvider, optimizerPrompt, optimizerApiKey, optimizerInstruction, modelSettings,
       (accumulatedText) => {
         optimizerText = accumulatedText;
-        const latency = 0;
+        const elapsed = Date.now() - startTime;
         const totalTokens = architectResult.metrics.tokens + coderResult.metrics.tokens + Math.floor(optimizerText.length / 4);
-        const currentMetrics = { latency, tokens: totalTokens, tps: 0 };
+        const tps = elapsed > 0 ? Math.round(totalTokens / (elapsed / 1000)) : 0;
+        const currentMetrics = { latency: elapsed, tokens: totalTokens, tps };
         updateHistory(activeAgent, prev => {
           const history = [...prev];
           const last = history[history.length - 1];
@@ -260,12 +263,13 @@ Audit this implementation. Apply maximum optimizations for speed, memory efficie
     optimizerText = optimizerResult.text;
     trackUsage(optimizerProvider, optimizerResult.metrics.tokens);
 
-    const finalLatency = 0;
+    const finalElapsed = Date.now() - startTime;
     const finalTokens = architectResult.metrics.tokens + coderResult.metrics.tokens + optimizerResult.metrics.tokens;
+    const finalTps = finalElapsed > 0 ? Math.round(finalTokens / (finalElapsed / 1000)) : 0;
     const finalMetrics = {
-      latency: finalLatency,
+      latency: finalElapsed,
       tokens: finalTokens,
-      tps: 0
+      tps: finalTps
     };
 
     updateHistory(activeAgent, prev => {
@@ -295,11 +299,12 @@ Audit this implementation. Apply maximum optimizations for speed, memory efficie
     const result = await AIService.execute(
       currentModelId, provider, prompt, apiKey, persona.systemPrompt, modelSettings,
       (accumulatedText) => {
-        const latency = 0;
+        const elapsed = Date.now() - startTime;
         const tokens = Math.floor(accumulatedText.length / 4);
+        const tps = elapsed > 0 ? Math.round(tokens / (elapsed / 1000)) : 0;
         updateMetrics(activeAgent, {
-          latency, tokens,
-          tps: 0
+          latency: elapsed, tokens,
+          tps
         });
 
         updateHistory(activeAgent, prev => {
@@ -307,7 +312,7 @@ Audit this implementation. Apply maximum optimizations for speed, memory efficie
           const last = history[history.length - 1];
           if (last && last.role === 'assistant') {
             last.content = accumulatedText;
-            last.metrics = { latency: 0, tokens, tps: 0 };
+            last.metrics = { latency: elapsed, tokens, tps };
           }
           return history;
         });

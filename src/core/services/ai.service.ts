@@ -50,13 +50,15 @@ export class AIService {
           const endTime = Date.now();
           const latency = endTime - startTime;
           const tokens = Math.floor(text.length / 4);
+          // Cache hits are near-instant — show actual round-trip ms, TPS from token count
+          const tps = latency > 0 ? Math.round(tokens / (latency / 1000)) : tokens;
           if (onStream) onStream(text);
           return {
             text,
             metrics: {
-              latency: 0,
+              latency,
               tokens,
-              tps: 0
+              tps
             }
           };
         }
@@ -98,14 +100,15 @@ export class AIService {
 
       const endTime = Date.now();
       const latency = endTime - startTime;
-      const tokens = Math.floor(resultText.length / 4); // Heuristic
+      const tokens = Math.floor(resultText.length / 4); // Heuristic: ~4 chars per token
+      const tps = latency > 0 ? Math.round(tokens / (latency / 1000)) : 0;
       
       return {
         text: resultText,
         metrics: {
-          latency: 0,
+          latency,
           tokens,
-          tps: 0
+          tps
         }
       };
     } catch (error: any) {
