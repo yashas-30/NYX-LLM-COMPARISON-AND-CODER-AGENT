@@ -28,6 +28,7 @@ function getIcon(provider: string | undefined, size: number, className: string):
     case 'claude':
     case 'deepseek':  return <Bot size={size} strokeWidth={1.5} className={className} />;
     case 'opencode':  return <Sparkles size={size} strokeWidth={1.5} className={className} />;
+    case 'pollinations': return <Sparkles size={size} strokeWidth={1.5} className={`${className} text-purple-400 animate-pulse`} />;
     case 'terminal':  return <Bot size={size} strokeWidth={1.5} className={className} />;
     default:          return <Cpu size={size} strokeWidth={1.5} className={className} />;
   }
@@ -43,10 +44,12 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({
 
 // ── Provider display name ──────────────────────────────────────────────────────
 // Converts provider ID to a human-readable label shown in the card header.
+// Matches PROVIDER_LABELS in provider.ts for unified naming.
 export function getProviderLabel(provider: string | undefined): string {
   if (!provider) return 'node';
   if (provider === 'lmstudio') return 'LM Studio';
   if (provider === 'opencode') return 'Open Code';
+  if (provider === 'pollinations') return 'Pollinations (Free)';
   return provider;
 }
 
@@ -69,6 +72,7 @@ export function inferProviderFromId(
 
   const id = modelId.toLowerCase();
   if (id.startsWith('opencode/') || id.startsWith('opencode-')) return 'opencode';
+  if (id.startsWith('pollinations/') || id.startsWith('pollinations-')) return 'pollinations';
   
   // Fall back to prefix matching for cloud providers
   if (id.startsWith('gemini') || id.includes('gemini')) return 'gemini';

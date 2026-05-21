@@ -8,7 +8,8 @@ export type Provider =
   | 'openrouter' 
   | 'nvidia' 
   | 'terminal'
-  | 'opencode';
+  | 'opencode'
+  | 'pollinations';
 
 export interface AISettings {
   temperature?: number;

@@ -10,8 +10,12 @@ const SYSTEM_KEY = process.env.GEMINI_API_KEY || process.env.LLM_API_KEY || '';
 
 function resolveRealModel(model: string): string {
   const modelMap: Record<string, string> = {
+    'gemini-3.5-flash': 'gemini-3.5-flash',
+    'gemini-3-flash': 'gemini-3-flash',
+    'gemini-3.1-pro-preview': 'gemini-3.1-pro-preview',
     'gemini-2.5-flash': 'gemini-2.5-flash',
     'gemini-2.5-pro': 'gemini-2.5-pro',
+    'gemini-2.5-flash-lite': 'gemini-2.5-flash-lite',
     'gemma-4-31b-it': 'gemma-4-31b-it',
     'gemma-4-26b-a4b-it': 'gemma-4-26b-a4b-it',
     'gemma-4-e4b-it': 'gemma-4-e4b-it',

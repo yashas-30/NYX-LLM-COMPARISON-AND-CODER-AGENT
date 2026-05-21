@@ -4,7 +4,7 @@
  * Supports Cloudflare AI Gateway proxying and provider-specific routing.
  */
 
-export type Provider = 'gemini' | 'openrouter' | 'nvidia' | 'ollama' | 'lmstudio' | 'opencode' | 'openai' | 'anthropic' | 'deepseek' | 'groq' | 'mistral' | 'together';
+export type Provider = 'gemini' | 'openrouter' | 'nvidia' | 'ollama' | 'lmstudio' | 'opencode' | 'openai' | 'anthropic' | 'deepseek' | 'groq' | 'mistral' | 'together' | 'pollinations';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'model';
@@ -76,6 +76,7 @@ const getCloudflareGateway = (provider: Provider): AIGatewayConfig => {
     case 'groq':
     case 'mistral':
     case 'together':
+    case 'pollinations':
       return { enabled: false, baseUrl: '' };
     default:
       return { enabled: false, baseUrl: '' };
@@ -96,6 +97,7 @@ const PROVIDER_URLS: Record<Provider, string> = {
   groq: 'https://api.groq.com/openai/v1',
   mistral: 'https://api.mistral.ai/v1',
   together: 'https://api.together.ai/v1',
+  pollinations: 'https://text.pollinations.ai',
 };
 
 // Free models on OpenCode Zen (verified from API)
@@ -105,6 +107,11 @@ export const ZEN_FREE_MODELS = [
   'minimax-m2.5-free',
   'ring-2.6-1t-free',
   'nemotron-3-super-free',
+  'qwen3-30b-a3b-free',
+  'qwen3-coder-14b-free',
+  'llama-3.3-70b-free',
+  'gemma-3-27b-it-free',
+  'deepseek-v3-free',
 ];
 
 export class Gateway {
@@ -230,7 +237,7 @@ export class Gateway {
    */
   static validateAuth(provider: Provider, modelId: string, apiKey?: string): { valid: boolean; error?: string } {
     // Local providers don't need keys
-    if (['ollama', 'lmstudio'].includes(provider)) {
+    if (['ollama', 'lmstudio', 'pollinations'].includes(provider)) {
       return { valid: true };
     }
 

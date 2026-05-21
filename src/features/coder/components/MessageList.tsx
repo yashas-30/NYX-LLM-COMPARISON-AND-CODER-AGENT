@@ -19,7 +19,6 @@ interface MessageListProps {
   isLoading: boolean;
   onCopy: (text: string, id: string) => void;
   copiedId: string | null;
-  onSpeedRead: (text: string) => void;
   emptyStateLabel?: string;
   emptyStateDescription?: string;
 }
@@ -261,7 +260,6 @@ export const MessageList: React.FC<MessageListProps> = ({
   isLoading,
   onCopy,
   copiedId,
-  onSpeedRead,
   emptyStateLabel = 'Awaiting Instructions',
   emptyStateDescription = 'Industrial-grade AI guidance for infrastructure and deployment.',
 }) => {
@@ -374,45 +372,47 @@ export const MessageList: React.FC<MessageListProps> = ({
                           />
                         )}
 
-                        {/* Action buttons */}
+                        {/* Footer bar with Metrics and Copy action */}
                         {!isUser && msg.content && msg.status !== 'error' && (
-                          <div className="absolute top-0 right-0 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                          <div className="mt-3 pt-2 border-t border-border-strong/20 flex items-center justify-end gap-3 opacity-40 hover:opacity-100 transition-opacity">
+                            {/* Metrics if present */}
+                            {msg.metrics && (
+                              <>
+                                <div className="flex items-center gap-1">
+                                  <Zap className="w-2 h-2 text-primary" />
+                                  <span className="text-[8px] font-mono font-bold tracking-wider uppercase">
+                                    {msg.metrics.tps} <span className="text-[6px] opacity-40">t/s</span>
+                                  </span>
+                                </div>
+                                <div className="w-px h-1.5 bg-border-strong/50" />
+                                <div className="flex items-center gap-1">
+                                  <BrainCircuit className="w-2 h-2 text-primary" />
+                                  <span className="text-[8px] font-mono font-bold tracking-wider uppercase">
+                                    {msg.metrics.tokens} <span className="text-[6px] opacity-40">units</span>
+                                  </span>
+                                </div>
+                                <div className="w-px h-1.5 bg-border-strong/50" />
+                              </>
+                            )}
+
+                            {/* Copy action */}
                             <button
                               onClick={() => onCopy(msg.content, `msg-${i}`)}
-                              className="p-1 rounded bg-background/80 hover:bg-background border border-border-strong/40 hover:border-border-strong text-muted-foreground hover:text-foreground transition-all"
-                              title="Copy message"
+                              className="flex items-center gap-1 px-2 py-0.5 rounded bg-muted/40 hover:bg-muted border border-border-strong/30 hover:border-border-strong text-muted-foreground hover:text-foreground transition-all text-[8px] font-bold uppercase tracking-wider"
+                              title="Copy response"
                             >
-                              {copiedId === `msg-${i}` ? <Check size={10} /> : <Copy size={10} />}
+                              {copiedId === `msg-${i}` ? (
+                                <>
+                                  <Check size={8} className="text-emerald-400" />
+                                  <span className="text-emerald-400 font-extrabold">Copied</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy size={8} />
+                                  <span>Copy</span>
+                                </>
+                              )}
                             </button>
-                            {(activeAgent === 'claude' || activeAgent === 'nyx') && (
-                              <button
-                                onClick={() => onSpeedRead(msg.content)}
-                                className="p-1 rounded bg-background/80 hover:bg-background border border-border-strong/40 hover:border-border-strong text-muted-foreground hover:text-primary transition-all flex items-center gap-0.5"
-                                title="Speed Read (RSVP)"
-                              >
-                                <Zap size={10} className="text-primary fill-primary/10" />
-                                <span className="text-[9px] font-bold px-0.5">Speed Read</span>
-                              </button>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Metrics */}
-                        {!isUser && msg.metrics && (
-                          <div className="mt-3 pt-2 border-t border-border-strong/20 flex items-center justify-end gap-2.5 opacity-40 hover:opacity-100 transition-opacity">
-                            <div className="flex items-center gap-1">
-                              <Zap className="w-2 h-2 text-primary" />
-                              <span className="text-[8px] font-mono font-bold tracking-wider uppercase">
-                                {msg.metrics.tps} <span className="text-[6px] opacity-40">t/s</span>
-                              </span>
-                            </div>
-                            <div className="w-px h-1.5 bg-border-strong/50" />
-                            <div className="flex items-center gap-1">
-                              <BrainCircuit className="w-2 h-2 text-primary" />
-                              <span className="text-[8px] font-mono font-bold tracking-wider uppercase">
-                                {msg.metrics.tokens} <span className="text-[6px] opacity-40">units</span>
-                              </span>
-                            </div>
                           </div>
                         )}
                       </>

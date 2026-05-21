@@ -10,7 +10,7 @@ import { ModelDefinition, Provider, AgentPersona } from '@/src/core/types';
 import { toast } from 'sonner';
 
 // Extracted components
-import { CoderHeader, MessageList, PromptInput, SpeedReaderOverlay } from './components';
+import { CoderHeader, MessageList, PromptInput } from './components';
 import { getCustomModelIcon } from './utils/modelIcons';
 
 // Feature Logic
@@ -91,7 +91,6 @@ export const CoderPage: React.FC<CoderPageProps> = ({
 
   const [prompt, setPrompt] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [speedReadText, setSpeedReadText] = useState<string | null>(null);
 
   const currentPersona = agentPersonas[activeAgent];
   const currentModelId = models[activeAgent];
@@ -193,15 +192,7 @@ export const CoderPage: React.FC<CoderPageProps> = ({
           isLoading={isLoading}
           onCopy={copyToClipboard}
           copiedId={copiedId}
-          onSpeedRead={(text) => setSpeedReadText(text)}
         />
-
-        {speedReadText && (
-          <SpeedReaderOverlay 
-            text={speedReadText} 
-            onClose={() => setSpeedReadText(null)} 
-          />
-        )}
 
         <PromptInput
           prompt={prompt}

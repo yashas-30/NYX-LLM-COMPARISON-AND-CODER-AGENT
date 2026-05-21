@@ -6,7 +6,8 @@ export type ModelProvider =
   | 'openrouter'
   | 'nvidia'
   | 'terminal'
-  | 'opencode';
+  | 'opencode'
+  | 'pollinations';
 
 export interface OllamaModel {
   name: string;

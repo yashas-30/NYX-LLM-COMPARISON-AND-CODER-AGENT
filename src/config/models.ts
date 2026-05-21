@@ -25,7 +25,7 @@ export const FREE_OPENCODE_MODELS: ModelOption[] = [
     name: 'Big Pickle',
     provider: 'opencode',
     description: 'Stealth model optimized for coding agents. Currently free.',
-    specs: { contextWindow: '200K', trainingData: '2026', maxOutput: '8K', modality: 'Text' }
+    specs: { contextWindow: '200K', trainingData: '2026', maxOutput: '32K', modality: 'Text' }
   },
   {
     id: 'opencode/deepseek-v4-flash-free',
@@ -49,15 +49,62 @@ export const FREE_OPENCODE_MODELS: ModelOption[] = [
     specs: { contextWindow: '200K', trainingData: '2025', maxOutput: '16K', modality: 'Text' }
   },
   {
-    id: 'opencode/nemotron-3-super-free',
-    name: 'Nemotron 3 Super (Free)',
+    id: 'opencode/qwen3-30b-a3b-free',
+    name: 'Qwen3 30B (Free)',
     provider: 'opencode',
-    description: "NVIDIA's open-weight model. Free on Zen.",
-    specs: { contextWindow: '1M', trainingData: '2025', maxOutput: '8K', modality: 'Text' }
+    description: 'Alibaba Qwen3 model - free on Zen.',
+    specs: { contextWindow: '131K', trainingData: '2025', maxOutput: '8K', modality: 'Text' }
+  },
+  {
+    id: 'opencode/qwen3-coder-14b-free',
+    name: 'Qwen3 Coder 14B (Free)',
+    provider: 'opencode',
+    description: 'Specialized coding model - free on Zen.',
+    specs: { contextWindow: '32K', trainingData: '2025', maxOutput: '8K', modality: 'Text' }
+  },
+  {
+    id: 'opencode/llama-3.3-70b-free',
+    name: 'Llama 3.3 70B (Free)',
+    provider: 'opencode',
+    description: "Meta's latest Llama - free on Zen.",
+    specs: { contextWindow: '131K', trainingData: '2024', maxOutput: '32K', modality: 'Text' }
+  },
+  {
+    id: 'opencode/gemma-3-27b-it-free',
+    name: 'Gemma 3 27B (Free)',
+    provider: 'opencode',
+    description: "Google's latest Gemma - free on Zen.",
+    specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' }
+  },
+  {
+    id: 'opencode/deepseek-v3-free',
+    name: 'DeepSeek V3 (Free)',
+    provider: 'opencode',
+    description: 'DeepSeek V3 model - free on Zen.',
+    specs: { contextWindow: '64K', trainingData: '2024', maxOutput: '8K', modality: 'Text' }
   },
 ];
 
+// Pollinations.ai - Verified free models
+export const POLLINATIONS_MODELS: ModelOption[] = [
+  {
+    id: 'pollinations/openai-fast',
+    name: 'GPT-OSS 20B (Free)',
+    provider: 'pollinations',
+    description: 'Fast, open-weight model with excellent instruction-following. Free, no key required.',
+    specs: { contextWindow: '131K', trainingData: '2024', maxOutput: '8K', modality: 'Text' }
+  },
+  {
+    id: 'pollinations/openai',
+    name: 'GPT-4o-Mini equivalent (Free)',
+    provider: 'pollinations',
+    description: 'High-quality general purpose intelligence. Free, no key required.',
+    specs: { contextWindow: '128K', trainingData: '2024', maxOutput: '16K', modality: 'Text' }
+  }
+];
+
 const RAW_AVAILABLE_MODELS: ModelOption[] = [
+  ...POLLINATIONS_MODELS,
   // ═══════════════════════════════════════════════════════════════════════════════
   // OPENROUTER - FREE MODELS (Current)
   // ═══════════════════════════════════════════════════════════════════════════════
@@ -104,10 +151,18 @@ const RAW_AVAILABLE_MODELS: ModelOption[] = [
   { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'openrouter', description: "Anthropic's strong coding model", specs: { contextWindow: '200K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
 
   // ═══════════════════════════════════════════════════════════════════════════════
+  // GEMINI DIRECT - Gemini 3.5 & 3.x Series (Latest)
+  // ═══════════════════════════════════════════════════════════════════════════════
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', provider: 'gemini', description: "Cutting-edge high performance Flash model.", specs: { contextWindow: '1M', trainingData: '2026', maxOutput: '32K', modality: 'Multimodal' } },
+  { id: 'gemini-3-flash', name: 'Gemini 3 Flash', provider: 'gemini', description: "Balanced speed and capability Flash model.", specs: { contextWindow: '1M', trainingData: '2025', maxOutput: '32K', modality: 'Multimodal' } },
+  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (Preview)', provider: 'gemini', description: "Cutting-edge Pro model for advanced reasoning and coding.", specs: { contextWindow: '2M', trainingData: '2026', maxOutput: '64K', modality: 'Multimodal' } },
+
+  // ═══════════════════════════════════════════════════════════════════════════════
   // GEMINI DIRECT - Gemini 2.5 Series
   // ═══════════════════════════════════════════════════════════════════════════════
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini', description: "Previous Generation (Highly Stable) Flash model.", specs: { contextWindow: '1M', trainingData: '2025', maxOutput: '32K', modality: 'Multimodal' } },
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'gemini', description: "Previous Generation (Highly Stable) Pro model.", specs: { contextWindow: '2M', trainingData: '2025', maxOutput: '64K', modality: 'Multimodal' } },
+  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash-Lite', provider: 'gemini', description: "Previous Generation Flash-Lite, extremely fast and cost-effective.", specs: { contextWindow: '1M', trainingData: '2025', maxOutput: '16K', modality: 'Multimodal' } },
 
 
   // ═══════════════════════════════════════════════════════════════════════════════
@@ -134,11 +189,11 @@ const RAW_AVAILABLE_MODELS: ModelOption[] = [
   // ═══════════════════════════════════════════════════════════════════════════════
   // NVIDIA NIM - FREE MODELS (No API Key Required)
   // ═══════════════════════════════════════════════════════════════════════════════
-  { id: 'nvidia/llama-3.1-8b-instruct', name: 'Llama 3.1 8B (NIM)', provider: 'nvidia', description: 'Meta 8B via NVIDIA NIM - Free', specs: { contextWindow: '128K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
   { id: 'nvidia/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (NIM)', provider: 'nvidia', description: 'Meta 70B via NVIDIA NIM - Free', specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
-  { id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5', name: 'Llama 3.3 Nemotron Super 49B (NIM)', provider: 'nvidia', description: 'NVIDIA optimized Llama 3.3 - Free', specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '32K', modality: 'Text' } },
-  { id: 'nvidia/nemotron-3-super-120b-a12b', name: 'Nemotron 3 Super (NIM)', provider: 'nvidia', description: "NVIDIA's 262K context flagship", specs: { contextWindow: '262K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
-  { id: 'nvidia/nemotron-3-nano-9b-v2', name: 'Nemotron 3 Nano 9B (NIM)', provider: 'nvidia', description: 'NVIDIA efficient model', specs: { contextWindow: '128K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/deepseek-r1', name: 'DeepSeek R1 (NIM)', provider: 'nvidia', description: 'DeepSeek R1 reasoning via NVIDIA NIM - Free', specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '16K', modality: 'Text' } },
+  { id: 'nvidia/deepseek-v3', name: 'DeepSeek V3 (NIM)', provider: 'nvidia', description: 'DeepSeek V3 chat via NVIDIA NIM - Free', specs: { contextWindow: '64K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
+  { id: 'nvidia/llama-3.1-nemotron-70b-instruct', name: 'Llama 3.1 Nemotron 70B (NIM)', provider: 'nvidia', description: 'NVIDIA optimized Llama 3.1 - Free', specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '32K', modality: 'Text' } },
+  { id: 'nvidia/nemotron-4-340b-instruct', name: 'Nemotron-4 340B (NIM)', provider: 'nvidia', description: "NVIDIA's massive synthetic data generator", specs: { contextWindow: '4K', trainingData: '2024', maxOutput: '4K', modality: 'Text' } },
   { id: 'nvidia/gemma-3-27b-it', name: 'Gemma 3 27B (NIM)', provider: 'nvidia', description: "Google via NVIDIA NIM - Free", specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
   { id: 'nvidia/gemma-2-9b-it', name: 'Gemma 2 9B (NIM)', provider: 'nvidia', description: "Google via NVIDIA NIM - Free", specs: { contextWindow: '128K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
   { id: 'nvidia/phi-4', name: 'Phi-4 (NIM)', provider: 'nvidia', description: "Microsoft via NVIDIA NIM - Free", specs: { contextWindow: '16K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
@@ -151,13 +206,14 @@ const RAW_AVAILABLE_MODELS: ModelOption[] = [
   { id: 'opencode/deepseek-v4-flash-free', name: 'DeepSeek V4 Flash (Free)', provider: 'opencode', description: 'Fast DeepSeek model for quick tasks. Free on Zen.', specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
   { id: 'opencode/minimax-m2.5-free', name: 'MiniMax M2.5 (Free)', provider: 'opencode', description: 'Strong at coding and reasoning. Free on Zen.', specs: { contextWindow: '200K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
   { id: 'opencode/ring-2.6-1t-free', name: 'Ring 2.6 1T (Free)', provider: 'opencode', description: 'High-capacity reasoning model. Free on Zen.', specs: { contextWindow: '200K', trainingData: '2025', maxOutput: '16K', modality: 'Text' } },
-  { id: 'opencode/nemotron-3-super-free', name: 'Nemotron 3 Super (Free)', provider: 'opencode', description: "NVIDIA's open-weight model. Free on Zen.", specs: { contextWindow: '1M', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
   { id: 'opencode/qwen3-30b-a3b-free', name: 'Qwen3 30B (Free)', provider: 'opencode', description: 'Alibaba Qwen3 model - free on Zen.', specs: { contextWindow: '131K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
   { id: 'opencode/qwen3-coder-14b-free', name: 'Qwen3 Coder 14B (Free)', provider: 'opencode', description: 'Specialized coding model - free on Zen.', specs: { contextWindow: '32K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
   { id: 'opencode/llama-3.3-70b-free', name: 'Llama 3.3 70B (Free)', provider: 'opencode', description: "Meta's latest Llama - free on Zen.", specs: { contextWindow: '131K', trainingData: '2024', maxOutput: '32K', modality: 'Text' } },
   { id: 'opencode/gemma-3-27b-it-free', name: 'Gemma 3 27B (Free)', provider: 'opencode', description: "Google's latest Gemma - free on Zen.", specs: { contextWindow: '128K', trainingData: '2025', maxOutput: '8K', modality: 'Text' } },
+  { id: 'opencode/deepseek-v3-free', name: 'DeepSeek V3 (Free)', provider: 'opencode', description: 'DeepSeek V3 model - free on Zen.', specs: { contextWindow: '64K', trainingData: '2024', maxOutput: '8K', modality: 'Text' } },
 ];
 
+
 export const AVAILABLE_MODELS: ModelOption[] = RAW_AVAILABLE_MODELS.filter(m =>
-  ['gemini', 'openrouter', 'nvidia', 'opencode'].includes(m.provider)
+  ['gemini', 'openrouter', 'nvidia', 'opencode', 'pollinations'].includes(m.provider)
 );

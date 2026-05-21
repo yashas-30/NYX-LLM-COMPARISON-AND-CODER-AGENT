@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trash2, ChevronDown, ChevronUp, Key, Network, HelpCircle, BookOpen, ExternalLink, Cpu, Zap, Database, Globe, Terminal as TerminalIcon, Box, Settings as SettingsIcon } from 'lucide-react';
+import { Trash2, ChevronDown, ChevronUp, Key, Network, HelpCircle, BookOpen, ExternalLink, Cpu, Zap, Database, Globe, Terminal as TerminalIcon, Box, Settings as SettingsIcon, Brain } from 'lucide-react';
 import { UI_TEXT } from '../../lib/design-system/copy';
 import { useTokenUsage } from '../../context/TokenUsageContext';
 import { AVAILABLE_MODELS } from '../../config/models';
@@ -71,6 +71,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     misses: number;
   }>({ itemCount: 0, totalSizeBytes: 0, hits: 0, misses: 0 });
 
+  const [evolvedRules, setEvolvedRules] = useState<Array<{
+    metric: string;
+    critique: string;
+    rule: string;
+    timestamp: number;
+  }>>([]);
+
   const fetchCacheStats = async () => {
     try {
       const res = await fetch('/api/cache/stats');
@@ -80,6 +87,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       }
     } catch (e) {
       console.error('Failed to fetch cache stats:', e);
+    }
+  };
+
+  const fetchEvolvedRules = async () => {
+    try {
+      const res = await fetch('/api/nyx/rules');
+      if (res.ok) {
+        const data = await res.json();
+        setEvolvedRules(data.rules || data || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch evolved rules:', e);
     }
   };
 
@@ -98,8 +117,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
+  const handleClearRules = async () => {
+    try {
+      const res = await fetch('/api/nyx/reset', { method: 'POST' });
+      if (res.ok) {
+        setEvolvedRules([]);
+        toast.success("Successfully reset evolved memory!");
+      } else {
+        toast.error("Failed to reset evolved memory.");
+      }
+    } catch (e: any) {
+      toast.error(`Error: ${e.message}`);
+    }
+  };
+
   useEffect(() => {
     fetchCacheStats();
+    fetchEvolvedRules();
   }, []);
 
   const providers = PROVIDER_CONFIGS.map(p => ({
@@ -393,6 +427,72 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 >
                   <Trash2 size={10} />
                   Purge Cache
+                </button>
+              </div>
+            </div>
+
+            {/* Evolved Memory Manager */}
+            <div className="mt-6 group p-4 rounded-2xl bg-white/40 dark:bg-zinc-900/30 backdrop-blur-md border border-white/20 dark:border-white/5 hover:bg-white/50 dark:hover:bg-zinc-800/40 transition-all shadow-md relative overflow-hidden">
+              {/* Violet Gradient Accent representing cognitive self-evolution */}
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-violet-500/40 via-fuchsia-500/40 to-violet-500/40 opacity-70 group-hover:opacity-100 transition-opacity" />
+              
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-[7px] font-black uppercase tracking-[0.25em] text-violet-400">EVOLVED MEMORY MANAGER</p>
+                  <h3 className="text-xs font-bold text-foreground mt-0.5">Meta-Cognitive Self-Correction</h3>
+                </div>
+                <span className="text-[5px] font-bold uppercase tracking-widest text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/20">
+                  {evolvedRules.length} Lessons Learned
+                </span>
+              </div>
+
+              {/* Scrollable list of rules */}
+              <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-1 mb-4">
+                {evolvedRules.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-6 text-center border border-dashed border-border rounded-xl bg-muted/5">
+                    <Brain className="w-8 h-8 text-muted-foreground/20 animate-pulse" />
+                    <p className="text-[9px] text-muted-foreground/50 mt-2 font-medium">No evolved memory rules recorded yet.</p>
+                    <p className="text-[7px] text-muted-foreground/30 mt-0.5 max-w-[240px]">Nyx automatically criticizes itself post-interaction and learns how to improve.</p>
+                  </div>
+                ) : (
+                  evolvedRules.map((rule, idx) => (
+                    <div key={idx} className="p-3 border border-border-strong/30 rounded-xl bg-muted/5 hover:bg-muted/10 transition-colors flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[6px] px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-400 border border-violet-500/20 font-bold uppercase tracking-wider">
+                          {rule.metric}
+                        </span>
+                        <span className="text-[5.5px] font-mono text-muted-foreground/40">
+                          {new Date(rule.timestamp).toLocaleDateString()} {new Date(rule.timestamp).toLocaleTimeString(undefined, {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                      </div>
+                      
+                      <div className="text-[8px] text-muted-foreground/80 leading-relaxed italic">
+                        "What was wrong: {rule.critique}"
+                      </div>
+                      
+                      <div className="text-[8px] font-mono text-purple-300 bg-purple-950/20 border border-purple-800/30 rounded-lg p-2 select-all leading-normal">
+                        {rule.rule}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mt-4">
+                <p className="text-[9px] text-muted-foreground/60 leading-relaxed max-w-[280px]">
+                  Critic processes interactions out-of-band and saves micro-rules that are injected in future runs. This prevents regression and builds robust codebases.
+                </p>
+                <button
+                  onClick={handleClearRules}
+                  disabled={evolvedRules.length === 0}
+                  className={`px-4 py-2 rounded-full border text-[7px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 shrink-0 ${
+                    evolvedRules.length === 0 
+                      ? 'bg-muted/5 border-muted/10 text-muted-foreground/30 cursor-not-allowed' 
+                      : 'bg-destructive/5 border-destructive/20 text-destructive hover:bg-destructive hover:text-white hover:border-destructive active:scale-95 cursor-pointer'
+                  }`}
+                >
+                  <Trash2 size={10} />
+                  Reset Memory
                 </button>
               </div>
             </div>

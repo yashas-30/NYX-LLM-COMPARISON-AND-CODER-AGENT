@@ -105,8 +105,12 @@ export function clearApiKey(provider: string): void {
 function resolveRealModel(model: string): string {
   const m = model.toLowerCase();
   const modelMap: Record<string, string> = {
+    'gemini-3.5-flash': 'gemini-3.5-flash',
+    'gemini-3-flash': 'gemini-3-flash',
+    'gemini-3.1-pro-preview': 'gemini-3.1-pro-preview',
     'gemini-2.5-flash': 'gemini-2.5-flash',
     'gemini-2.5-pro': 'gemini-2.5-pro',
+    'gemini-2.5-flash-lite': 'gemini-2.5-flash-lite',
     'gemma-4-31b-it': 'gemma-4-31b-it',
     'gemma-4-26b-a4b-it': 'gemma-4-26b-a4b-it',
     'gemma-4-e4b-it': 'gemma-4-e4b-it',
@@ -294,16 +298,15 @@ fastify.post('/nvidia/*', async (request, reply) => {
 
   // NVIDIA NIM model mapping
   const modelMap: Record<string, string> = {
-    'nvidia/llama-3.1-8b-instruct': 'meta/llama-3.1-8b-instruct',
-    'nvidia/llama-3.1-70b-instruct': 'meta/llama-3.3-70b-instruct',
     'nvidia/llama-3.3-70b-instruct': 'meta/llama-3.3-70b-instruct',
-    'nvidia/llama-3.3-nemotron-super-49b-v1.5': 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
-    'nvidia/nemotron-3-super-120b-a12b': 'nvidia/nemotron-3-super-120b-a12b',
-    'nvidia/nemotron-3-nano-9b-v2': 'nvidia/nemotron-3-nano-9b-v2',
+    'nvidia/deepseek-r1': 'deepseek-ai/deepseek-r1',
+    'nvidia/deepseek-v3': 'deepseek-ai/deepseek-v3',
+    'nvidia/llama-3.1-nemotron-70b-instruct': 'nvidia/llama-3.1-nemotron-70b-instruct',
+    'nvidia/nemotron-4-340b-instruct': 'nvidia/nemotron-4-340b-instruct',
     'nvidia/gemma-3-27b-it': 'google/gemma-3-27b-it',
     'nvidia/gemma-2-9b-it': 'google/gemma-2-9b-it',
     'nvidia/phi-4': 'microsoft/phi-4',
-    'nvidia/ministral-8b': 'mistralai/mistral-8b-instruct-v0.3',
+    'nvidia/ministral-8b': 'mistralai/ministral-8b-instruct-v0.3',
   };
   const realModel = modelMap[model] || model.replace('nvidia/', '');
 

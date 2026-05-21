@@ -10,12 +10,11 @@ export const nvidiaRouter = Router();
 
 // NVIDIA NIM free model mapping (UI ID -> Real API ID)
 const NVIDIA_MODELS: Record<string, string> = {
-  'nvidia/llama-3.1-8b-instruct': 'meta/llama-3.1-8b-instruct',
-  'nvidia/llama-3.1-70b-instruct': 'meta/llama-3.3-70b-instruct',
   'nvidia/llama-3.3-70b-instruct': 'meta/llama-3.3-70b-instruct',
-  'nvidia/llama-3.3-nemotron-super-49b-v1.5': 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
-  'nvidia/nemotron-3-super-120b-a12b': 'nvidia/nemotron-3-super-120b-a12b',
-  'nvidia/nemotron-3-nano-9b-v2': 'nvidia/nemotron-3-nano-9b-v2',
+  'nvidia/deepseek-r1': 'deepseek-ai/deepseek-r1',
+  'nvidia/deepseek-v3': 'deepseek-ai/deepseek-v3',
+  'nvidia/llama-3.1-nemotron-70b-instruct': 'nvidia/llama-3.1-nemotron-70b-instruct',
+  'nvidia/nemotron-4-340b-instruct': 'nvidia/nemotron-4-340b-instruct',
   'nvidia/gemma-3-27b-it': 'google/gemma-3-27b-it',
   'nvidia/gemma-2-9b-it': 'google/gemma-2-9b-it',
   'nvidia/phi-4': 'microsoft/phi-4',

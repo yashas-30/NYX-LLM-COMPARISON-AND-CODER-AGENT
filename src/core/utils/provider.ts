@@ -11,6 +11,7 @@ const NVIDIA_MODEL_IDS = new Set(AVAILABLE_MODELS.filter(m => m.provider === 'nv
 const PROVIDER_PRIORITY = [
   { check: (id: string) => NVIDIA_MODEL_IDS.has(id), provider: 'nvidia' as Provider },
   { check: (id: string) => id.startsWith('opencode/') || id.startsWith('opencode-'), provider: 'opencode' as Provider },
+  { check: (id: string) => id.startsWith('pollinations/') || id.startsWith('pollinations-'), provider: 'pollinations' as Provider },
   { check: (id: string) => id.includes('/') && !NVIDIA_MODEL_IDS.has(id), provider: 'openrouter' as Provider },
 ];
 
@@ -20,6 +21,7 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   openrouter: 'OpenRouter',
   terminal: 'Terminal',
   opencode: 'Open Code',
+  pollinations: 'Pollinations (Free)',
 };
 
 export const CLOUD_PROVIDERS: Provider[] = ['gemini', 'nvidia', 'openrouter', 'opencode'];
@@ -68,6 +70,7 @@ export const isLocalModel = (modelId: string): boolean => {
  * Checks if a provider requires an API key.
  */
 export const requiresApiKey = (provider: Provider): boolean => {
+  if (provider === 'pollinations') return false;
   return CLOUD_PROVIDERS.includes(provider);
 };
 

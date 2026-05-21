@@ -1,15 +1,18 @@
+import 'dotenv/config';
 import express from 'express';
 import compression from 'compression';
 
-import '../server/lib/apiAgent.js'; // 🚀 Init global connection pooling
+import '../server/lib/apiAgent.ts'; // 🚀 Init global connection pooling
 
-import { geminiRouter }     from '../server/routes/gemini.js';
-import { openrouterRouter } from '../server/routes/openrouter.js';
-import { nvidiaRouter }     from '../server/routes/nvidia.js';
-import { terminalRouter }   from '../server/routes/terminal.js';
-import { agentsRouter }     from '../server/routes/agents.js';
-import { opencodeRouter }   from '../server/routes/opencode.js';
-import { CacheServer }      from '../server/lib/cache.js';
+import { geminiRouter }     from '../server/routes/gemini.ts';
+import { openrouterRouter } from '../server/routes/openrouter.ts';
+import { nvidiaRouter }     from '../server/routes/nvidia.ts';
+import { terminalRouter }   from '../server/routes/terminal.ts';
+import { agentsRouter }     from '../server/routes/agents.ts';
+import { opencodeRouter }   from '../server/routes/opencode.ts';
+import { nyxRouter }        from '../server/routes/nyx.ts';
+import { pollinationsRouter } from '../server/routes/pollinations.ts';
+import { CacheServer }      from '../server/lib/cache.ts';
 
 const app = express();
 
@@ -42,6 +45,8 @@ app.use('/api/nvidia',     nvidiaRouter);
 app.use('/api/terminal',   terminalRouter);
 app.use('/api/agents',     agentsRouter);
 app.use('/api/opencode',   opencodeRouter);
+app.use('/api/nyx',        nyxRouter);
+app.use('/api/pollinations', pollinationsRouter);
 
 // ── Model list proxy (Settings page live model discovery) ────────────────────
 app.post('/api/models/list', async (req, res) => {
@@ -72,6 +77,7 @@ app.post('/api/models/quota', async (req, res) => {
   const { provider, apiKey } = req.body;
   try {
     if (provider === 'openrouter') {
+      if (!apiKey) return res.status(401).json({ error: 'API key required for OpenRouter' });
       const r = await fetch('https://openrouter.ai/api/v1/credits', {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
@@ -79,6 +85,7 @@ app.post('/api/models/quota', async (req, res) => {
       return res.json(data);
     }
     if (provider === 'gemini') {
+      if (!apiKey) return res.status(401).json({ error: 'API key required for Gemini' });
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       if (r.ok) return res.json({ status: 'ok' });
     }

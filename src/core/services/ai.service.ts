@@ -78,6 +78,8 @@ export class AIService {
         resultText = await this.executeNvidia(modelId, prompt, apiKey!, settings, systemInstruction, options?.history, onStream, signal, options?.gatewayUrls);
       } else if (provider === 'opencode') {
         resultText = await this.executeOpencode(modelId, prompt, apiKey, settings, systemInstruction, options?.history, onStream, signal, options?.gatewayUrls);
+      } else if (provider === 'pollinations') {
+        resultText = await this.executePollinations(modelId, prompt, settings, systemInstruction, options?.history, onStream, signal);
       } else if (provider === 'lmstudio') {
         resultText = await this.executeLMStudio(modelId, prompt, systemInstruction, settings, options?.lmStudioBaseUrl, options?.history, options?.nodeId, onStream, signal);
       } else {
@@ -307,6 +309,76 @@ export class AIService {
     }
   }
 
+  private static async executePollinations(
+    model: string, prompt: string, settings?: AISettings, 
+    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal
+  ): Promise<string> {
+    try {
+      const response = await fetch('/api/pollinations/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
+        body: JSON.stringify({ model, prompt, settings, systemInstruction, history }),
+        signal,
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: `Pollinations Error ${response.status}` }));
+        throw new Error(err.error || `Pollinations Error ${response.status}`);
+      }
+      const data = await response.json();
+      const text = data.text || '';
+      if (onStream) onStream(text);
+      return text;
+    } catch (error: any) {
+      const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
+      if (!isAbort) {
+        console.warn('[AIService] Pollinations stream proxy failed, falling back to direct browser fetch:', error);
+        
+        const realModel = model.replace('pollinations/', '');
+        const messages: any[] = [];
+        if (systemInstruction) {
+          messages.push({ role: 'system', content: systemInstruction });
+        }
+        if (history && Array.isArray(history)) {
+          messages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
+        }
+        messages.push({ role: 'user', content: prompt });
+
+        const directRes = await fetch('https://text.pollinations.ai/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: realModel,
+            messages,
+            stream: false,
+            temperature: settings?.temperature ?? 0.7,
+          }),
+          signal,
+        });
+
+        if (!directRes.ok) {
+          const directErrText = await directRes.text();
+          throw new Error(`Pollinations Direct API Error: ${directErrText}`);
+        }
+
+        let text = '';
+        const contentType = directRes.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await directRes.json();
+          text = data.choices?.[0]?.message?.content || data.choices?.[0]?.delta?.content || data.text || '';
+        } else {
+          text = await directRes.text();
+        }
+
+        if (onStream) onStream(text);
+        return text;
+      }
+      throw error;
+    }
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   private static async processStream(response: Response, onStream?: (t: string) => void): Promise<string> {
@@ -412,6 +484,7 @@ export class AIService {
 }
 
   private static validateApiKey(provider: Provider | string, key?: string) {
+    if (provider === 'pollinations') return;
     if (!['ollama', 'lmstudio', 'opencode'].includes(provider) && !key) {
       throw new Error(`${provider} API key is required. Add it in Settings.`);
     }
@@ -444,6 +517,7 @@ export class AIService {
    * Returns the connectivity status of a provider.
    */
   static async checkStatus(provider: Provider | string, apiKey?: string, options?: { lmStudioBaseUrl?: string, ollamaBaseUrl?: string }): Promise<'online' | 'offline' | 'no-key'> {
+    if (provider === 'pollinations') return 'online';
     // 1. Check for missing keys first (except for local providers and opencode)
     if (!['ollama', 'lmstudio', 'opencode'].includes(provider) && !apiKey) {
       return 'no-key';

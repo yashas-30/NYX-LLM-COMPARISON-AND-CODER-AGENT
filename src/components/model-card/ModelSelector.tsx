@@ -6,7 +6,7 @@
 import React, { useMemo } from 'react';
 import { Search, Check, Info, Bot, ArrowDown, RefreshCw, X } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { FREE_OPENCODE_MODELS, CLAUDE_MODELS, AVAILABLE_MODELS } from '../../config/models';
+import { FREE_OPENCODE_MODELS, CLAUDE_MODELS, AVAILABLE_MODELS, POLLINATIONS_MODELS } from '../../config/models';
 import { ModelOption, OllamaModel, LMStudioModel } from '../../types';
 import { UI_TEXT } from '../../lib/design-system/copy';
 import { ProviderIcon, getProviderLabel } from '../ui/ProviderIcon';
@@ -34,13 +34,14 @@ interface Props {
 }
 
 // Structured provider order for the selector
-const PROVIDER_ORDER = ['gemini', 'opencode', 'openrouter', 'nvidia'];
+const PROVIDER_ORDER = ['gemini', 'opencode', 'openrouter', 'nvidia', 'pollinations'];
 
 const DEFAULT_GATEWAY_URLS: Record<string, string> = {
    gemini: 'https://generativelanguage.googleapis.com/v1beta',
    openrouter: 'https://openrouter.ai/api/v1',
    nvidia: 'https://integrate.api.nvidia.com/v1',
    opencode: 'https://opencode.ai/zen/v1',
+   pollinations: 'https://text.pollinations.ai',
 };
 
 export const ModelSelector: React.FC<Props> = ({
@@ -97,7 +98,7 @@ export const ModelSelector: React.FC<Props> = ({
 
      // Add OpenCode and Claude models that are now in AVAILABLE_MODELS
      // (they're duplicated here for backwards compatibility with existing code)
-     const extraModels = [...FREE_OPENCODE_MODELS, ...CLAUDE_MODELS];
+     const extraModels = [...FREE_OPENCODE_MODELS, ...CLAUDE_MODELS, ...POLLINATIONS_MODELS];
 
      // Filter out duplicates across all sources
      const seenIds = new Set();

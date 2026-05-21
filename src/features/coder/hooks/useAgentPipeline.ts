@@ -93,6 +93,28 @@ export const useAgentPipeline = ({
   const [isLoading, setIsLoading] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
 
+  const triggerBackgroundCritic = useCallback(async (prompt: string, responseText: string) => {
+    if (activeAgent !== 'nyx') return;
+    
+    const activeProvider = detectProvider(models['nyx'], ollamaModels, lmStudioModels);
+    const apiKey = getEffectiveApiKey(activeProvider, apiKeys);
+
+    try {
+      await fetch('/api/nyx/critic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt,
+          response: responseText,
+          apiKey
+        })
+      });
+      console.log('[useAgentPipeline] Background critic triggered successfully.');
+    } catch (err) {
+      console.error('[useAgentPipeline] Failed to trigger background critic:', err);
+    }
+  }, [activeAgent, models, apiKeys, ollamaModels, lmStudioModels]);
+
   const runCoder = useCallback(async (prompt: string) => {
     if (!prompt.trim() || !models[activeAgent]) return;
 
@@ -109,10 +131,36 @@ export const useAgentPipeline = ({
 
     try {
       if (activeAgent === 'nyx') {
+        // Fetch learned critic rules
+        let fetchedRules: string[] = [];
+        try {
+          const res = await fetch('/api/nyx/rules');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && Array.isArray(data.rules)) {
+              fetchedRules = data.rules.map((r: any) => r.rule);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch evolutionary rules:', err);
+        }
+
+        const formattedRules = fetchedRules.length > 0
+          ? fetchedRules.map(r => `- ${r}`).join('\n')
+          : "- No specific rules accumulated for this context yet.";
+
+        const rulesBlock = `
+To ensure continuous optimization and prevent past mistakes, you must strictly adhere to the following evolutionary rules derived from your past interactions:
+
+[PAST LESSONS LEARNED]
+${formattedRules}
+[END OF LESSONS]`;
+
         if (isSimplePrompt(prompt)) {
-          await runSingleAgentPipeline(prompt, controller, controllerRef, SIMPLE_NYX_INSTRUCTION);
+          const simpleInstructionWithRules = `${SIMPLE_NYX_INSTRUCTION}\n\n${rulesBlock}`;
+          await runSingleAgentPipeline(prompt, controller, controllerRef, simpleInstructionWithRules);
         } else {
-          await runMultiAgentPipeline(prompt, controller, controllerRef);
+          await runMultiAgentPipeline(prompt, controller, controllerRef, rulesBlock);
         }
       } else {
         await runSingleAgentPipeline(prompt, controller, controllerRef);
@@ -135,7 +183,7 @@ export const useAgentPipeline = ({
     }
   }, [activeAgent, models, apiKeys, agentPersonas, modelSettings, lmStudioBaseUrl, ollamaBaseUrl, ollamaModels, lmStudioModels, trackUsage, historyMap]);
 
-  const runMultiAgentPipeline = async (prompt: string, controller: AbortController, controllerRef: React.MutableRefObject<AbortController | null>) => {
+  const runMultiAgentPipeline = async (prompt: string, controller: AbortController, controllerRef: React.MutableRefObject<AbortController | null>, rulesBlock?: string) => {
     // ── Resolve Models ─────────────────────────────────────────────────────
     const initialOpenModelId = models['open'] || models['nyx'];
     if (!initialOpenModelId) {
@@ -194,14 +242,14 @@ Focus on:
 
 Output a structured blueprint. Do NOT include greetings or extra conversation.`;
 
-    const coderInstruction = `You are the Senior Coder Agent. Your job is to implement the complete system codebase based on the Architect's blueprint.
+    const coderInstructionOriginal = `You are the Senior Coder Agent. Your job is to implement the complete system codebase based on the Architect's blueprint.
 RULES:
 - Output ONLY complete, production-ready code.
 - Never use comments like "// todo", "// implement later", or placeholders.
 - Strictly handle all security, error boundaries, and edge cases described in the blueprint.
 - Keep the code well-organized, highly readable, and modular.`;
 
-    const optimizerInstruction = `You are the High-Performance Optimizer & Lead Delivery Agent. Your job is to:
+    const optimizerInstructionOriginal = `You are the High-Performance Optimizer & Lead Delivery Agent. Your job is to:
 1. Audit and fully optimize the draft code for speed, memory, accessibility (WCAG 2.2 AA), and clean architecture.
 2. Deliver the COMPLETE, FINAL, production-ready code to the user.
 
@@ -213,6 +261,9 @@ CRITICAL RULES — VIOLATIONS WILL BREAK THE OUTPUT:
 - Do NOT reference stages, agents, or internal pipeline steps in your response.
 - After all code blocks, add a ## How to Use section with numbered steps (save as X, open in Y, etc.)
 - Keep the tone direct and professional.`;
+
+    const coderInstruction = rulesBlock ? `${coderInstructionOriginal}\n\n${rulesBlock}` : coderInstructionOriginal;
+    const optimizerInstruction = rulesBlock ? `${optimizerInstructionOriginal}\n\n${rulesBlock}` : optimizerInstructionOriginal;
 
     // ── Stage 1: Architect (internal — user sees banner only) ──────────────
     let architectText = '';
@@ -339,6 +390,9 @@ End your response with a "## How to Use" section with clear implementation steps
     });
 
     updateMetrics(activeAgent, finalMetrics);
+    if (activeAgent === 'nyx') {
+      triggerBackgroundCritic(prompt, optimizerText);
+    }
   };
 
   const runSingleAgentPipeline = async (
@@ -393,6 +447,9 @@ End your response with a "## How to Use" section with clear implementation steps
     });
 
     updateMetrics(activeAgent, result.metrics);
+    if (activeAgent === 'nyx') {
+      triggerBackgroundCritic(prompt, result.text);
+    }
   };
 
   const stopCoder = useCallback(() => {

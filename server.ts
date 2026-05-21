@@ -2,6 +2,7 @@
 // Thin assembler — wires routes together and starts Vite + Express.
 // To add a new provider: create server/routes/myprovider.ts, then add 2 lines here.
 
+import 'dotenv/config';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { fileURLToPath } from 'url';
@@ -9,17 +10,19 @@ import path from 'path';
 import http from 'node:http';
 import dns from 'node:dns';
 
-import './server/lib/apiAgent.js'; // 🚀 Init global connection pooling
+import './server/lib/apiAgent.ts'; // 🚀 Init global connection pooling
 
-import { geminiRouter }     from './server/routes/gemini.js';
-import { openrouterRouter } from './server/routes/openrouter.js';
-import { nvidiaRouter }     from './server/routes/nvidia.js';
-import { terminalRouter }   from './server/routes/terminal.js';
-import { agentsRouter }     from './server/routes/agents.js';
-import { opencodeRouter }   from './server/routes/opencode.js';
-import { CacheServer }      from './server/lib/cache.js';
+import { geminiRouter }     from './server/routes/gemini.ts';
+import { openrouterRouter } from './server/routes/openrouter.ts';
+import { nvidiaRouter }     from './server/routes/nvidia.ts';
+import { terminalRouter }   from './server/routes/terminal.ts';
+import { agentsRouter }     from './server/routes/agents.ts';
+import { opencodeRouter }   from './server/routes/opencode.ts';
+import { nyxRouter }        from './server/routes/nyx.ts';
+import { pollinationsRouter } from './server/routes/pollinations.ts';
+import { CacheServer }      from './server/lib/cache.ts';
 import compression from 'compression';
-import { warmupDNS, startFastifyServer } from './server/lib/fastifyApi.js';
+import { warmupDNS, startFastifyServer } from './server/lib/fastifyApi.ts';
 
 
 // ── DNS: prefer Cloudflare for fastest lookups on Windows ─────────────────────
@@ -70,6 +73,8 @@ async function startServer() {
   app.use('/api/terminal',   terminalRouter);
   app.use('/api/agents',     agentsRouter);
   app.use('/api/opencode',   opencodeRouter);
+  app.use('/api/nyx',        nyxRouter);
+  app.use('/api/pollinations', pollinationsRouter);
 
   // ── Model list proxy (Settings page live model discovery) ────────────────────
   app.post('/api/models/list', async (req, res) => {
@@ -100,6 +105,7 @@ async function startServer() {
     const { provider, apiKey } = req.body;
     try {
       if (provider === 'openrouter') {
+        if (!apiKey) return res.status(401).json({ error: 'API key required for OpenRouter' });
         const r = await fetch('https://openrouter.ai/api/v1/credits', {
           headers: { 'Authorization': `Bearer ${apiKey}` }
         });
@@ -107,6 +113,7 @@ async function startServer() {
         return res.json(data);
       }
       if (provider === 'gemini') {
+        if (!apiKey) return res.status(401).json({ error: 'API key required for Gemini' });
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
         if (r.ok) return res.json({ status: 'ok' });
       }
@@ -171,10 +178,20 @@ async function startServer() {
         }
       });
 
+      // Ensure we have a valid JSON body for non-GET/HEAD requests
+      let requestBody: undefined | string = undefined;
+      if (!['GET', 'HEAD'].includes(req.method)) {
+        if (req.body === undefined) {
+          res.status(400).send({ error: 'JSON body required' });
+          return;
+        }
+        requestBody = JSON.stringify(req.body);
+      }
+
       const response = await fetch(targetUrl, {
         method: req.method,
         headers,
-        body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body)
+        body: requestBody
       });
       
       response.headers.forEach((value, key) => {
