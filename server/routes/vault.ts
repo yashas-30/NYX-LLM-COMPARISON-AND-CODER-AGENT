@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { loadKeys, saveKeys, createSessionToken, getVaultStatus } from '../lib/keyVault.ts';
+import { validate } from '../middleware/validate.ts';
+import { vaultStoreSchema } from '../schemas/index.ts';
 
 export const vaultRouter = Router();
 
@@ -18,14 +20,8 @@ const vaultLimiter = rateLimit({
   message: { error: 'Too many vault operations, please try again later.' }
 });
 
-vaultRouter.post('/store', vaultLimiter, (req, res) => {
+vaultRouter.post('/store', validate(vaultStoreSchema), vaultLimiter, (req, res) => {
   const { keys } = req.body;
-  if (!keys || typeof keys !== 'object' || Array.isArray(keys)) {
-    return res.status(400).json({ error: 'Invalid payload: keys object required' });
-  }
-  if (Object.keys(keys).length > 100) {
-    return res.status(400).json({ error: 'Too many keys provided (max 100)' });
-  }
   try {
     const currentKeys = loadKeys();
     const updatedKeys = { ...currentKeys, ...keys };

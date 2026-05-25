@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { CacheServer } from '../lib/cache.ts';
+import { validate } from '../middleware/validate.ts';
+import { cacheSetSchema } from '../schemas/index.ts';
 
 export const cacheRouter = Router();
 
@@ -19,14 +21,8 @@ cacheRouter.post('/get', (req, res) => {
   }
 });
 
-cacheRouter.post('/set', (req, res) => {
+cacheRouter.post('/set', validate(cacheSetSchema), (req, res) => {
   const { key, data, provider, model } = req.body;
-  if (!key || typeof key !== 'string' || !data) {
-    return res.status(400).json({ error: 'Missing or invalid key or data in request body' });
-  }
-  if (key.length > 2048) {
-    return res.status(400).json({ error: 'Cache key too long' });
-  }
   try {
     CacheServer.set(key, data, provider, model);
     res.json({ success: true });

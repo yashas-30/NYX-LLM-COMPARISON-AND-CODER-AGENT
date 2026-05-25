@@ -1,16 +1,12 @@
 import { Router } from 'express';
 import { validateApiKey } from '../lib/apiKeyValidator.ts';
+import { validate } from '../middleware/validate.ts';
+import { modelQuerySchema } from '../schemas/index.ts';
 
 export const modelProxyRouter = Router();
 
-modelProxyRouter.post('/list', async (req, res) => {
+modelProxyRouter.post('/list', validate(modelQuerySchema), async (req, res) => {
   const { provider, apiKey } = req.body;
-  if (!provider || typeof provider !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid provider in request body' });
-  }
-  if (provider.length > 64) {
-    return res.status(400).json({ error: 'Provider name too long' });
-  }
   if (apiKey && !validateApiKey(provider, apiKey)) {
     return res.status(400).json({ error: 'Invalid API key format for provider: ' + provider });
   }
@@ -37,14 +33,8 @@ modelProxyRouter.post('/list', async (req, res) => {
   }
 });
 
-modelProxyRouter.post('/quota', async (req, res) => {
+modelProxyRouter.post('/quota', validate(modelQuerySchema), async (req, res) => {
   const { provider, apiKey } = req.body;
-  if (!provider || typeof provider !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid provider in request body' });
-  }
-  if (provider.length > 64) {
-    return res.status(400).json({ error: 'Provider name too long' });
-  }
   if (apiKey && !validateApiKey(provider, apiKey)) {
     return res.status(400).json({ error: 'Invalid API key format for provider: ' + provider });
   }

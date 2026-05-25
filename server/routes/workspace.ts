@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { getWorkspaceRoot, setWorkspaceRoot } from '../lib/paths.ts';
+import { validate } from '../middleware/validate.ts';
+import { workspaceSchema } from '../schemas/index.ts';
 
 export const workspaceRouter = Router();
 
@@ -7,14 +9,8 @@ workspaceRouter.get('/', (req, res) => {
   res.json({ workspace: getWorkspaceRoot() });
 });
 
-workspaceRouter.post('/', (req, res) => {
+workspaceRouter.post('/', validate(workspaceSchema), (req, res) => {
   const { path: newPath } = req.body;
-  if (!newPath || typeof newPath !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid path in request body' });
-  }
-  if (newPath.length > 1024) {
-    return res.status(400).json({ error: 'Path too long (max 1024 characters)' });
-  }
   const success = setWorkspaceRoot(newPath);
   if (success) {
     res.json({ success: true, workspace: getWorkspaceRoot() });

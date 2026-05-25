@@ -4,6 +4,8 @@ import { CodebaseScanner } from '../lib/codebaseScanner.ts';
 import { getWorkspaceRoot } from '../lib/paths.ts';
 import fs from 'fs';
 import path from 'path';
+import { validate } from '../middleware/validate.ts';
+import { writeFileSchema } from '../schemas/index.ts';
 
 export const nyxRouter = Router();
 
@@ -368,11 +370,8 @@ nyxRouter.post('/search', async (req, res) => {
 });
 
 // POST /api/nyx/write-file - Write/apply generated code directly to the workspace
-nyxRouter.post('/write-file', async (req, res) => {
+nyxRouter.post('/write-file', validate(writeFileSchema), async (req, res) => {
   const { filePath, content, overwrite } = req.body;
-  if (!filePath || content === undefined) {
-    return res.status(400).json({ error: 'filePath and content are required' });
-  }
 
   try {
     const workspaceRoot = getWorkspaceRoot();

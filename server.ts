@@ -66,7 +66,7 @@ async function startServer() {
     const start = Date.now();
     res.on('finish', () => {
       logger.info({
-        requestId: (req as any).requestId,
+        requestId: req.requestId,
         method: req.method,
         path: req.path,
         statusCode: res.statusCode,

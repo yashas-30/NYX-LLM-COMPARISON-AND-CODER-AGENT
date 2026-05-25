@@ -10,7 +10,7 @@ export function requestIdMiddleware(req: Request, res: Response, next: NextFunct
   }
 
   // Set correlation ID on request object for downstream usage
-  (req as any).requestId = requestId;
+  req.requestId = requestId;
 
   // Echo requestId in response headers
   res.setHeader('x-request-id', requestId);

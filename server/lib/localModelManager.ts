@@ -781,7 +781,7 @@ export const LocalModelManager = {
         };
         // Add to active presets array
         MODEL_PRESETS.push(newPreset);
-        preset = newPreset;
+        preset = newPreset as any;
         modelId = customId; // Use the parsed custom ID
       } else {
         throw new Error(`Model preset or URL '${modelId}' not found.`);
