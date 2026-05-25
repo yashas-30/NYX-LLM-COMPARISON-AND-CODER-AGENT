@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { loadKeys, saveKeys, createSessionToken, getVaultStatus } from '../lib/keyVault.ts';
+import { loadKeys, saveKeys, createSessionToken, getVaultStatus, backupVault, exportVault, importVault } from '../lib/keyVault.ts';
 import { validate } from '../middleware/validate.ts';
 import { vaultStoreSchema } from '../schemas/index.ts';
 
@@ -41,4 +41,35 @@ const handleGetToken = (req: any, res: any) => {
 vaultRouter.get('/token', tokenLimiter, handleGetToken);
 vaultRouter.get('/status', (req, res) => {
   res.json(getVaultStatus());
+});
+
+vaultRouter.post('/backup', vaultLimiter, (req, res) => {
+  try {
+    const backupPath = backupVault();
+    res.json({ status: 'ok', path: backupPath });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+vaultRouter.post('/export', vaultLimiter, (req, res) => {
+  try {
+    const data = exportVault();
+    res.json({ status: 'ok', data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+vaultRouter.post('/import', vaultLimiter, (req, res) => {
+  const { data } = req.body;
+  if (!data || typeof data !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid encrypted vault data in body' });
+  }
+  try {
+    importVault(data);
+    res.json({ status: 'ok' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });

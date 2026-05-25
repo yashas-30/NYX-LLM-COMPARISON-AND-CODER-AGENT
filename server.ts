@@ -16,6 +16,9 @@ import './server/lib/apiAgent.ts'; // 🚀 Init global connection pooling
 import { vaultRouter } from './server/routes/vault.ts';
 import { adminRouter } from './server/routes/admin.ts';
 import { systemRouter } from './server/routes/system.ts';
+import { healthRouter } from './server/routes/health.ts';
+import { metricsRouter } from './server/routes/metrics.ts';
+import { conversationsRouter } from './server/routes/conversations.ts';
 import { cacheRouter } from './server/routes/cache.ts';
 import { workspaceRouter } from './server/routes/workspace.ts';
 import { modelProxyRouter } from './server/routes/modelProxy.ts';
@@ -135,6 +138,9 @@ async function startServer() {
   });
   app.use('/api/admin', adminRouter);
   app.use('/api', systemRouter);
+  app.use('/api', healthRouter);
+  app.use('/api', metricsRouter);
+  app.use('/api/conversations', conversationsRouter);
   app.use('/api/cache', cacheRouter);
   app.use('/api/workspace', workspaceRouter);
   app.use('/api/models', modelProxyRouter);

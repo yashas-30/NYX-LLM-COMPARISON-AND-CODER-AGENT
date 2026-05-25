@@ -5,8 +5,7 @@ import { LocalModelRunner } from '../lib/localModelRunner.ts';
 
 export const systemRouter = Router();
 
-// Health check
-systemRouter.get('/health', (_req, res) => res.json({ status: 'ok' }));
+// Health check moved to server/routes/health.ts
 
 // System Specs
 systemRouter.get('/system', async (req, res) => {

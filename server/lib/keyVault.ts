@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
-import { VAULT_DIR } from './paths.ts';
+import { VAULT_DIR, APP_STATE_DIR } from './paths.ts';
 const VAULT_FILE = path.join(VAULT_DIR, 'vault.enc');
 
 // Derive 32-byte key for AES-256-GCM
@@ -148,4 +148,53 @@ export function getVaultStatus(): Record<string, boolean> {
     nvidia: !!(keys.nvidia && keys.nvidia.trim().length > 0),
     opencode: !!(keys.opencode && keys.opencode.trim().length > 0),
   };
+}
+
+export function exportVault(): string {
+  const keys = loadKeys();
+  return encryptText(JSON.stringify(keys));
+}
+
+export function importVault(encryptedData: string): void {
+  const decrypted = decryptText(encryptedData);
+  const keys = JSON.parse(decrypted);
+  saveKeys(keys);
+}
+
+export function backupVault(): string {
+  const backupDir = path.join(APP_STATE_DIR, '.nyx-backups');
+  if (!fs.existsSync(backupDir)) {
+    fs.mkdirSync(backupDir, { recursive: true });
+  }
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupPath = path.join(backupDir, `vault-${timestamp}.enc`);
+  
+  if (fs.existsSync(VAULT_FILE)) {
+    fs.copyFileSync(VAULT_FILE, backupPath);
+  } else {
+    // If no vault exists yet, write empty encrypted file
+    fs.writeFileSync(backupPath, encryptText(JSON.stringify({})), 'utf8');
+  }
+
+  // Keep up to 10 backups
+  try {
+    const backups = fs.readdirSync(backupDir)
+      .filter(f => f.startsWith('vault-') && f.endsWith('.enc'))
+      .sort();
+    
+    // Sort ascends, so oldest are at the beginning
+    if (backups.length > 10) {
+      const toRemoveCount = backups.length - 10;
+      for (let i = 0; i < toRemoveCount; i++) {
+        const fileToRemove = backups[i];
+        if (fileToRemove) {
+          fs.unlinkSync(path.join(backupDir, fileToRemove));
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('[KeyVault] Backup rotation failed:', err.message);
+  }
+
+  return backupPath;
 }
