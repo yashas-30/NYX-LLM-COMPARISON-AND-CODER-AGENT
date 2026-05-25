@@ -25,9 +25,10 @@ module.exports = {
   ] : [],
   asar: true,
   asarUnpack: [
+    '**/dist/**/*',
+    '**/dist-server/**/*',
     '**/binaries/**/*',
-    '**/node_modules/sharp/**/*',
-    '**/node_modules/@xenova/transformers/**/*',
+    '**/node_modules/**/*',
     '**/dist/nyx-icon.png',
     '**/dist/nyx-icon.ico',
     '**/public/nyx-icon.png',

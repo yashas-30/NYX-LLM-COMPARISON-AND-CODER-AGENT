@@ -259,7 +259,7 @@ export class UnifiedEngine {
         messages: messages.map(m => ({ role: m.role, content: m.content })),
         stream: true,
         temperature: settings?.temperature ?? 0.7,
-        max_tokens: settings?.maxTokens ?? 2048,
+        max_tokens: settings?.maxTokens ?? 4096,
       })
     });
 

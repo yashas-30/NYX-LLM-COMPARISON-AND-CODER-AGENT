@@ -540,18 +540,8 @@ To ensure continuous optimization and prevent past mistakes, you must strictly a
 ${formattedRules}
 [END OF LESSONS]`;
 
-        const isSimple = 
-          analysisResult.complexity === 'trivial' || 
-          analysisResult.complexity === 'simple' ||
-          analysisResult.intent === 'explain' ||
-          analysisResult.intent === 'general';
-          
-        const isHeavy = !isSimple || 
-          (analysisResult.isCodeRelated && (
-            analysisResult.complexity === 'enterprise' ||
-            analysisResult.complexity === 'complex' ||
-            /\b(system\s+design|architect|blueprint|multi[- ]agent|planning\s+mode|step[- ]by[- ]step\s+plan|thinking|think|deep|heavy)\b/i.test(prompt)
-          ));
+        const isPlanningRequested = /\b(planning\s+mode|step[- ]by[- ]step\s+plan|generate\s+plan|create\s+plan|architectural\s+plan|system\s+design|architect|blueprint|multi[- ]agent)\b/i.test(prompt);
+        const isHeavy = isPlanningRequested;
 
         if (!isHeavy) {
           // Fast path for simple code prompts

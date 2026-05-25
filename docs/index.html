@@ -5,27 +5,59 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NYX — Native Local Intelligence & Cloud Orchestration</title>
   <meta name="description" content="NYX is a premium AI coding environment that runs powerful language models locally on your GPU and connects to every major cloud AI provider in one beautiful interface." />
-  <meta property="og:title" content="NYX — AI Coding Environment" />
-  <meta property="og:description" content="Run Llama, Qwen, DeepSeek locally on your GPU. Connect to Gemini, OpenRouter, NVIDIA NIM. All in one premium interface." />
-  <meta property="og:image" content="https://yashas-30.github.io/NYX/og-image.png" />
-  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="keywords" content="NYX, Local GPU, LLM Arena, Gemma 4, Gemini 3.5, OpenCode, Pollinations, GGUF, llama-server, Fastify SSE, Prompt Cache, AI Coding Agent" />
+  
+  <!-- 🌐 Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://yashas-30.github.io/NYX/" />
+  <meta property="og:title" content="NYX — Native Local Intelligence & Cloud Orchestration" />
+  <meta property="og:description" content="Run Gemma 4, Qwen, Llama locally on your GPU. Connect to Gemini 3.5, OpenCode, Pollinations, and NVIDIA NIM. Zero-delay streaming inside a beautiful developer dashboard." />
+  <meta property="og:image" content="https://yashas-30.github.io/NYX/assets/arena.png" />
+  
+  <!-- 🐦 Twitter -->
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:url" content="https://yashas-30.github.io/NYX/" />
+  <meta property="twitter:title" content="NYX — Native Local Intelligence & Cloud Orchestration" />
+  <meta property="twitter:description" content="Run Gemma 4, Qwen, Llama locally on your GPU. Connect to Gemini 3.5, OpenCode, Pollinations, and NVIDIA NIM." />
+  <meta property="twitter:image" content="https://yashas-30.github.io/NYX/assets/arena.png" />
+
+  <!-- 🎨 Fonts & Favicon -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600;750&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23080a0f'/%3E%3Ccircle cx='80' cy='30' r='40' fill='%2322d3ee' opacity='0.15'/%3E%3Cg transform='translate%2850, 52%29' text-anchor='middle' dominant-baseline='central'%3E%3Ctext font-family='Outfit, sans-serif' font-weight='900' font-size='38' letter-spacing='1'%3E%3Ctspan fill='%23ffffff'%3ENY%3C/tspan%3E%3Ctspan fill='%2322d3ee'%3EX%3C/tspan%3E%3C/text%3E%3C/g%3E%3C/svg%3E" />
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0a0a0c;
-      --surface: #111114;
-      --border: rgba(255,255,255,0.07);
+      --bg: #07080c;
+      --bg-panel: #0d0f17;
+      --surface: rgba(16, 20, 31, 0.65);
+      --surface-hover: rgba(22, 28, 44, 0.85);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-glow: rgba(34, 211, 238, 0.15);
+      
+      --cyan: #22d3ee;
+      --cyan-glow: rgba(34, 211, 238, 0.25);
       --blue: #3b82f6;
-      --blue-glow: rgba(59,130,246,0.15);
+      --blue-glow: rgba(59, 130, 246, 0.25);
       --violet: #8b5cf6;
+      --violet-glow: rgba(139, 92, 246, 0.2);
+      --green: #10b981;
+      --green-glow: rgba(16, 185, 129, 0.2);
+      
       --text: #f4f4f5;
-      --muted: rgba(244,244,245,0.4);
-      --mono: 'JetBrains Mono', monospace;
+      --text-muted: rgba(244, 244, 245, 0.5);
+      --text-dim: rgba(244, 244, 245, 0.35);
+      
       --sans: 'Inter', system-ui, sans-serif;
+      --display: 'Outfit', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      
+      --radius: 14px;
+      --radius-lg: 24px;
+      --ease-spring: cubic-bezier(0.25, 1, 0.5, 1);
     }
 
     html { scroll-behavior: smooth; }
@@ -36,41 +68,57 @@
       font-family: var(--sans);
       min-height: 100vh;
       overflow-x: hidden;
+      line-height: 1.6;
     }
 
-    /* ── Grid background ── */
+    /* ── Drifting ambient glow orbs ── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(140px);
+      pointer-events: none;
+      z-index: 0;
+      animation: drift 25s ease-in-out infinite alternate;
+    }
+    .orb-1 {
+      width: 700px; height: 700px;
+      background: rgba(34, 211, 238, 0.06);
+      top: -250px; left: -250px;
+      animation-delay: 0s;
+    }
+    .orb-2 {
+      width: 600px; height: 600px;
+      background: rgba(139, 92, 246, 0.05);
+      bottom: -150px; right: -150px;
+      animation-delay: -5s;
+    }
+    .orb-3 {
+      width: 450px; height: 450px;
+      background: rgba(59, 130, 246, 0.04);
+      top: 40%; left: 60%;
+      animation-delay: -10s;
+    }
+
+    @keyframes drift {
+      0% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(80px, 60px) scale(1.1); }
+      100% { transform: translate(-40px, 90px) scale(0.95); }
+    }
+
+    /* ── Grid overlay background ── */
     body::before {
       content: '';
       position: fixed;
       inset: 0;
       background-image:
-        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-      background-size: 48px 48px;
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 54px 54px;
       pointer-events: none;
       z-index: 0;
     }
 
-    /* ── Glow orbs ── */
-    .orb {
-      position: fixed;
-      border-radius: 50%;
-      filter: blur(120px);
-      pointer-events: none;
-      z-index: 0;
-    }
-    .orb-1 {
-      width: 600px; height: 600px;
-      background: rgba(59,130,246,0.07);
-      top: -200px; left: -200px;
-    }
-    .orb-2 {
-      width: 500px; height: 500px;
-      background: rgba(139,92,246,0.06);
-      bottom: -100px; right: -100px;
-    }
-
-    /* ── Nav ── */
+    /* ── Navigation ── */
     nav {
       position: fixed;
       top: 0; left: 0; right: 0;
@@ -78,60 +126,64 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 2rem;
-      height: 60px;
-      background: rgba(10,10,12,0.8);
-      backdrop-filter: blur(20px);
+      padding: 0 3rem;
+      height: 68px;
+      background: rgba(7, 8, 12, 0.8);
+      backdrop-filter: blur(24px);
       border-bottom: 1px solid var(--border);
     }
 
     .nav-logo {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 15px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
+      gap: 12px;
+      font-family: var(--display);
+      font-size: 19px;
+      font-weight: 900;
+      letter-spacing: 0.03em;
     }
 
     .nav-logo .dot {
-      width: 8px; height: 8px;
+      width: 10px; height: 10px;
       border-radius: 50%;
-      background: var(--blue);
-      box-shadow: 0 0 12px var(--blue);
-      animation: pulse 2s ease-in-out infinite;
+      background: var(--cyan);
+      box-shadow: 0 0 14px var(--cyan);
+      animation: pulse 2.5s ease-in-out infinite;
     }
 
     @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.88); }
     }
 
     .nav-links {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.75rem;
     }
 
-    .nav-links a {
-      color: var(--muted);
+    .nav-links a:not(.btn-github) {
+      color: var(--text-muted);
       text-decoration: none;
-      font-size: 13px;
-      font-weight: 500;
-      padding: 6px 12px;
-      border-radius: 8px;
-      transition: all 0.15s;
+      font-size: 13.5px;
+      font-weight: 550;
+      padding: 7px 14px;
+      border-radius: 10px;
+      transition: all 0.2s var(--ease-spring);
     }
-    .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+    .nav-links a:not(.btn-github):hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.04);
+    }
 
     .btn-github {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 16px;
+      padding: 9px 18px;
       border-radius: 10px;
       border: 1px solid var(--border);
-      background: rgba(255,255,255,0.04);
+      background: rgba(255, 255, 255, 0.04);
       color: var(--text) !important;
       font-size: 13px;
       font-weight: 600;
@@ -139,66 +191,71 @@
       transition: all 0.2s;
     }
     .btn-github:hover {
-      background: rgba(255,255,255,0.08) !important;
-      border-color: rgba(255,255,255,0.12);
+      background: rgba(255, 255, 255, 0.08) !important;
+      border-color: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 0 15px rgba(255, 255, 255, 0.03);
     }
 
     /* ── Hero ── */
     .hero {
       position: relative;
       z-index: 1;
-      min-height: 100vh;
+      min-height: 92vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 120px 2rem 80px;
+      padding: 140px 2rem 80px;
     }
 
     .hero-badge {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 6px 14px;
+      padding: 7px 16px;
       border-radius: 100px;
-      border: 1px solid rgba(59,130,246,0.25);
-      background: rgba(59,130,246,0.08);
-      color: #93c5fd;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
+      border: 1px solid rgba(34, 211, 238, 0.2);
+      background: rgba(34, 211, 238, 0.07);
+      color: #9bf3ff;
+      font-family: var(--display);
+      font-size: 11.5px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      margin-bottom: 2rem;
+      margin-bottom: 2.2rem;
+      box-shadow: 0 0 20px rgba(34, 211, 238, 0.05);
     }
 
     .hero-title {
-      font-size: clamp(3rem, 8vw, 6.5rem);
+      font-family: var(--display);
+      font-size: clamp(3rem, 7.5vw, 6.2rem);
       font-weight: 900;
       letter-spacing: -0.04em;
-      line-height: 1;
-      margin-bottom: 1.5rem;
+      line-height: 1.05;
+      margin-bottom: 1.8rem;
     }
 
     .hero-title .gradient {
-      background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%);
+      background: linear-gradient(135deg, var(--cyan) 0%, var(--blue) 50%, var(--violet) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      filter: drop-shadow(0 0 30px rgba(34, 211, 238, 0.1));
     }
 
     .hero-sub {
-      font-size: clamp(1rem, 2vw, 1.25rem);
-      color: var(--muted);
-      max-width: 580px;
-      line-height: 1.7;
-      margin-bottom: 3rem;
+      font-size: clamp(1.05rem, 2vw, 1.28rem);
+      color: var(--text-muted);
+      max-width: 660px;
+      line-height: 1.75;
+      margin-bottom: 3.2rem;
     }
 
     .hero-actions {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 1.25rem;
       flex-wrap: wrap;
       justify-content: center;
     }
@@ -206,295 +263,470 @@
     .btn-primary {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 14px 28px;
-      border-radius: 14px;
-      background: var(--blue);
-      color: white;
-      font-size: 14px;
-      font-weight: 700;
+      gap: 10px;
+      padding: 16px 32px;
+      border-radius: var(--radius);
+      background: var(--cyan);
+      color: #07080c;
+      font-family: var(--display);
+      font-size: 14.5px;
+      font-weight: 800;
       text-decoration: none;
-      transition: all 0.2s;
-      box-shadow: 0 0 30px rgba(59,130,246,0.25);
+      transition: all 0.25s var(--ease-spring);
+      box-shadow: 0 0 35px var(--cyan-glow);
     }
     .btn-primary:hover {
-      background: #2563eb;
-      transform: translateY(-1px);
-      box-shadow: 0 0 40px rgba(59,130,246,0.35);
+      background: #06b6d4;
+      transform: translateY(-2px);
+      box-shadow: 0 0 45px rgba(34, 211, 238, 0.45);
     }
 
     .btn-secondary {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 14px 28px;
-      border-radius: 14px;
+      padding: 16px 32px;
+      border-radius: var(--radius);
       border: 1px solid var(--border);
-      background: rgba(255,255,255,0.04);
+      background: rgba(255, 255, 255, 0.03);
       color: var(--text);
+      font-family: var(--sans);
       font-size: 14px;
       font-weight: 600;
       text-decoration: none;
-      transition: all 0.2s;
+      transition: all 0.25s var(--ease-spring);
     }
     .btn-secondary:hover {
-      background: rgba(255,255,255,0.08);
-      border-color: rgba(255,255,255,0.12);
-      transform: translateY(-1px);
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.12);
+      transform: translateY(-2px);
     }
 
-    /* ── Section ── */
+    /* ── Sections ── */
     section {
       position: relative;
       z-index: 1;
-      max-width: 1100px;
+      max-width: 1140px;
       margin: 0 auto;
-      padding: 80px 2rem;
+      padding: 90px 2rem;
     }
 
     .section-label {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.15em;
+      gap: 8px;
+      font-family: var(--display);
+      font-size: 11.5px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: var(--blue);
-      margin-bottom: 1rem;
+      color: var(--cyan);
+      margin-bottom: 1.2rem;
     }
 
     .section-title {
-      font-size: clamp(1.75rem, 4vw, 2.75rem);
+      font-family: var(--display);
+      font-size: clamp(2rem, 4.5vw, 3.2rem);
       font-weight: 800;
       letter-spacing: -0.03em;
-      line-height: 1.1;
-      margin-bottom: 1rem;
+      line-height: 1.15;
+      margin-bottom: 1.2rem;
     }
 
     .section-desc {
-      color: var(--muted);
-      font-size: 1.05rem;
+      color: var(--text-muted);
+      font-size: 1.1rem;
       line-height: 1.7;
-      max-width: 560px;
-      margin-bottom: 3rem;
+      max-width: 600px;
+      margin-bottom: 3.5rem;
     }
 
-    /* ── Feature grid ── */
+    /* ── Glass Cards ── */
+    .glass-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow: 0 10px 40px -15px rgba(0, 0, 0, 0.4);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .glass-card:hover {
+      border-color: var(--border-glow);
+      box-shadow: 0 15px 45px -12px rgba(34, 211, 238, 0.05);
+    }
+
+    /* ── Features Grid ── */
     .feature-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      overflow: hidden;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
     }
 
     .feature-card {
-      background: var(--surface);
-      padding: 28px;
-      transition: background 0.2s;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
     }
-    .feature-card:hover { background: #18181c; }
 
     .feature-icon {
-      width: 40px; height: 40px;
-      border-radius: 12px;
+      width: 48px; height: 48px;
+      border-radius: 14px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px;
-      margin-bottom: 1rem;
+      font-size: 22px;
+      margin-bottom: 1.5rem;
+      border: 1px solid var(--border);
+      box-shadow: inset 0 2px 4px rgba(255,255,255,0.02);
     }
 
     .feature-title {
-      font-size: 15px;
-      font-weight: 700;
-      margin-bottom: 0.5rem;
+      font-family: var(--display);
+      font-size: 18px;
+      font-weight: 750;
+      margin-bottom: 0.8rem;
+      letter-spacing: -0.01em;
     }
 
     .feature-desc {
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.65;
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.7;
     }
 
-    /* ── Model table ── */
-    .model-table {
+    /* ── Interactive Simulator Terminal ── */
+    .sim-terminal {
       width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-
-    .model-table th {
-      text-align: left;
-      padding: 10px 16px;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--muted);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .model-table td {
-      padding: 12px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.03);
-      vertical-align: middle;
-    }
-
-    .model-table tr:hover td { background: rgba(255,255,255,0.02); }
-
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 6px;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-    }
-
-    .badge-blue { background: rgba(59,130,246,0.12); color: #93c5fd; }
-    .badge-purple { background: rgba(139,92,246,0.12); color: #c4b5fd; }
-    .badge-green { background: rgba(34,197,94,0.12); color: #86efac; }
-    .badge-amber { background: rgba(245,158,11,0.12); color: #fcd34d; }
-
-    /* ── Code block ── */
-    .code-block {
-      background: #0d0d10;
-      border: 1px solid var(--border);
+      margin: 40px auto;
       border-radius: 16px;
       overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      background: #090b12;
+      box-shadow: 0 25px 60px -20px rgba(0, 0, 0, 0.7);
     }
 
-    .code-block-header {
+    .sim-header {
+      background: #111420;
+      padding: 14px 20px;
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 12px 16px;
+      justify-content: space-between;
       border-bottom: 1px solid var(--border);
     }
 
-    .code-dot {
-      width: 10px; height: 10px;
+    .sim-dots {
+      display: flex;
+      gap: 7px;
+    }
+    .sim-dot {
+      width: 11px; height: 11px;
       border-radius: 50%;
     }
 
-    .code-block pre {
-      padding: 20px;
+    .sim-meta {
       font-family: var(--mono);
-      font-size: 13px;
-      line-height: 1.7;
-      color: #e4e4e7;
-      overflow-x: auto;
-    }
-
-    .code-block .cm { color: #6b7280; }
-    .code-block .kw { color: #93c5fd; }
-    .code-block .st { color: #86efac; }
-    .code-block .nm { color: #fcd34d; }
-    .code-block .pn { color: #e4e4e7; }
-
-    /* ── Pipeline ── */
-    .pipeline {
+      font-size: 11px;
+      color: var(--text-dim);
       display: flex;
-      align-items: stretch;
-      gap: 0;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      overflow: hidden;
+      align-items: center;
+      gap: 15px;
+    }
+    .sim-meta span strong { color: var(--cyan); }
+
+    .sim-content {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      min-height: 480px;
     }
 
-    .pipeline-stage {
+    /* Interactive Prompt Input Bar */
+    .sim-input-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .sim-input-tag {
+      font-family: var(--display);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--violet);
+      background: rgba(139, 92, 246, 0.12);
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .sim-prompt-text {
       flex: 1;
-      padding: 28px 24px;
-      background: var(--surface);
+      font-size: 13.5px;
+      color: var(--text);
+      font-weight: 500;
+    }
+    .btn-run-sim {
+      background: var(--cyan);
+      color: #080a0f;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-family: var(--display);
+      font-size: 12.5px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s var(--ease-spring);
+    }
+    .btn-run-sim:hover {
+      background: #06b6d4;
+      box-shadow: 0 0 15px var(--cyan-glow);
+    }
+    .btn-run-sim:disabled {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-dim);
+      cursor: not-allowed;
+    }
+
+    /* Live Pipeline State Indicators */
+    .pipeline-status {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1.5rem;
+    }
+    .pipeline-step {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.01);
+      border: 1px solid transparent;
+      transition: all 0.2s;
+    }
+    .pipeline-step.active {
+      background: rgba(255,255,255,0.02);
+      border-color: var(--border);
+    }
+    .pipeline-step.active[data-stage="architect"] { border-color: rgba(34, 211, 238, 0.2); }
+    .pipeline-step.active[data-stage="coder"] { border-color: rgba(139, 92, 246, 0.2); }
+    .pipeline-step.active[data-stage="optimizer"] { border-color: rgba(16, 185, 129, 0.2); }
+    
+    .pipeline-step-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--display);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .pipeline-indicator {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+    }
+    .pipeline-step.active[data-stage="architect"] .pipeline-indicator { background: var(--cyan); box-shadow: 0 0 10px var(--cyan); }
+    .pipeline-step.active[data-stage="coder"] .pipeline-indicator { background: var(--violet); box-shadow: 0 0 10px var(--violet); }
+    .pipeline-step.active[data-stage="optimizer"] .pipeline-indicator { background: var(--green); box-shadow: 0 0 10px var(--green); }
+    
+    .pipeline-desc-text {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Output Terminal Screen */
+    .terminal-body {
+      background: #06080e;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      min-height: 240px;
+      padding: 16px;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.7;
+      overflow-x: auto;
       position: relative;
     }
-
-    .pipeline-stage + .pipeline-stage {
-      border-left: 1px solid var(--border);
+    
+    .terminal-pre {
+      color: #e4e4e7;
     }
 
-    .pipeline-stage:hover { background: #18181c; }
+    .terminal-pre .cm { color: #6b7280; font-style: italic; }
+    .terminal-pre .kw { color: #569cd6; } /* keyword */
+    .terminal-pre .st { color: #ce9178; } /* string */
+    .terminal-pre .nm { color: #b5cea8; } /* number */
+    .terminal-pre .tag { color: #4ec9b0; } /* tag/type */
+    .terminal-pre .attr { color: #9cdcfe; } /* property */
 
-    .pipeline-num {
+    .stage-log {
+      color: var(--cyan);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .stage-log-time {
+      color: var(--text-dim);
+      font-size: 11px;
+    }
+
+    /* ── Model Presets Registry ── */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      margin-bottom: 2rem;
+      background: #090b12;
+    }
+
+    .model-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      text-align: left;
+    }
+
+    .model-table th {
+      padding: 16px 20px;
+      font-family: var(--display);
       font-size: 11px;
       font-weight: 800;
-      letter-spacing: 0.15em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 8px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: #111420;
     }
 
-    .pipeline-name {
-      font-size: 17px;
-      font-weight: 800;
-      margin-bottom: 8px;
+    .model-table td {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      vertical-align: middle;
     }
 
-    .pipeline-desc {
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.6;
+    .model-table tr:last-child td {
+      border-bottom: none;
     }
 
-    /* ── Stats row ── */
-    .stats {
+    .model-table tr:hover td {
+      background: rgba(255, 255, 255, 0.015);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 750;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-gemini { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.15); }
+    .badge-gemma { background: rgba(34, 211, 238, 0.15); color: #22d3ee; border: 1px solid rgba(34, 211, 238, 0.15); }
+    .badge-opencode { background: rgba(139, 92, 246, 0.15); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.15); }
+    .badge-pollinations { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.15); }
+    .badge-nvidia { background: rgba(245, 158, 11, 0.15); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.15); }
+    .badge-local { background: rgba(244, 63, 94, 0.15); color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.15); }
+
+    /* ── Performance Grid ── */
+    .perf-row {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 1px;
-      background: var(--border);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      overflow: hidden;
-      margin-bottom: 80px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
     }
-
-    .stat {
-      background: var(--surface);
-      padding: 28px;
+    
+    .perf-panel {
+      padding: 24px;
       text-align: center;
+      position: relative;
     }
-
-    .stat-value {
-      font-size: 2.5rem;
+    .perf-value {
+      font-family: var(--display);
+      font-size: 38px;
       font-weight: 900;
-      letter-spacing: -0.04em;
-      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, var(--cyan), var(--blue));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      margin-bottom: 6px;
     }
-
-    .stat-label {
+    .perf-label {
       font-size: 12px;
-      font-weight: 600;
-      color: var(--muted);
+      font-weight: 700;
+      color: var(--text-muted);
       letter-spacing: 0.05em;
+      text-transform: uppercase;
     }
 
-    /* ── CTA ── */
+    /* ── Code Display Panel ── */
+    .code-panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #090b12;
+      overflow: hidden;
+      margin: 2.5rem 0;
+    }
+    .code-panel-header {
+      background: #111420;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border-bottom: 1px solid var(--border);
+    }
+    .code-panel-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-left: 8px;
+    }
+    .code-panel pre {
+      padding: 22px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.7;
+      overflow-x: auto;
+      color: #e4e4e7;
+    }
+
+    /* ── Call to Action (CTA) ── */
     .cta {
       text-align: center;
-      padding: 100px 2rem;
+      padding: 120px 2rem;
       position: relative;
       z-index: 1;
     }
 
     .cta h2 {
-      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-family: var(--display);
+      font-size: clamp(2rem, 5.5vw, 3.8rem);
       font-weight: 900;
       letter-spacing: -0.04em;
-      margin-bottom: 1rem;
+      margin-bottom: 1.2rem;
     }
 
     .cta p {
-      color: var(--muted);
-      font-size: 1.1rem;
-      margin-bottom: 2.5rem;
+      color: var(--text-muted);
+      font-size: 1.15rem;
+      margin-bottom: 2.8rem;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     /* ── Footer ── */
@@ -502,42 +734,44 @@
       position: relative;
       z-index: 1;
       border-top: 1px solid var(--border);
-      padding: 32px 2rem;
+      padding: 36px 3rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      max-width: 1100px;
+      max-width: 1140px;
       margin: 0 auto;
     }
 
-    footer p { font-size: 13px; color: var(--muted); }
-    footer a { color: var(--blue); text-decoration: none; }
+    footer p { font-size: 13.5px; color: var(--text-muted); }
+    footer a { color: var(--cyan); text-decoration: none; font-weight: 600; }
     footer a:hover { text-decoration: underline; }
 
-    /* ── Divider ── */
+    /* Divider */
     .divider {
       position: relative;
       z-index: 1;
       height: 1px;
       background: linear-gradient(90deg, transparent, var(--border), transparent);
-      max-width: 1100px;
+      max-width: 1140px;
       margin: 0 auto;
     }
 
     @media (max-width: 768px) {
-      .pipeline { flex-direction: column; }
-      .pipeline-stage + .pipeline-stage { border-left: none; border-top: 1px solid var(--border); }
-      .stats { grid-template-columns: 1fr 1fr; }
-      nav { padding: 0 1rem; }
+      nav { padding: 0 1.5rem; }
       .nav-links a:not(.btn-github) { display: none; }
+      .pipeline-status { grid-template-columns: 1fr; gap: 0.75rem; }
+      .feature-grid { grid-template-columns: 1fr; }
+      footer { flex-direction: column; gap: 1rem; text-align: center; padding: 24px 1.5rem; }
     }
   </style>
 </head>
 <body>
+  <!-- Ambient Orbs -->
   <div class="orb orb-1"></div>
   <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
 
-  <!-- Nav -->
+  <!-- Navigation -->
   <nav>
     <div class="nav-logo">
       <span class="dot"></span>
@@ -545,8 +779,9 @@
     </div>
     <div class="nav-links">
       <a href="#features">Features</a>
+      <a href="#simulator">Simulator</a>
       <a href="#models">Models</a>
-      <a href="#agent">Agent</a>
+      <a href="#performance">Architecture</a>
       <a href="https://github.com/yashas-30/NYX" class="btn-github" target="_blank">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
         GitHub
@@ -554,152 +789,195 @@
     </div>
   </nav>
 
-  <!-- Hero -->
+  <!-- Hero Section -->
   <div class="hero">
     <div class="hero-badge">
-      <span style="color: var(--blue)">◉</span>
-      Native Local Intelligence & Cloud Orchestration
+      <span style="color: var(--cyan)">◉</span>
+      NYX v3.0 Native GPU Runner & Orchestrator
     </div>
     <h1 class="hero-title">
       Your GPU.<br/>
       <span class="gradient">Every AI Model.</span>
     </h1>
     <p class="hero-sub">
-      NYX runs Llama, Qwen, DeepSeek, Gemma, and Mistral directly on your hardware — and connects to Gemini, OpenRouter, NVIDIA NIM, and more. All in one premium coding environment.
+      NYX executes powerful open weights models (Gemma 4, Qwen 2.5 Coder, Llama) locally on your hardware with fine-grained offloading controls — and orchestrates premium cloud series in one highly visual sandbox.
     </p>
     <div class="hero-actions">
       <a href="https://github.com/yashas-30/NYX" class="btn-primary" target="_blank">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-        Get Started on GitHub
+        Clone & Launch NYX
       </a>
-      <a href="#features" class="btn-secondary">
-        Explore Features ↓
+      <a href="#simulator" class="btn-secondary">
+        Interactive Demo ↓
       </a>
     </div>
   </div>
 
-  <!-- Stats -->
-  <div style="max-width:1100px;margin:0 auto;padding:0 2rem;position:relative;z-index:1;">
-    <div class="stats">
-      <div class="stat">
-        <div class="stat-value">50+</div>
-        <div class="stat-label">Local Model Presets</div>
+  <!-- Performance Panel -->
+  <div style="max-width:1140px; margin:0 auto; padding:0 2rem; position:relative; z-index:1;">
+    <div class="perf-row glass-card" style="border-radius: var(--radius-lg); padding: 8px;">
+      <div class="perf-panel">
+        <div class="perf-value">0ms</div>
+        <div class="perf-label">Cached Repeat Latency</div>
       </div>
-      <div class="stat">
-        <div class="stat-value">0ms</div>
-        <div class="stat-label">Cached Response Latency</div>
+      <div class="perf-panel" style="border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
+        <div class="perf-value">1M+</div>
+        <div class="perf-label">Gemma 4 / Gemini Context</div>
       </div>
-      <div class="stat">
-        <div class="stat-value">4+</div>
-        <div class="stat-label">Cloud Providers</div>
+      <div class="perf-panel" style="border-right: 1px solid var(--border);">
+        <div class="perf-value">100%</div>
+        <div class="perf-label">Local GGUF controls</div>
       </div>
-      <div class="stat">
-        <div class="stat-value">32K</div>
-        <div class="stat-label">Max Context Window</div>
+      <div class="perf-panel">
+        <div class="perf-value">Free</div>
+        <div class="perf-label">OpenCode Zen Preset</div>
       </div>
     </div>
   </div>
 
-  <!-- Features -->
+  <!-- Features Section -->
   <section id="features">
-    <div class="section-label">◆ Core Features</div>
-    <h2 class="section-title">Everything you need.<br/>Nothing you don't.</h2>
-    <p class="section-desc">NYX is engineered for developers who want full control — over models, hardware, and output quality.</p>
+    <div class="section-label">◆ Engineered for Developers</div>
+    <h2 class="section-title">Visual Control Room.<br/>Uncompromising Performance.</h2>
+    <p class="section-desc">NYX sits at the intersection of local GPU acceleration and secure, zero-delay cloud routing.</p>
 
     <div class="feature-grid">
-      <div class="feature-card">
-        <div class="feature-icon" style="background:rgba(59,130,246,0.1);">🖥️</div>
-        <div class="feature-title">Local GGUF Runner</div>
-        <div class="feature-desc">Built-in llama-server binary. Download, load, and run GGUF models on your GPU — no Ollama or LM Studio required.</div>
+      <div class="feature-card glass-card">
+        <div class="feature-icon" style="background: rgba(34, 211, 238, 0.08); color: var(--cyan)">🖥️</div>
+        <div class="feature-title">Native GGUF Loader</div>
+        <div class="feature-desc">Spawns a highly-optimized local llama-server dynamically. Download and run weights locally on your VRAM without wrapping other heavyweight desktop servers.</div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background:rgba(139,92,246,0.1);">⚙️</div>
-        <div class="feature-title">Per-Model Inference Controls</div>
-        <div class="feature-desc">GPU Layers, Context Size, CPU Threads, Temperature, Top-P/K, Mirostat — per model, resets on model switch.</div>
+      <div class="feature-card glass-card">
+        <div class="feature-icon" style="background: rgba(139, 92, 246, 0.08); color: var(--violet)">⚙️</div>
+        <div class="feature-title">Per-Model Offloading Controls</div>
+        <div class="feature-desc">Adjust GPU Layers (ngl), context window sizes (up to 32K tokens), Mirostat sampling, Top-P, and threads. Configurations dynamically adapt and reset when shifting between models.</div>
       </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background:rgba(34,197,94,0.1);">🤖</div>
-        <div class="feature-title">NYX Agent Pipeline</div>
-        <div class="feature-desc">3-stage Architect → Coder → Optimizer pipeline. Works with any selected model. Only the final polished output shown.</div>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background:rgba(245,158,11,0.1);">⚡</div>
-        <div class="feature-title">Zero-Delay Streaming</div>
-        <div class="feature-desc">Dual Express + Fastify architecture. TCP Nagle disabled, DNS pre-warmed, SHA-256 disk cache for 0ms repeat queries.</div>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background:rgba(236,72,153,0.1);">📚</div>
-        <div class="feature-title">Codebase Knowledge</div>
-        <div class="feature-desc">Index your project files and query them contextually during generation. Codebase-aware code suggestions.</div>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon" style="background:rgba(20,184,166,0.1);">🔐</div>
-        <div class="feature-title">100% Local Keys</div>
-        <div class="feature-desc">API keys stay in your browser's localStorage. Never stored in a database. Never sent to third parties.</div>
+      <div class="feature-card glass-card">
+        <div class="feature-icon" style="background: rgba(16, 185, 129, 0.08); color: var(--green)">🤖</div>
+        <div class="feature-title">3-Stage Agent pipeline</div>
+        <div class="feature-desc">Orchestrates specialized personas sequentially: Architect maps structural specifications, Coder writes modular blocks, and Optimizer audits. Watch it live below.</div>
       </div>
     </div>
   </section>
 
   <div class="divider"></div>
 
-  <!-- Models -->
-  <section id="models">
-    <div class="section-label">◆ NYX Native Library</div>
-    <h2 class="section-title">Run the world's best<br/>models locally.</h2>
-    <p class="section-desc">Download directly from Hugging Face. Loaded into VRAM with configurable GPU layer offloading.</p>
+  <!-- Simulator Section -->
+  <section id="simulator">
+    <div class="section-label">◆ Try the Simulator</div>
+    <h2 class="section-title">Experience the 3-Stage<br/>Agent Pipeline</h2>
+    <p class="section-desc">Click "Run Pipeline Demo" below to see how NYX coordinates specialized roles to produce polished code without context leakage.</p>
 
-    <div class="code-block" style="margin-bottom: 2rem;">
-      <div class="code-block-header">
-        <div class="code-dot" style="background:#ef4444;"></div>
-        <div class="code-dot" style="background:#f59e0b;"></div>
-        <div class="code-dot" style="background:#22c55e;"></div>
-        <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px;">NYX Native Library</span>
+    <div class="sim-terminal">
+      <div class="sim-header">
+        <div class="sim-dots">
+          <div class="sim-dot" style="background:#ef4444;"></div>
+          <div class="sim-dot" style="background:#f59e0b;"></div>
+          <div class="sim-dot" style="background:#10b981;"></div>
+        </div>
+        <div class="sim-meta">
+          <span>Target: <strong>local/react-example</strong></span>
+          <span>Engine: <strong>NYX Coder (Qwen 2.5 32B)</strong></span>
+        </div>
       </div>
-      <table class="model-table" style="margin:0;">
+      <div class="sim-content">
+        <!-- Input prompt -->
+        <div class="sim-input-bar">
+          <span class="sim-input-tag">Prompt</span>
+          <span class="sim-prompt-text">Create a high-fidelity model selector card with spring animation, hover rings, and a local offload slider using HSL CSS custom properties.</span>
+          <button class="btn-run-sim" id="btn-run-sim">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="transform:translateY(0.5px);"><path d="M8 5v14l11-7z"/></svg>
+            Run Demo
+          </button>
+        </div>
+
+        <!-- 3-stage status -->
+        <div class="pipeline-status">
+          <div class="pipeline-step" data-stage="architect" id="step-architect">
+            <div class="pipeline-step-header">
+              <span class="pipeline-indicator"></span>
+              Stage 01: Architect
+            </div>
+            <div class="pipeline-desc-text">Designs blueprint and specifications</div>
+          </div>
+          <div class="pipeline-step" data-stage="coder" id="step-coder">
+            <div class="pipeline-step-header">
+              <span class="pipeline-indicator"></span>
+              Stage 02: Coder
+            </div>
+            <div class="pipeline-desc-text">Translates specs to modular code</div>
+          </div>
+          <div class="pipeline-step" data-stage="optimizer" id="step-optimizer">
+            <div class="pipeline-step-header">
+              <span class="pipeline-indicator"></span>
+              Stage 03: Optimizer
+            </div>
+            <div class="pipeline-desc-text">Audits, aligns tokens, and refines</div>
+          </div>
+        </div>
+
+        <!-- Terminal Pre screen -->
+        <div class="terminal-body" id="terminal-body">
+          <pre class="terminal-pre" id="terminal-pre"><span class="cm">// Terminal ready. Click "Run Demo" above to start the sequential pipeline...</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Models Section -->
+  <section id="models">
+    <div class="section-label">◆ Presets Library</div>
+    <h2 class="section-title">Support for the world's<br/>most capable architectures</h2>
+    <p class="section-desc">NYX aggregates and handles configurations for local presets alongside verified keyless free gateways.</p>
+
+    <div class="table-container">
+      <table class="model-table">
         <thead>
           <tr>
-            <th>Model Family</th>
-            <th>Sizes</th>
-            <th>VRAM</th>
-            <th>Best For</th>
+            <th>Provider / Class</th>
+            <th>Preset Model Name</th>
+            <th>Primary Specs</th>
+            <th>Offload / Key Policy</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>Llama 3.3</strong></td>
-            <td><span class="badge badge-blue">8B</span> <span class="badge badge-purple">70B</span></td>
-            <td>6–48 GB</td>
-            <td>General coding</td>
+            <td><span class="badge badge-gemma">Google Gemma</span></td>
+            <td><strong>Gemma 4 (31B / 26B MoE / E2B Edge)</strong></td>
+            <td><span class="badge badge-gemma">31B / 26B / 2.3B</span> 256K context</td>
+            <td>VRAM Offload support / Cloud free route available</td>
           </tr>
           <tr>
-            <td><strong>Qwen 2.5 Coder</strong></td>
-            <td><span class="badge badge-blue">1.5B</span> <span class="badge badge-blue">7B</span> <span class="badge badge-purple">32B</span></td>
-            <td>1.5–22 GB</td>
-            <td>Code generation</td>
+            <td><span class="badge badge-gemini">Google Gemini</span></td>
+            <td><strong>Gemini 3.5 Flash & 3.1 Pro (Preview)</strong></td>
+            <td><span class="badge badge-gemini">Pro / Flash</span> Up to 2M context</td>
+            <td>100% Local key proxy routing</td>
           </tr>
           <tr>
-            <td><strong>DeepSeek R1</strong></td>
-            <td><span class="badge badge-blue">7B</span> <span class="badge badge-purple">70B</span></td>
-            <td>4–48 GB</td>
-            <td>Reasoning</td>
+            <td><span class="badge badge-opencode">OpenCode Zen</span></td>
+            <td><strong>Big Pickle / DeepSeek V4 Flash</strong></td>
+            <td><span class="badge badge-opencode">Zen Custom</span> 200K context, free</td>
+            <td>Keyless Sandbox Route</td>
           </tr>
           <tr>
-            <td><strong>Gemma 3</strong></td>
-            <td><span class="badge badge-blue">4B</span> <span class="badge badge-blue">12B</span> <span class="badge badge-purple">27B</span></td>
-            <td>3–20 GB</td>
-            <td>Instruction following</td>
+            <td><span class="badge badge-pollinations">Pollinations</span></td>
+            <td><strong>GPT-OSS 20B / GPT-4o-Mini Equivalent</strong></td>
+            <td><span class="badge badge-pollinations">Free Gateway</span> 128K context</td>
+            <td>100% free, no key required</td>
           </tr>
           <tr>
-            <td><strong>Phi-4</strong></td>
-            <td><span class="badge badge-blue">14B</span></td>
-            <td>10 GB</td>
-            <td>Efficiency + quality</td>
+            <td><span class="badge badge-nvidia">NVIDIA NIM</span></td>
+            <td><strong>Llama 3.3 70B / DeepSeek R1 (NIM)</strong></td>
+            <td><span class="badge badge-nvidia">NIM Preset</span> 128K context</td>
+            <td>NVIDIA secure sandbox path</td>
           </tr>
           <tr>
-            <td><strong>Mistral</strong></td>
-            <td><span class="badge badge-blue">7B</span> <span class="badge badge-amber">Mixtral 8x7B</span></td>
-            <td>5–28 GB</td>
-            <td>Speed</td>
+            <td><span class="badge badge-local">NYX LocalPres</span></td>
+            <td><strong>Qwen 2.5 Coder / Llama 3.2 3B</strong></td>
+            <td><span class="badge badge-local">Local GGUF</span> 4K–32K VRAM</td>
+            <td>Dynamic layer parameters (ngl offloading)</td>
           </tr>
         </tbody>
       </table>
@@ -708,59 +986,61 @@
 
   <div class="divider"></div>
 
-  <!-- Agent Pipeline -->
-  <section id="agent">
-    <div class="section-label">◆ NYX Agent</div>
-    <h2 class="section-title">Three-stage intelligence.<br/>One perfect output.</h2>
-    <p class="section-desc">Every prompt runs through a sequential pipeline of specialized agents — using whichever model you select.</p>
+  <!-- Performance & Technical Section -->
+  <section id="performance">
+    <div class="section-label">◆ Architecture & Speed</div>
+    <h2 class="section-title">Zero-Latency Engineering</h2>
+    <p class="section-desc">Most IDE runners experience latency because of standard HTTP buffering and connection handshakes. NYX bypasses these overheads completely using an advanced dual-engine structure.</p>
 
-    <div class="pipeline">
-      <div class="pipeline-stage">
-        <div class="pipeline-num" style="color: #60a5fa;">Stage 01</div>
-        <div class="pipeline-name">Architect</div>
-        <div class="pipeline-desc">Designs the system blueprint, breaks the problem into components, and produces a technical specification.</div>
+    <div class="code-panel">
+      <div class="code-panel-header">
+        <div class="sim-dot" style="background:#ef4444;"></div>
+        <div class="sim-dot" style="background:#f59e0b;"></div>
+        <div class="sim-dot" style="background:#10b981;"></div>
+        <span class="code-panel-title">server/lib/fastifyApi.ts (Performance Architecture)</span>
       </div>
-      <div class="pipeline-stage">
-        <div class="pipeline-num" style="color: #a78bfa;">Stage 02</div>
-        <div class="pipeline-name">Coder</div>
-        <div class="pipeline-desc">Implements the full solution from the blueprint. Writes complete, production-ready code — never truncated.</div>
+      <pre><code><span class="cm">// Fastify Socket Configuration to eliminate buffering handshakes</span>
+<span class="kw">import</span> Fastify <span class="kw">from</span> <span class="st">'fastify'</span>;
+
+<span class="kw">export const</span> <span class="tag">initializeFastifyEngine</span> = () => {
+  <span class="kw">const</span> fastify = Fastify({ keepAliveTimeout: <span class="nm">75000</span> });
+
+  <span class="cm">// Disable Nagle's algorithm to write packets immediately to TCP sockets</span>
+  fastify.addHook(<span class="st">'onRoute'</span>, (routeOptions) => {
+    routeOptions.server.setNoDelay(<span class="kw">true</span>);
+  });
+
+  <span class="cm">// Zero-copy SSE header flushing for instant client stream rendering</span>
+  fastify.get(<span class="st">'/api/stream'</span>, <span class="kw">async</span> (request, reply) => {
+    reply.raw.writeHead(<span class="nm">200</span>, {
+      <span class="st">'Content-Type'</span>: <span class="st">'text/event-stream'</span>,
+      <span class="st">'Cache-Control'</span>: <span class="st">'no-cache, no-transform'</span>,
+      <span class="st">'Connection'</span>: <span class="st">'keep-alive'</span>
+    });
+  });
+};</code></pre>
+    </div>
+
+    <div class="feature-grid" style="margin-top: 2rem;">
+      <div class="feature-card glass-card">
+        <div class="feature-title" style="color:var(--cyan)">⚡ TCP Nagle Bypass</div>
+        <div class="feature-desc">By explicitly calling setNoDelay(true) on the socket layer, NYX eliminates the 40ms TCP accumulation delay, rendering streaming chunks as soon as the GGUF engine emits them.</div>
       </div>
-      <div class="pipeline-stage">
-        <div class="pipeline-num" style="color: #34d399;">Stage 03</div>
-        <div class="pipeline-name">Optimizer</div>
-        <div class="pipeline-desc">Audits, refines, and delivers the final polished output. This is the only stage you see.</div>
+      <div class="feature-card glass-card">
+        <div class="feature-title" style="color:var(--violet)">🌌 DNS Pre-warming</div>
+        <div class="feature-desc">In the background, NYX pre-warms lookup records for Hugging Face and cloud API endpoints, preventing the first prompt from lagging due to resolution lookup times.</div>
+      </div>
+      <div class="feature-card glass-card">
+        <div class="feature-title" style="color:var(--green)">🔒 SHA-256 Prompt Cache</div>
+        <div class="feature-desc">Prompts are hashed and indexed on a lightweight binary local caching folder. Executed commands and repeated requests are served with a 0ms retrieval latency.</div>
       </div>
     </div>
   </section>
 
-  <!-- Quick Start -->
-  <section>
-    <div class="section-label">◆ Quick Start</div>
-    <h2 class="section-title">Up and running<br/>in 3 commands.</h2>
-
-    <div class="code-block">
-      <div class="code-block-header">
-        <div class="code-dot" style="background:#ef4444;"></div>
-        <div class="code-dot" style="background:#f59e0b;"></div>
-        <div class="code-dot" style="background:#22c55e;"></div>
-        <span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px;">bash</span>
-      </div>
-      <pre><span class="cm"># Clone and install</span>
-<span class="kw">git</span> <span class="nm">clone</span> <span class="st">https://github.com/yashas-30/NYX.git</span>
-<span class="kw">cd</span> NYX <span class="pn">&&</span> <span class="kw">npm</span> <span class="nm">install</span>
-
-<span class="cm"># Start NYX (Express :3000 + Fastify :3001)</span>
-<span class="kw">npm</span> <span class="nm">run dev</span>
-
-<span class="cm"># Open in browser</span>
-<span class="cm"># http://localhost:3000</span></pre>
-    </div>
-  </section>
-
-  <!-- CTA -->
+  <!-- CTA Section -->
   <div class="cta">
-    <h2>Start building with<br/><span style="background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">NYX today.</span></h2>
-    <p>Free and open source. Run locally in minutes.</p>
+    <h2>Start building with<br/><span style="background:linear-gradient(135deg,var(--cyan),var(--violet));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">NYX today.</span></h2>
+    <p>Free, fast, and completely open source. Run local GPU GGUF presets in less than three minutes.</p>
     <div class="hero-actions">
       <a href="https://github.com/yashas-30/NYX" class="btn-primary" target="_blank">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
@@ -772,8 +1052,126 @@
 
   <!-- Footer -->
   <footer>
-    <p>© 2026 NYX · Built by <a href="https://github.com/yashas-30">Yashas</a></p>
-    <p><a href="https://github.com/yashas-30/NYX/blob/main/LICENSE">MIT License</a> · <a href="https://github.com/yashas-30/NYX">GitHub</a></p>
+    <p>© 2026 NYX · Designed by <a href="https://github.com/yashas-30" target="_blank">Yashas</a></p>
+    <p><a href="https://github.com/yashas-30/NYX/blob/main/LICENSE" target="_blank">MIT License</a> · <a href="https://github.com/yashas-30/NYX" target="_blank">Repository</a></p>
   </footer>
+
+  <!-- Interactive Simulator Logic -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const btn = document.getElementById("btn-run-sim");
+      const pre = document.getElementById("terminal-pre");
+      const terminal = document.getElementById("terminal-body");
+      
+      const stepArchitect = document.getElementById("step-architect");
+      const stepCoder = document.getElementById("step-coder");
+      const stepOptimizer = document.getElementById("step-optimizer");
+
+      const architectLog = `<span class="stage-log">[Architect]</span> Analyzing blueprint requirements...
+Mapping modular grid system with custom visual theme constraints.
+Emitting system design specification for local rendering.
+Done in 24ms.`;
+
+      const codeLines = [
+        '<span class="kw">import</span> React, { useState } <span class="kw">from</span> <span class="st">\'react\'</span>;',
+        '<span class="kw">import</span> { motion } <span class="kw">from</span> <span class="st">\'framer-motion\'</span>;',
+        '',
+        '<span class="kw">export const</span> <span class="tag">ModelSelectorCard</span>: React.FC = () => {',
+        '  <span class="kw">const</span> [offload, setOffload] = useState(<span class="nm">32</span>);',
+        '',
+        '  <span class="kw">return</span> (',
+        '    &lt;<span class="tag">motion.div</span>',
+        '      whileHover={{ scale: <span class="nm">1.02</span> }}',
+        '      className=<span class="st">"glass-card p-6 border border-white/6 hover:border-cyan/30 rounded-2xl relative overflow-hidden transition-all shadow-[0_0_20px_rgba(34,211,238,0.05)]"</span>',
+        '      style={{',
+        '        background: <span class="st">\'rgba(16, 20, 31, 0.7)\'</span>,',
+        '        backdropFilter: <span class="st">\'blur(20px)\'</span>,',
+        '      }}',
+        '    &gt;',
+        '      &lt;<span class="tag">div</span> className=<span class="st">"flex items-center justify-between"</span>&gt;',
+        '        &lt;<span class="tag">span</span> className=<span class="st">"text-xs font-bold text-violet"</span>&gt;Local Preset&lt;/<span class="tag">span</span>&gt;',
+        '        &lt;<span class="tag">span</span> className=<span class="st">"text-[10px] font-mono text-cyan"</span>&gt;Qwen 2.5 Coder 32B&lt;/<span class="tag">span</span>&gt;',
+        '      &lt;/<span class="tag">div</span>&gt;',
+        '      ',
+        '      &lt;<span class="tag">div</span> className=<span class="st">"mt-4 flex flex-col gap-2"</span>&gt;',
+        '        &lt;<span class="tag">label</span> className=<span class="st">"text-[11px] text-zinc-400"</span>&gt;GPU Offload Layers: {offload}&lt;/<span class="tag">label</span>&gt;',
+        '        &lt;<span class="tag">input</span> ',
+        '          type=<span class="st">"range"</span> ',
+        '          min=<span class="nm">0</span> max=<span class="nm">99</span> ',
+        '          value={offload} ',
+        '          onChange={e =&gt; setOffload(Number(e.target.value))} ',
+        '          className=<span class="st">"w-full accent-cyan h-1 bg-zinc-800 rounded-lg cursor-pointer"</span>',
+        '        /&gt;',
+        '      &lt;/<span class="tag">div</span>&gt;',
+        '    &lt;/<span class="tag">motion.div</span>&gt;',
+        '  );',
+        '};'
+      ];
+
+      const optimizerLog = `<span class="stage-log" style="color:var(--green)">[Optimizer]</span> Running AST analysis & key validation...
+[✓] Verified strict HSL design system alignment
+[✓] Embedded zero-copy streaming buffers
+Optimization complete. Latency: <span class="nm">0.1ms</span>.`;
+
+      btn.addEventListener("click", async () => {
+        // Disable button during animation
+        btn.disabled = true;
+        btn.innerHTML = `<span class="pipeline-indicator" style="background:var(--cyan);animation:pulse 1s infinite;width:10px;height:10px;display:inline-block;border-radius:50%;"></span> Running...`;
+
+        // Reset elements
+        stepArchitect.classList.remove("active");
+        stepCoder.classList.remove("active");
+        stepOptimizer.classList.remove("active");
+        pre.innerHTML = "";
+
+        // ── STAGE 1: Architect ──
+        stepArchitect.classList.add("active");
+        pre.innerHTML = `<span class="stage-log">[Architect]</span> Initializing blueprint mapping...\n`;
+        await sleep(1000);
+        pre.innerHTML = architectLog;
+        terminal.scrollTop = terminal.scrollHeight;
+
+        await sleep(1000);
+
+        // ── STAGE 2: Coder ──
+        stepCoder.classList.add("active");
+        pre.innerHTML += `\n\n<span class="stage-log">[Coder]</span> Starting modular translation (zero-delay SSE stream)...\n`;
+        terminal.scrollTop = terminal.scrollHeight;
+        await sleep(800);
+
+        // Type the code line by line
+        for (let i = 0; i < codeLines.length; i++) {
+          pre.innerHTML += codeLines[i] + "\n";
+          terminal.scrollTop = terminal.scrollHeight;
+          await sleep(100);
+        }
+
+        await sleep(1000);
+
+        // ── STAGE 3: Optimizer ──
+        stepOptimizer.classList.add("active");
+        pre.innerHTML += `\n<span class="stage-log" style="color:var(--green)">[Optimizer]</span> Executing token alignment audit...\n`;
+        terminal.scrollTop = terminal.scrollHeight;
+        await sleep(900);
+        
+        pre.innerHTML += "\n" + optimizerLog;
+        terminal.scrollTop = terminal.scrollHeight;
+
+        // Visual flash success
+        terminal.style.boxShadow = "inset 0 0 20px rgba(16, 185, 129, 0.15)";
+        setTimeout(() => {
+          terminal.style.boxShadow = "none";
+        }, 1500);
+
+        // Re-enable button
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="transform:translateY(0.5px);"><path d="M8 5v14l11-7z"/></svg> Run Demo`;
+      });
+
+      function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+      }
+    });
+  </script>
 </body>
 </html>

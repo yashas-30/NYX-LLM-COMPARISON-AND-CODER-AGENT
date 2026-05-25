@@ -24,6 +24,63 @@ localModelsRouter.get('/', (_req, res) => {
   }
 });
 
+// Detect hardware compatibility and suggest model presets
+localModelsRouter.get('/compatibility', async (_req, res) => {
+  try {
+    const compatibility = await LocalModelManager.getDeviceCompatibility();
+    res.json(compatibility);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Auto-select optimal model for device specs and start downloading
+localModelsRouter.post('/auto-setup', async (_req, res) => {
+  try {
+    const compatibility = await LocalModelManager.getDeviceCompatibility();
+    const recommendedModelId = compatibility.recommendedModelId;
+    
+    // Start downloading the recommended preset
+    const downloadResult = LocalModelManager.startDownload(recommendedModelId);
+    
+    res.json({
+      status: 'downloading',
+      message: `Optimal model selected based on your system specs. Triggered download for: ${recommendedModelId}`,
+      recommendedModelId,
+      downloadResult,
+      specs: compatibility.specs
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Auto-detect and download all compatible models for the device specs
+localModelsRouter.post('/download-all-compatible', async (_req, res) => {
+  try {
+    const compatibility = await LocalModelManager.getDeviceCompatibility();
+    const allCompatibleModelIds = compatibility.allCompatibleModelIds;
+    
+    const results: Record<string, any> = {};
+    for (const modelId of allCompatibleModelIds) {
+      try {
+        results[modelId] = LocalModelManager.startDownload(modelId);
+      } catch (err: any) {
+        results[modelId] = { error: err.message };
+      }
+    }
+    
+    res.json({
+      status: 'downloading_all',
+      message: `Triggered download for all ${allCompatibleModelIds.length} compatible models.`,
+      compatibleModelIds: allCompatibleModelIds,
+      results
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Start GGUF model download
 localModelsRouter.post('/download', (req, res) => {
   const { modelId } = req.body;
@@ -168,7 +225,7 @@ Please analyze the context and provide highly optimized, syntax-correct solution
     });
   }
 
-  const neededContext = estimatedPromptTokens + (max_tokens ?? 2048);
+  const neededContext = estimatedPromptTokens + (max_tokens ?? 4096);
   // Round up to nearest 512, clamp between 2048 and 32768
   const autoContextSize = Math.max(2048, Math.min(32768, Math.ceil(neededContext / 512) * 512));
 
@@ -219,7 +276,7 @@ Please analyze the context and provide highly optimized, syntax-correct solution
         model: req.body.model,
         messages: updatedMessages,
         temperature: temperature ?? 0.7,
-        max_tokens: max_tokens ?? 2048,
+        max_tokens: max_tokens ?? 4096,
         stream: true
       })
     });

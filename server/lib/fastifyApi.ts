@@ -105,7 +105,7 @@ fastify.post('/api/stream/:provider', async (request, reply) => {
 
   const finalSettings = settings || {
     temperature: temperature ?? 0.7,
-    maxTokens: max_tokens ?? 2048
+    maxTokens: max_tokens ?? 4096
   };
 
   let isClosed = false;

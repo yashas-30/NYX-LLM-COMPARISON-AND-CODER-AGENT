@@ -187,7 +187,7 @@ export class AIService {
     gatewayUrls?: Record<string, string>
   ): Promise<string> {
     try {
-      const response = await this.fetchWithAuth('http://localhost:3001/api/stream/gemini', {
+      const response = await this.fetchWithAuth('/api/gemini/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
         body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),
@@ -222,7 +222,7 @@ export class AIService {
     onStream?: (t: string) => void,
     signal?: AbortSignal
   ): Promise<string> {
-    const response = await this.fetchWithAuth('http://localhost:3001/api/stream/qwen-local', {
+    const response = await this.fetchWithAuth('/api/qwen-local/stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -262,15 +262,14 @@ export class AIService {
     }
     messages.push({ role: 'user', content: prompt });
 
-    const response = await this.fetchWithAuth('http://localhost:3001/api/stream/nyx-native', {
+    const response = await this.fetchWithAuth('/api/nyx/local-models/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model,
         messages,
         temperature: settings?.temperature ?? 0.7,
-        max_tokens: settings?.maxTokens ?? 2048,
-        stream: true
+        max_tokens: settings?.maxTokens ?? 4096
       }),
       signal,
     });
@@ -288,7 +287,7 @@ export class AIService {
     gatewayUrls?: Record<string, string>
   ): Promise<string> {
     try {
-      const response = await this.fetchWithAuth('http://localhost:3001/api/stream/openrouter', {
+      const response = await this.fetchWithAuth('/api/openrouter/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
         body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),
@@ -319,7 +318,7 @@ export class AIService {
   ): Promise<string> {
     // NVIDIA NIM models - requires API key
     try {
-      const response = await this.fetchWithAuth('http://localhost:3001/api/stream/nvidia', {
+      const response = await this.fetchWithAuth('/api/nvidia/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
         body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),
@@ -349,7 +348,7 @@ export class AIService {
     gatewayUrls?: Record<string, string>
   ): Promise<string> {
     try {
-      const response = await this.fetchWithAuth('http://localhost:3001/api/stream/opencode', {
+      const response = await this.fetchWithAuth('/api/opencode/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
         body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),

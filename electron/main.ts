@@ -99,9 +99,14 @@ class ServerManager {
   private maxRestarts = 5;
   private serverPath = '';
   private isShuttingDown = false;
+  private stderrBuffer: string[] = [];
 
   constructor() {
-    this.serverPath = path.join(app.getAppPath(), 'dist-server', 'server.cjs');
+    let serverPath = path.join(app.getAppPath(), 'dist-server', 'server.cjs');
+    if (serverPath.includes('app.asar')) {
+      serverPath = serverPath.replace('app.asar', 'app.asar.unpacked');
+    }
+    this.serverPath = serverPath;
   }
 
   async start(): Promise<{ expressPort: number; fastifyPort: number }> {
@@ -116,14 +121,21 @@ class ServerManager {
     if (this.isShuttingDown) return;
 
     console.log(`[Electron] Spawning server process from: ${this.serverPath}`);
+    this.stderrBuffer = [];
+
+    const serverEnv: Record<string, string> = {
+      ...process.env,
+      PORT: String(this.expressPort),
+      FASTIFY_PORT: String(this.fastifyPort),
+      NODE_ENV: app.isPackaged ? 'production' : 'development',
+    };
+
+    if (app.isPackaged) {
+      serverEnv.NODE_PATH = path.join(app.getAppPath().replace('app.asar', 'app.asar.unpacked'), 'node_modules');
+    }
 
     this.child = fork(this.serverPath, [], {
-      env: {
-        ...process.env,
-        PORT: String(this.expressPort),
-        FASTIFY_PORT: String(this.fastifyPort),
-        NODE_ENV: app.isPackaged ? 'production' : 'development',
-      },
+      env: serverEnv,
       silent: true, // pipe stdout/stderr manually
     });
 
@@ -132,7 +144,12 @@ class ServerManager {
     });
 
     this.child.stderr?.on('data', (data) => {
-      process.stderr.write(`[Server ERROR] ${data.toString()}`);
+      const msg = data.toString();
+      process.stderr.write(`[Server ERROR] ${msg}`);
+      this.stderrBuffer.push(msg);
+      if (this.stderrBuffer.length > 25) {
+        this.stderrBuffer.shift();
+      }
     });
 
     this.child.on('exit', (code, signal) => {
@@ -148,9 +165,10 @@ class ServerManager {
 
   private handleCrash(): void {
     if (this.restartAttempts >= this.maxRestarts) {
+      const errorDetails = this.stderrBuffer.join('') || 'No error details recorded.';
       dialog.showErrorBox(
         'Fatal Server Crash',
-        'The NYX local server has repeatedly crashed. The application will now terminate.'
+        `The NYX local server has repeatedly crashed. The application will now terminate.\n\nError details:\n${errorDetails}`
       );
       app.quit();
       return;

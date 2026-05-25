@@ -274,7 +274,12 @@ class ServerManager {
     this.maxRestarts = 5;
     this.serverPath = "";
     this.isShuttingDown = false;
-    this.serverPath = path__namespace.join(electron.app.getAppPath(), "dist-server", "server.cjs");
+    this.stderrBuffer = [];
+    let serverPath = path__namespace.join(electron.app.getAppPath(), "dist-server", "server.cjs");
+    if (serverPath.includes("app.asar")) {
+      serverPath = serverPath.replace("app.asar", "app.asar.unpacked");
+    }
+    this.serverPath = serverPath;
   }
   async start() {
     this.expressPort = await findFreePort(3e3);
@@ -285,13 +290,18 @@ class ServerManager {
   async spawn() {
     if (this.isShuttingDown) return;
     console.log(`[Electron] Spawning server process from: ${this.serverPath}`);
+    this.stderrBuffer = [];
+    const serverEnv = {
+      ...process.env,
+      PORT: String(this.expressPort),
+      FASTIFY_PORT: String(this.fastifyPort),
+      NODE_ENV: electron.app.isPackaged ? "production" : "development"
+    };
+    if (electron.app.isPackaged) {
+      serverEnv.NODE_PATH = path__namespace.join(electron.app.getAppPath().replace("app.asar", "app.asar.unpacked"), "node_modules");
+    }
     this.child = child_process.fork(this.serverPath, [], {
-      env: {
-        ...process.env,
-        PORT: String(this.expressPort),
-        FASTIFY_PORT: String(this.fastifyPort),
-        NODE_ENV: electron.app.isPackaged ? "production" : "development"
-      },
+      env: serverEnv,
       silent: true
       // pipe stdout/stderr manually
     });
@@ -299,7 +309,12 @@ class ServerManager {
       process.stdout.write(`[Server] ${data.toString()}`);
     });
     this.child.stderr?.on("data", (data) => {
-      process.stderr.write(`[Server ERROR] ${data.toString()}`);
+      const msg = data.toString();
+      process.stderr.write(`[Server ERROR] ${msg}`);
+      this.stderrBuffer.push(msg);
+      if (this.stderrBuffer.length > 25) {
+        this.stderrBuffer.shift();
+      }
     });
     this.child.on("exit", (code, signal) => {
       console.log(`[Electron] Server exited with code ${code}, signal ${signal}`);
@@ -310,9 +325,13 @@ class ServerManager {
   }
   handleCrash() {
     if (this.restartAttempts >= this.maxRestarts) {
+      const errorDetails = this.stderrBuffer.join("") || "No error details recorded.";
       electron.dialog.showErrorBox(
         "Fatal Server Crash",
-        "The NYX local server has repeatedly crashed. The application will now terminate."
+        `The NYX local server has repeatedly crashed. The application will now terminate.
+
+Error details:
+${errorDetails}`
       );
       electron.app.quit();
       return;

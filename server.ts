@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
+// @ts-ignore - cors has no default export in CommonJS declaration types
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { isProd } from './server/lib/paths.ts';
@@ -49,8 +50,8 @@ if (process.env.NYX_OVERRIDE_DNS === 'true') {
   try { dns.setServers(['1.1.1.1', '8.8.8.8']); } catch { }
 }
 
-const _filename = fileURLToPath(import.meta.url);
-const _dirname = path.dirname(_filename);
+const _filename = typeof __filename !== 'undefined' ? __filename : '';
+const _dirname = typeof __dirname !== 'undefined' ? __dirname : '';
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const FASTIFY_PORT = parseInt(process.env.FASTIFY_PORT || '3001', 10);
 
@@ -83,7 +84,12 @@ async function startServer() {
   // Compression
   app.use(compression({
     filter: (req, res) => {
-      if (req.headers.accept === 'text/event-stream' || req.path.includes('/stream')) return false;
+      if (
+        req.headers.accept === 'text/event-stream' || 
+        req.path.includes('/stream') || 
+        req.path.includes('/chat') || 
+        req.path.includes('/local-models')
+      ) return false;
       return compression.filter(req, res);
     }
   }));
@@ -159,8 +165,8 @@ async function startServer() {
   app.use('/api/terminal',     safetyGateMiddleware, terminalRouter);
   app.use('/api/agents',       agentsRouter);
   app.use('/api/opencode',     aiLimiter, safetyGateMiddleware, opencodeRouter);
-  app.use('/api/nyx',          nyxRouter);
   app.use('/api/nyx/local-models', localModelsRouter);
+  app.use('/api/nyx',          nyxRouter);
   app.use('/api/pollinations', aiLimiter, safetyGateMiddleware, pollinationsRouter);
   app.use('/api/qwen-local',   aiLimiter, safetyGateMiddleware, qwenLocalRouter);
 

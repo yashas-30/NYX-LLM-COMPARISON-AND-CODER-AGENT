@@ -196,7 +196,7 @@ export async function runMultiStagePipeline({
         const now = Date.now();
         if (now - lastStreamUpdate < STREAM_THROTTLE_MS) return;
         lastStreamUpdate = now;
-        streamUpdate(resultText);
+        streamUpdate(accumulatedOutput + resultText);
       },
       controller.signal,
       { history: historyRef.current.slice(-10) }
@@ -215,14 +215,14 @@ export async function runMultiStagePipeline({
       const last = h[h.length - 1];
       if (last && last.role === 'assistant') {
         last.status = 'success';
-        last.content = resultText;
+        last.content = accumulatedOutput + resultText;
         last.metrics = finalMetrics;
       }
       getSuggestions(h);
       return h;
     });
     updateMetrics(finalMetrics);
-    await triggerBackgroundCritic(prompt, resultText);
+    await triggerBackgroundCritic(prompt, accumulatedOutput + resultText);
     return;
   }
 

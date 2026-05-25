@@ -41,6 +41,12 @@ export default defineConfig({
       chunkSizeWarningLimit: 2000,
       rollupOptions: {
         input: 'index.html',
+        onwarn(warning, warn) {
+          if (warning.code === 'EVAL' && warning.id?.includes('lottie-web')) {
+            return;
+          }
+          warn(warning);
+        },
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {

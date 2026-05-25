@@ -77,45 +77,55 @@ export const LocalModelRunner = {
     });
   },
 
-  getOptimalVulkanDevice(): Promise<string | null> {
+  getOptimalVulkanDevice(): Promise<{ name: string; index: number; type: string } | null> {
     return new Promise((resolve) => {
-      exec(`"${BINARY_PATH}" --list-devices`, (error: any, stdout: string) => {
-        if (error || !stdout) {
+      exec(`"${BINARY_PATH}" --list-devices`, (error: any, stdout: string, stderr: string) => {
+        const output = (stdout || '') + '\n' + (stderr || '');
+        if (!output.trim()) {
           resolve(null);
           return;
         }
-        const lines = stdout.split('\n');
-        let selectedDevice: string | null = null;
+        const lines = output.split('\n');
         
         // Priority list of discrete GPU keywords
         const discreteKeywords = ['nvidia', 'geforce', 'rtx', 'gtx', 'radeon', 'intel(r) arc'];
         
         for (const line of lines) {
-          const match = line.match(/^\s*(Vulkan\d+|CUDA\d+):/i);
+          const match = line.match(/^\s*(Device|Vulkan|CUDA)\s*(\d+)\s*:?/i);
           if (match) {
-            const devName = match[1];
+            const type = match[1].toLowerCase();
+            const idxStr = match[2];
+            const idx = parseInt(idxStr, 10);
             const lowerLine = line.toLowerCase();
             
-            // If it contains any discrete GPU keyword, select it immediately!
             if (discreteKeywords.some(kw => lowerLine.includes(kw))) {
-              selectedDevice = devName;
-              break;
+              let name = `Vulkan${idx}`;
+              if (type === 'cuda') {
+                name = `CUDA${idx}`;
+              }
+              resolve({ name, index: idx, type });
+              return;
             }
           }
         }
         
         // Fallback to first listed Vulkan device if no discrete match found
-        if (!selectedDevice) {
-          for (const line of lines) {
-            const match = line.match(/^\s*(Vulkan\d+|CUDA\d+):/i);
-            if (match) {
-              selectedDevice = match[1];
-              break;
+        for (const line of lines) {
+          const match = line.match(/^\s*(Device|Vulkan|CUDA)\s*(\d+)\s*:?/i);
+          if (match) {
+            const type = match[1].toLowerCase();
+            const idxStr = match[2];
+            const idx = parseInt(idxStr, 10);
+            let name = `Vulkan${idx}`;
+            if (type === 'cuda') {
+              name = `CUDA${idx}`;
             }
+            resolve({ name, index: idx, type });
+            return;
           }
         }
         
-        resolve(selectedDevice);
+        resolve(null);
       });
     });
   },
@@ -123,9 +133,9 @@ export const LocalModelRunner = {
   async detectGPUs(): Promise<{ vendor: string; model: string; vramBytes: number; index: number }[]> {
     try {
       const graphics = await si.graphics();
-      if (!graphics || !graphics.controllers) return [];
+      let list = (graphics && graphics.controllers) ? graphics.controllers : [];
       
-      const list = graphics.controllers
+      const parsedList = list
         .filter(g => {
           const v = (g.vendor || '').toLowerCase();
           const m = (g.model || '').toLowerCase();
@@ -137,6 +147,15 @@ export const LocalModelRunner = {
           if (typeof vramMB !== 'number' || isNaN(vramMB) || vramMB < 0) {
             vramMB = 0;
           }
+          
+          // Fallback for discrete cards reporting 0 VRAM
+          const lowerModel = (g.model || '').toLowerCase();
+          const lowerVendor = (g.vendor || '').toLowerCase();
+          const isDiscrete = lowerModel.includes('geforce') || lowerModel.includes('rtx') || lowerModel.includes('gtx') || lowerModel.includes('radeon') || lowerVendor.includes('nvidia') || lowerVendor.includes('amd');
+          if (vramMB === 0 && isDiscrete) {
+            vramMB = 4096; // Fallback to 4GB
+          }
+          
           return {
             vendor: g.vendor || 'Unknown',
             model: g.model || 'Unknown',
@@ -145,9 +164,53 @@ export const LocalModelRunner = {
           };
         });
 
-      return list.filter(g => g.vramBytes > 0);
+      // If no GPUs detected but nvidia-smi is available, synthesize NVIDIA GPU!
+      if (parsedList.length === 0) {
+        try {
+          const freeVram = await this.getFreeVram();
+          if (freeVram > 0) {
+            console.log('[GPU Detection] Synthesizing primary NVIDIA GPU from nvidia-smi query');
+            parsedList.push({
+              vendor: 'NVIDIA',
+              model: 'GeForce Dedicated GPU',
+              vramBytes: freeVram + (750 * 1024 * 1024), // Add baseline overhead back for raw VRAM estimation
+              index: 0
+            });
+          }
+        } catch {}
+      }
+
+      // Sort discrete/high-performance GPUs first
+      const sortedList = parsedList.sort((a, b) => {
+        const aModel = a.model.toLowerCase();
+        const bModel = b.model.toLowerCase();
+        const aVendor = a.vendor.toLowerCase();
+        const bVendor = b.vendor.toLowerCase();
+        
+        const aIsDiscrete = aModel.includes('geforce') || aModel.includes('rtx') || aModel.includes('gtx') || aModel.includes('radeon') || aVendor.includes('nvidia');
+        const bIsDiscrete = bModel.includes('geforce') || bModel.includes('rtx') || bModel.includes('gtx') || bModel.includes('radeon') || bVendor.includes('nvidia');
+        
+        if (aIsDiscrete && !bIsDiscrete) return -1;
+        if (!aIsDiscrete && bIsDiscrete) return 1;
+        
+        // Otherwise sort by VRAM size descending
+        return b.vramBytes - a.vramBytes;
+      });
+
+      return sortedList.filter(g => g.vramBytes > 0);
     } catch (err) {
       console.warn('[GPU Detection] Failed to query systeminformation graphics:', err);
+      try {
+        const freeVram = await this.getFreeVram();
+        if (freeVram > 0) {
+          return [{
+            vendor: 'NVIDIA',
+            model: 'GeForce Dedicated GPU',
+            vramBytes: freeVram + (750 * 1024 * 1024),
+            index: 0
+          }];
+        }
+      } catch {}
       return [];
     }
   },
@@ -512,33 +575,20 @@ export const LocalModelRunner = {
         '--threads', String(threads),
         '-b', String(batchSize),
         '-ub', String(microBatchSize),
-        '--parallel', '2', // Parallel execution slots for codebase scanning
-        '--slots', '2',
+        '--parallel', '1', // Single slot for max context space execution
         '-ngl', String(gpuLayers)
       ];
 
       // Enable optimizations if GPU offloading is active
       if (gpuLayers > 0) {
-        args.push('-fa', 'on'); // Enable Flash Attention
+        args.push('-fa'); // Enable Flash Attention switch without invalid 'on' value
         args.push('--cont-batching'); // Enable continuous batching for slot parallelism
         args.push('--cache-type-k', 'q8_0'); // Quantize Key cache to 8-bit
         args.push('--cache-type-v', 'q8_0'); // Quantize Value cache to 8-bit
-        args.push('--fit', 'off'); // Disable auto-fit to respect manual VRAM layer calculation
 
         // Windows-specific memory map fix
         if (process.platform === 'win32') {
           args.push('--no-mmap');
-        }
-
-        // Cache RAM for CPU offload if doing hybrid split
-        if (gpuLayers < totalLayers) {
-          const cacheRamMb = Math.floor((os.totalmem() * 0.3) / 1024 / 1024); // 30% of system RAM
-          args.push('--cache-ram', String(cacheRamMb));
-        }
-
-        // Skip warmup for very large models (> 20GB) to prevent start OOMs
-        if (fileSizeBytes > 20 * 1024 * 1024 * 1024) {
-          args.push('--no-warmup');
         }
 
         // Multi-GPU Splitting
@@ -555,19 +605,43 @@ export const LocalModelRunner = {
       }
 
       const optimalDevice = await this.getOptimalVulkanDevice();
+      
+      const spawnEnv = {
+        ...process.env,
+        VK_LOG_LEVEL: 'none'
+      };
+
       if (optimalDevice) {
-        args.push('-dev', optimalDevice);
-        console.log(`[GPU Optimizer] Forcing llama-server to run on optimal device: ${optimalDevice}`);
+        args.push('--device', optimalDevice.name);
+        console.log(`[GPU Optimizer] Forcing llama-server to run on optimal device: ${optimalDevice.name} (Index ${optimalDevice.index})`);
+        
+        if (optimalDevice.type === 'device' || optimalDevice.type === 'vulkan') {
+          spawnEnv['GGML_VK_VISIBLE_DEVICES'] = String(optimalDevice.index);
+          console.log(`[GPU Optimizer] Setting environment variable: GGML_VK_VISIBLE_DEVICES = ${optimalDevice.index}`);
+        } else if (optimalDevice.type === 'cuda') {
+          spawnEnv['CUDA_VISIBLE_DEVICES'] = String(optimalDevice.index);
+          console.log(`[GPU Optimizer] Setting environment variable: CUDA_VISIBLE_DEVICES = ${optimalDevice.index}`);
+        }
+      } else if (gpuInfoList && gpuInfoList.length > 0) {
+        // Fallback: If optimalDevice could not be parsed but we detected a discrete GPU,
+        // force its index into the visible devices env variables.
+        const discreteGPU = gpuInfoList.find(g => {
+          const m = g.model.toLowerCase();
+          const v = g.vendor.toLowerCase();
+          return m.includes('geforce') || m.includes('rtx') || m.includes('gtx') || m.includes('radeon') || v.includes('nvidia') || v.includes('amd');
+        });
+        if (discreteGPU) {
+          console.log(`[GPU Optimizer] Fallback: Forcing discrete GPU visible devices at index: ${discreteGPU.index}`);
+          spawnEnv['GGML_VK_VISIBLE_DEVICES'] = String(discreteGPU.index);
+          spawnEnv['CUDA_VISIBLE_DEVICES'] = String(discreteGPU.index);
+        }
       }
 
       activeProcess = spawn(BINARY_PATH, args, {
         cwd: BIN_DIR,
         detached: false,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: {
-          ...process.env,
-          VK_LOG_LEVEL: 'none'
-        }
+        env: spawnEnv
       });
       registerProcess(activeProcess);
 

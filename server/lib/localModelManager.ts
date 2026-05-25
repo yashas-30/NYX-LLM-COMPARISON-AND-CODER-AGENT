@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import https from 'https';
 import { IncomingMessage } from 'http';
+import os from 'os';
+import * as si from 'systeminformation';
 
 export interface ModelPreset {
   id: string;
@@ -247,7 +249,7 @@ export const MODEL_PRESETS: ModelPreset[] = [
     quantization: 'Q4_K_M',
     contextLength: '16K',
     size: '8.4 GB',
-    url: 'https://huggingface.co/phi-4-GGUF/resolve/main/phi-4-Q4_K_M.gguf',
+    url: 'https://huggingface.co/bartowski/phi-4-GGUF/resolve/main/phi-4-Q4_K_M.gguf',
     fileName: 'phi-4-Q4_K_M.gguf',
     description: 'Microsoft\'s Phi-4 full model — state-of-the-art STEM reasoning and coding in the 14B class.',
     ramRequired: '12 GB RAM',
@@ -362,8 +364,8 @@ export const MODEL_PRESETS: ModelPreset[] = [
     quantization: 'Q4_K_M',
     contextLength: '128K',
     size: '5.2 GB',
-    url: 'https://huggingface.co/bartowski/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf',
-    fileName: 'Qwen3-8B-Q4_K_M.gguf',
+    url: 'https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/qwen3-8b-q4_k_m.gguf',
+    fileName: 'qwen3-8b-q4_k_m.gguf',
     description: 'Qwen 3 8B — Alibaba\'s latest generation model with enhanced reasoning and instruction following.',
     ramRequired: '8 GB RAM',
     vramRequired: '6 GB VRAM'
@@ -756,7 +758,10 @@ export const LocalModelManager = {
     if (!preset) {
       // Check if it is a valid HTTP/HTTPS URL
       if (modelId.startsWith('http://') || modelId.startsWith('https://')) {
-        const urlStr = modelId;
+        let urlStr = modelId;
+        if (urlStr.includes('huggingface.co') && urlStr.includes('/blob/')) {
+          urlStr = urlStr.replace('/blob/', '/resolve/');
+        }
         const parsedUrl = new URL(urlStr);
         let fileName = path.basename(parsedUrl.pathname);
         if (!fileName.endsWith('.gguf')) {
@@ -873,7 +878,7 @@ export const LocalModelManager = {
   downloadFile(url: string, destPath: string, progress: DownloadProgress): Promise<void> {
     return new Promise((resolve, reject) => {
       const tempPath = destPath + '.tmp';
-      let fileStream = fs.createWriteStream(tempPath);
+      let fileStream: fs.WriteStream | null = null;
       let receivedBytes = 0;
       let totalBytes = 0;
       let lastTime = Date.now();
@@ -897,14 +902,7 @@ export const LocalModelManager = {
               if (!redirectUrl.startsWith('http://') && !redirectUrl.startsWith('https://')) {
                 redirectUrl = new URL(redirectUrl, currentUrl).href;
               }
-              fileStream.close();
-              const newFileStream = fs.createWriteStream(tempPath);
-              newFileStream.on('open', () => {
-                fileStream.destroy();
-                (fileStream as any) = newFileStream;
-                makeRequest(redirectUrl!);
-              });
-              newFileStream.on('error', (err) => { reject(err); });
+              makeRequest(redirectUrl!);
               return;
             }
           }
@@ -916,6 +914,17 @@ export const LocalModelManager = {
 
           totalBytes = parseInt(res.headers['content-length'] || '0', 10);
           progress.totalBytes = totalBytes;
+
+          try {
+            fileStream = fs.createWriteStream(tempPath);
+          } catch (err) {
+            reject(err);
+            return;
+          }
+
+          fileStream.on('error', (err) => {
+            reject(err);
+          });
 
           res.on('data', (chunk) => {
             receivedBytes += chunk.length;
@@ -939,27 +948,33 @@ export const LocalModelManager = {
           res.pipe(fileStream);
 
           fileStream.on('finish', () => {
-            fileStream.close(() => {
-              try {
-                fs.renameSync(tempPath, destPath);
-                resolve();
-              } catch (e: any) {
-                reject(e);
-              }
-            });
+            if (fileStream) {
+              fileStream.close(() => {
+                try {
+                  fs.renameSync(tempPath, destPath);
+                  resolve();
+                } catch (e: any) {
+                  reject(e);
+                }
+              });
+            }
           });
         });
 
         req.on('error', (err) => {
           req.destroy();
-          fileStream.destroy();
+          if (fileStream) {
+            fileStream.destroy();
+          }
           try { fs.unlinkSync(tempPath); } catch {}
           reject(err);
         });
 
         req.setTimeout(600000, () => {
           req.destroy();
-          fileStream.destroy();
+          if (fileStream) {
+            fileStream.destroy();
+          }
           try { fs.unlinkSync(tempPath); } catch {}
           reject(new Error('Download timeout reached. Connection lost.'));
         });
@@ -967,5 +982,255 @@ export const LocalModelManager = {
 
       makeRequest(url);
     });
+  },
+
+  async getDeviceCompatibility(): Promise<{
+    specs: {
+      totalRamBytes: number;
+      totalRamGB: number;
+      logicalCores: number;
+      cpuModel: string;
+      gpus: { vendor: string; model: string; vramBytes: number; isDiscrete: boolean }[];
+      maxVramBytes: number;
+      maxVramGB: number;
+      hasDiscreteGPU: boolean;
+      platform: string;
+    };
+    recommendedModelId: string;
+    allCompatibleModelIds: string[];
+    presetsCompatibility: Array<{
+      modelId: string;
+      modelName: string;
+      isCompatible: boolean;
+      totalLayers: number;
+      gpuLayers: number;
+      cpuLayers: number;
+      offloadRatio: number;
+      estimatedRamUsageGB: number;
+      estimatedVramUsageGB: number;
+      recommendedThreads: number;
+      speedClass: 'fast' | 'moderate' | 'slow';
+      reason: string;
+    }>;
+  }> {
+    const totalRamBytes = os.totalmem();
+    const totalRamGB = Math.round(totalRamBytes / (1024 * 1024 * 1024));
+    const platform = os.platform();
+    const logicalCores = os.cpus().length;
+    const cpuModel = os.cpus()[0]?.model || 'Unknown';
+    
+    let gpusList: any[] = [];
+    let maxVramBytes = 0;
+    let hasDiscreteGPU = false;
+
+    try {
+      const graphics = await si.graphics();
+      if (graphics && graphics.controllers) {
+        gpusList = graphics.controllers.map((g) => {
+          let vramMB = g.vram || g.memoryTotal || 0;
+          if (typeof vramMB !== 'number' || isNaN(vramMB) || vramMB < 0) {
+            vramMB = 0;
+          }
+          
+          const modelLower = (g.model || '').toLowerCase();
+          const vendorLower = (g.vendor || '').toLowerCase();
+          const isDiscrete = modelLower.includes('geforce') || modelLower.includes('rtx') || modelLower.includes('gtx') || modelLower.includes('radeon') || vendorLower.includes('nvidia') || vendorLower.includes('amd');
+          
+          if (vramMB === 0 && isDiscrete) {
+            vramMB = 4096; // Fallback
+          }
+
+          const vramBytes = vramMB * 1024 * 1024;
+          if (isDiscrete) {
+            hasDiscreteGPU = true;
+          }
+          if (vramBytes > maxVramBytes) {
+            maxVramBytes = vramBytes;
+          }
+
+          return {
+            vendor: g.vendor || 'Unknown',
+            model: g.model || 'Unknown',
+            vramBytes,
+            isDiscrete
+          };
+        });
+      }
+    } catch (err) {
+      console.warn('[Compatibility] Failed to query systeminformation graphics:', err);
+    }
+
+    // Try purely fallback on nvidia-smi if systeminformation graphics is empty
+    if (gpusList.length === 0) {
+      try {
+        const freeNvidiaBytes = await new Promise<number>((resolve) => {
+          const commands = [
+            'nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits',
+            '"C:\\Program Files\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe" --query-gpu=memory.free --format=csv,noheader,nounits'
+          ];
+          const tryExec = (idx: number) => {
+            if (idx >= commands.length) { resolve(0); return; }
+            const { exec } = require('child_process');
+            exec(commands[idx], (error: any, stdout: string) => {
+              if (error) { tryExec(idx + 1); }
+              else {
+                const mem = parseInt(stdout.trim(), 10);
+                resolve(isNaN(mem) ? 0 : mem * 1024 * 1024);
+              }
+            });
+          };
+          tryExec(0);
+        });
+        if (freeNvidiaBytes > 0) {
+          const vramBytes = freeNvidiaBytes + (750 * 1024 * 1024);
+          maxVramBytes = vramBytes;
+          hasDiscreteGPU = true;
+          gpusList.push({
+            vendor: 'NVIDIA',
+            model: 'GeForce Dedicated GPU',
+            vramBytes,
+            isDiscrete: true
+          });
+        }
+      } catch {}
+    }
+
+    const maxVramGB = Math.round(maxVramBytes / (1024 * 1024 * 1024));
+
+    // compatibility filter logic
+    const allCompatibleModelIds: string[] = [];
+    for (const preset of MODEL_PRESETS) {
+      const ramReqMatch = preset.ramRequired.match(/^(\d+)\s*GB/i);
+      const ramReq = ramReqMatch ? parseInt(ramReqMatch[1], 10) : 4;
+      const meetsRam = totalRamGB >= ramReq;
+      if (meetsRam) {
+        allCompatibleModelIds.push(preset.id);
+      }
+    }
+
+    // presets detailed resource compatibility projections
+    const presetsCompatibility = MODEL_PRESETS.map((preset) => {
+      const sizeMatch = preset.size.match(/^([\d.]+)\s*(GB|MB)/i);
+      let fileSize = 2 * 1024 * 1024 * 1024; // Default 2GB
+      if (sizeMatch) {
+        const val = parseFloat(sizeMatch[1]);
+        const unit = sizeMatch[2].toUpperCase();
+        fileSize = val * 1024 * 1024 * 1024 * (unit === 'MB' ? 1/1024 : 1);
+      }
+
+      let totalLayers = 32;
+      const filenameLower = preset.fileName.toLowerCase();
+      if (filenameLower.includes('70b') || filenameLower.includes('80l')) totalLayers = 80;
+      else if (filenameLower.includes('32b') || filenameLower.includes('35b')) totalLayers = 64;
+      else if (filenameLower.includes('14b') || filenameLower.includes('13b') || filenameLower.includes('12b')) totalLayers = 40;
+      else if (filenameLower.includes('8b') || filenameLower.includes('9b') || filenameLower.includes('7b')) totalLayers = 32;
+      else if (filenameLower.includes('3b') || filenameLower.includes('4b')) totalLayers = 28;
+      else if (filenameLower.includes('1.5b') || filenameLower.includes('2b')) totalLayers = 24;
+
+      const ramReqMatch = preset.ramRequired.match(/^(\d+)\s*GB/i);
+      const ramReq = ramReqMatch ? parseInt(ramReqMatch[1], 10) : 4;
+      const meetsRam = totalRamGB >= ramReq;
+
+      const usableVram = Math.max(0, maxVramBytes - (750 * 1024 * 1024)); // Usable GPU VRAM (excluding 750MB system/display overhead)
+      const kvCachePerLayer = 14 * 1024 * 1024; // ~14MB per layer at Q8_0 quant context 2048
+      const computeBuffer = 4 * 1024 * 1024; // 4MB compute overhead
+      
+      const layerSize = (fileSize + (totalLayers * kvCachePerLayer) + computeBuffer) / totalLayers;
+
+      let gpuLayers = 0;
+      if (hasDiscreteGPU && usableVram > 0) {
+        const fit = Math.floor(usableVram / layerSize);
+        gpuLayers = Math.max(0, Math.min(totalLayers, fit));
+      }
+      const cpuLayers = totalLayers - gpuLayers;
+      const offloadRatio = Math.round((gpuLayers / totalLayers) * 100);
+
+      // Estimate loaded RAM/VRAM usage in GB (rounded to 1 decimal)
+      let estimatedVramUsageGB = 0;
+      if (gpuLayers > 0) {
+        const bytes = (gpuLayers / totalLayers) * fileSize + (gpuLayers * kvCachePerLayer) + computeBuffer;
+        estimatedVramUsageGB = Math.round((bytes / (1024 * 1024 * 1024)) * 10) / 10;
+      }
+
+      const ramBytes = (cpuLayers / totalLayers) * fileSize + (cpuLayers * kvCachePerLayer) + (500 * 1024 * 1024); // Add 500MB baseline system load
+      const estimatedRamUsageGB = Math.round((ramBytes / (1024 * 1024 * 1024)) * 10) / 10;
+
+      const recommendedThreads = Math.max(1, Math.floor(logicalCores * 0.75));
+
+      let speedClass: 'fast' | 'moderate' | 'slow' = 'moderate';
+      let reason = '';
+      
+      if (gpuLayers === totalLayers) {
+        speedClass = 'fast';
+        reason = `100% of model layers offloaded to your discrete GPU VRAM (${estimatedVramUsageGB} GB).`;
+      } else if (gpuLayers > 0) {
+        speedClass = 'moderate';
+        reason = `Hybrid execution: ${gpuLayers}/${totalLayers} layers run in GPU VRAM, remaining ${cpuLayers} layers in CPU RAM.`;
+      } else {
+        const isSmall = (fileSize / (1024*1024*1024)) < 3.0;
+        speedClass = isSmall ? 'moderate' : 'slow';
+        reason = isSmall 
+          ? `CPU-only execution. The model is lightweight, so speed will be moderate on your ${logicalCores}-core CPU.`
+          : `CPU-only execution. The model size (${preset.size}) is heavy and will generate slowly without a dedicated GPU.`;
+      }
+
+      if (!meetsRam) {
+        reason = `Incompatible. System RAM (${totalRamGB} GB) is less than required (${ramReq} GB).`;
+      }
+
+      return {
+        modelId: preset.id,
+        modelName: preset.name,
+        isCompatible: meetsRam,
+        totalLayers,
+        gpuLayers,
+        cpuLayers,
+        offloadRatio,
+        estimatedRamUsageGB,
+        estimatedVramUsageGB,
+        recommendedThreads,
+        speedClass,
+        reason
+      };
+    });
+
+    let recommendedModelId = 'nyx-gemma-4-e2b-it'; // Perfect general fallback
+
+    if (totalRamGB >= 48 && maxVramGB >= 24) {
+      recommendedModelId = 'llama-3.3-70b-native';
+    } else if (totalRamGB >= 32 && maxVramGB >= 16) {
+      recommendedModelId = 'gemma-3-27b-it';
+    } else if (totalRamGB >= 16 && maxVramGB >= 8) {
+      recommendedModelId = 'qwen2.5-coder-14b-native';
+    } else if (totalRamGB >= 8 && maxVramGB >= 6) {
+      recommendedModelId = 'llama-3.1-8b-native'; // The perfect workhorse
+    } else if (totalRamGB >= 8 && maxVramGB >= 3) {
+      recommendedModelId = 'phi-4-mini-instruct'; // Punchy math/code specialist
+    } else if (totalRamGB >= 8) {
+      recommendedModelId = 'deepseek-r1-distill-qwen-1.5b'; // Fast reasoning distilled Qwen
+    } else {
+      recommendedModelId = 'llama-3.2-1b-native'; // Ultra-lightweight
+    }
+
+    if (!allCompatibleModelIds.includes(recommendedModelId)) {
+      recommendedModelId = allCompatibleModelIds.length > 0 ? allCompatibleModelIds[0] : 'llama-3.2-1b-native';
+    }
+
+    return {
+      specs: {
+        totalRamBytes,
+        totalRamGB,
+        logicalCores,
+        cpuModel,
+        gpus: gpusList,
+        maxVramBytes,
+        maxVramGB,
+        hasDiscreteGPU,
+        platform
+      },
+      recommendedModelId,
+      allCompatibleModelIds,
+      presetsCompatibility
+    };
   }
 };
