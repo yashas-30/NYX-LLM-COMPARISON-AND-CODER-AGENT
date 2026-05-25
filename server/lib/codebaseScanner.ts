@@ -6,7 +6,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspaceRoot } from './paths.ts';
-import { pipeline } from '@xenova/transformers';
 
 // Directory and file exclusions to maintain high performance
 const EXCLUDE_DIRS = new Set([
@@ -69,17 +68,40 @@ export class CodebaseScanner {
   private static watcher: fs.FSWatcher | null = null;
   private static currentWatchedRoot = '';
   private static cacheFilePath = '';
+  private static pipelineModule: any = null;
+
+  private static async getPipeline(): Promise<any> {
+    if (!this.pipelineModule) {
+      try {
+        const mod = await import('@xenova/transformers');
+        this.pipelineModule = mod.pipeline;
+      } catch (err: any) {
+        console.error('[RAG] Failed to load @xenova/transformers:', err);
+        throw err;
+      }
+    }
+    return this.pipelineModule;
+  }
 
   /**
    * Initializes the Xenova all-MiniLM-L6-v2 model and vector store cache
    */
   public static async init(): Promise<void> {
+    const root = getWorkspaceRoot();
+    
+    // Self-healing reset if workspace root changes
+    if (this.isInitialized && this.currentWatchedRoot !== root) {
+      console.log(`[RAG] Workspace root changed from "${this.currentWatchedRoot}" to "${root}". Disposing old vector index and file watchers...`);
+      this.dispose();
+    }
+
     if (this.isInitialized) return;
     try {
       console.log('[RAG] Loading neural embedding model (all-MiniLM-L6-v2)...');
-      this.embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+      const pipelineFn = await this.getPipeline();
+      this.embedder = await pipelineFn('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
       
-      const cacheDir = path.join(getWorkspaceRoot(), '.nyx-cache');
+      const cacheDir = path.join(root, '.nyx-cache');
       if (!fs.existsSync(cacheDir)) {
         fs.mkdirSync(cacheDir, { recursive: true });
       }
@@ -370,5 +392,22 @@ export class CodebaseScanner {
     } catch (e) {
       return '';
     }
+  }
+
+  /**
+   * Disposes model instances and clears file watchers
+   */
+  public static dispose(): void {
+    console.log('[RAG] Disposing codebase scanner assets...');
+    this.embedder = null;
+    this.vectors.clear();
+    this.isInitialized = false;
+    if (this.watcher) {
+      try {
+        this.watcher.close();
+      } catch {}
+      this.watcher = null;
+    }
+    this.currentWatchedRoot = '';
   }
 }

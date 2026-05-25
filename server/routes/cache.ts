@@ -5,13 +5,13 @@ import { cacheSetSchema } from '../schemas/index.ts';
 
 export const cacheRouter = Router();
 
-cacheRouter.post('/get', (req, res) => {
+cacheRouter.post('/get', async (req, res) => {
   try {
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
       return res.status(400).json({ error: 'Invalid payload: request body must be an object' });
     }
     const key = CacheServer.generateKey(req.body);
-    const text = CacheServer.get(key);
+    const text = await CacheServer.get(key);
     if (text !== null) {
       return res.json({ hit: true, text, key });
     }
@@ -21,10 +21,10 @@ cacheRouter.post('/get', (req, res) => {
   }
 });
 
-cacheRouter.post('/set', validate(cacheSetSchema), (req, res) => {
+cacheRouter.post('/set', validate(cacheSetSchema), async (req, res) => {
   const { key, data, provider, model } = req.body;
   try {
-    CacheServer.set(key, data, provider, model);
+    await CacheServer.set(key, data, provider, model);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { lock } from 'proper-lockfile';
 
 import { CACHE_DIR } from './paths.ts';
 
@@ -20,6 +21,8 @@ interface CacheMetadata {
   createdAt: number;
   size: number;
 }
+
+const MAX_ITEMS = 100; // LRU Eviction Limit: max 100 items
 
 export class CacheServer {
   private static stats = {
@@ -44,30 +47,45 @@ export class CacheServer {
   }
 
   /**
-   * Retrieves a value from the cache
+   * Retrieves a value from the cache with thread-safe lock
    */
-  public static get(key: string): string | null {
+  public static async get(key: string): Promise<string | null> {
     const filePath = path.join(CACHE_DIR, `${key}.json`);
-    if (fs.existsSync(filePath)) {
-      try {
-        const raw = fs.readFileSync(filePath, 'utf-8');
-        const parsed = JSON.parse(raw);
-        this.stats.hits++;
-        return parsed.data || null;
-      } catch (e) {
-        console.error('[CacheServer] Failed to read cache file:', e);
-        return null;
+    if (!fs.existsSync(filePath)) {
+      this.stats.misses++;
+      return null;
+    }
+    
+    let release: (() => Promise<void>) | null = null;
+    try {
+      release = await lock(filePath, { realpath: false, retries: 3 });
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      const parsed = JSON.parse(raw);
+      this.stats.hits++;
+      
+      // Touch file to update mtime for LRU eviction policy
+      const now = new Date();
+      fs.utimesSync(filePath, now, now);
+
+      return parsed.data || null;
+    } catch (e: any) {
+      console.error('[CacheServer] Failed to read cache file:', e.message);
+      return null;
+    } finally {
+      if (release) {
+        try {
+          await release();
+        } catch {}
       }
     }
-    this.stats.misses++;
-    return null;
   }
 
   /**
-   * Stores a value in the cache
+   * Stores a value in the cache with thread-safe lock and LRU eviction
    */
-  public static set(key: string, data: string, provider: string, model: string): void {
+  public static async set(key: string, data: string, provider: string, model: string): Promise<void> {
     const filePath = path.join(CACHE_DIR, `${key}.json`);
+    let release: (() => Promise<void>) | null = null;
     try {
       const payload = {
         key,
@@ -76,9 +94,56 @@ export class CacheServer {
         timestamp: Date.now(),
         data
       };
+
+      const fileExists = fs.existsSync(filePath);
+      if (!fileExists) {
+        fs.writeFileSync(filePath, '', 'utf8'); // Touch file
+      }
+
+      release = await lock(filePath, { realpath: false, retries: 5 });
       fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
-    } catch (e) {
-      console.error('[CacheServer] Failed to write cache file:', e);
+      
+      // Perform LRU Eviction Check asynchronously
+      this.evictOldestIfNeeded().catch(err => {
+        console.error('[CacheServer] LRU Eviction failed:', err.message);
+      });
+    } catch (e: any) {
+      console.error('[CacheServer] Failed to write cache file:', e.message);
+    } finally {
+      if (release) {
+        try {
+          await release();
+        } catch {}
+      }
+    }
+  }
+
+  /**
+   * Evaluates total cache size and evicts oldest items to stay under limit
+   */
+  private static async evictOldestIfNeeded(): Promise<void> {
+    try {
+      const files = fs.readdirSync(CACHE_DIR)
+        .filter(f => f.endsWith('.json'))
+        .map(f => {
+          const fp = path.join(CACHE_DIR, f);
+          const stats = fs.statSync(fp);
+          return { name: f, path: fp, mtime: stats.mtimeMs };
+        });
+
+      if (files.length > MAX_ITEMS) {
+        // Sort ascending by modification time (oldest first)
+        files.sort((a, b) => a.mtime - b.mtime);
+        const toEvict = files.slice(0, files.length - MAX_ITEMS);
+        for (const file of toEvict) {
+          try {
+            fs.unlinkSync(file.path);
+            console.log(`[CacheServer] LRU Evicted old cache entry: ${file.name}`);
+          } catch {}
+        }
+      }
+    } catch (e: any) {
+      console.error('[CacheServer] Eviction check failed:', e.message);
     }
   }
 

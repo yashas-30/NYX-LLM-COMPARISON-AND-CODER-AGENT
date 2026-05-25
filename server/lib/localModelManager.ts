@@ -951,17 +951,16 @@ export const LocalModelManager = {
         });
 
         req.on('error', (err) => {
-          fileStream.close(() => {
-            try { fs.unlinkSync(tempPath); } catch {}
-            reject(err);
-          });
+          req.destroy();
+          fileStream.destroy();
+          try { fs.unlinkSync(tempPath); } catch {}
+          reject(err);
         });
 
         req.setTimeout(600000, () => {
           req.destroy();
-          fileStream.close(() => {
-            try { fs.unlinkSync(tempPath); } catch {}
-          });
+          fileStream.destroy();
+          try { fs.unlinkSync(tempPath); } catch {}
           reject(new Error('Download timeout reached. Connection lost.'));
         });
       };

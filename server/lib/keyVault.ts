@@ -98,8 +98,18 @@ setInterval(() => {
   }
 }, 60000).unref();
 
+function pruneExpiredSessions(): void {
+  const now = Date.now();
+  for (const [token, info] of sessionStore.entries()) {
+    if (now > info.expiresAt) {
+      sessionStore.delete(token);
+    }
+  }
+}
+
 // Generate a new temporary session token or streaming nonce
 export function createSessionToken(isStreamNonce = false): string {
+  pruneExpiredSessions();
   const token = crypto.randomUUID();
   const ttl = 5 * 60 * 1000; // 5 minutes
   sessionStore.set(token, {
@@ -111,6 +121,7 @@ export function createSessionToken(isStreamNonce = false): string {
 
 // Verify a session token and optionally consume if it's a stream nonce
 export function verifySessionToken(token: string | undefined): boolean {
+  pruneExpiredSessions();
   if (!token) return false;
   const info = sessionStore.get(token);
   if (!info) return false;

@@ -5,13 +5,26 @@ import { LOGS_DIR } from '../lib/paths.ts';
 
 export const adminRouter = Router();
 
+import { timingSafeEqual } from 'crypto';
+
+function safeCompare(a: string, b: string): boolean {
+  try {
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+    if (bufA.length !== bufB.length) return false;
+    return timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
 adminRouter.get('/logs', (req, res) => {
   const adminKey = process.env.ADMIN_KEY;
   if (!adminKey) {
     return res.status(404).send('Not Found');
   }
-  const clientKey = req.headers['x-admin-key'] || req.query.adminKey;
-  if (clientKey !== adminKey) {
+  const clientKey = (req.headers['x-admin-key'] || req.query.adminKey) as string | undefined;
+  if (!clientKey || !safeCompare(clientKey, adminKey)) {
     return res.status(401).json({ error: 'Unauthorized: Invalid admin key' });
   }
 

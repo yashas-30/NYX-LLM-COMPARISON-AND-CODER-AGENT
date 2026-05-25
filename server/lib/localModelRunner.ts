@@ -16,15 +16,21 @@ const BINARY_PATH = path.join(BIN_DIR, 'llama-server.exe');
 // Ensure binary directory exists
 if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
 
+type ModelState = 'idle' | 'downloading' | 'starting' | 'running' | 'stopping';
+let modelState: ModelState = 'idle';
+
 let activeProcess: ChildProcess | null = null;
 let activeModelId: string | null = null;
 let activeContextSize = 2048;
-let isStarting = false;
 let startProgress = 0;
 
 const CONFIG_PATH = path.join(BASE_DIR, 'config.json');
 
 export const LocalModelRunner = {
+  getState(): ModelState {
+    return modelState;
+  },
+
   getActiveModel() {
     return activeModelId;
   },
@@ -34,12 +40,12 @@ export const LocalModelRunner = {
   },
 
   isRunning() {
-    return activeProcess !== null;
+    return modelState === 'running';
   },
 
   getStartStatus() {
     return {
-      isStarting,
+      isStarting: modelState === 'starting',
       progress: startProgress,
       activeModelId
     };
@@ -300,7 +306,7 @@ export const LocalModelRunner = {
       try { fs.unlinkSync(vulkanDllPath); } catch {}
     }
 
-    isStarting = true;
+    modelState = 'downloading';
     startProgress = 10;
     console.log(`Portable llama-server.exe version ${CURRENT_VERSION} (Vulkan GPU/VRAM) not found. Preparing direct Vulkan binary download...`);
 
@@ -341,10 +347,10 @@ export const LocalModelRunner = {
       }
 
       startProgress = 100;
-      isStarting = false;
+      modelState = 'idle';
       console.log(`Binary extraction complete. Native llama-server.exe version ${CURRENT_VERSION} (Vulkan GPU/VRAM) is ready.`);
     } catch (e: any) {
-      isStarting = false;
+      modelState = 'idle';
       startProgress = 0;
       if (fs.existsSync(zipPath)) {
         try { fs.unlinkSync(zipPath); } catch {}
@@ -410,12 +416,16 @@ export const LocalModelRunner = {
       return; // Already running with equal or larger context window
     }
 
+    if (modelState !== 'idle' && modelState !== 'downloading') {
+      throw new Error(`Cannot start model: currently ${modelState}`);
+    }
+
     if (activeProcess) {
       console.log('Stopping active local model runner to load new model...');
       await this.stop();
     }
 
-    isStarting = true;
+    modelState = 'starting';
     startProgress = 5;
 
     let gpuLayers = 99;
@@ -624,11 +634,11 @@ export const LocalModelRunner = {
       }
 
       startProgress = 100;
-      isStarting = false;
+      modelState = 'running';
       activeContextSize = contextSize;
       console.log(`Native llama-server running successfully on http://localhost:12345 with model ${model.name}`);
     } catch (e: any) {
-      isStarting = false;
+      modelState = 'idle';
       startProgress = 0;
       await this.stop();
 
@@ -645,10 +655,12 @@ export const LocalModelRunner = {
   async stop(): Promise<void> {
     if (!activeProcess) {
       activeModelId = null;
+      modelState = 'idle';
       return;
     }
 
     console.log('Terminating local model runner child process...');
+    modelState = 'stopping';
     
     return new Promise<void>((resolve) => {
       if (activeProcess) {
@@ -660,16 +672,19 @@ export const LocalModelRunner = {
             }
             activeProcess = null;
             activeModelId = null;
+            modelState = 'idle';
             resolve();
           });
         } else {
           activeProcess.kill('SIGKILL');
           activeProcess = null;
           activeModelId = null;
+          modelState = 'idle';
           resolve();
         }
       } else {
         activeModelId = null;
+        modelState = 'idle';
         resolve();
       }
     });

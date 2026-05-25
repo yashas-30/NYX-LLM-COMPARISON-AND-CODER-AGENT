@@ -96,10 +96,10 @@ app.post('/api/models/quota', async (req, res) => {
 });
 
 // ── Cache Server API routes ───────────────────────────────────────────────
-app.post('/api/cache/get', (req, res) => {
+app.post('/api/cache/get', async (req, res) => {
   try {
     const key = CacheServer.generateKey(req.body);
-    const text = CacheServer.get(key);
+    const text = await CacheServer.get(key);
     if (text !== null) {
       return res.json({ hit: true, text, key });
     }
@@ -109,10 +109,10 @@ app.post('/api/cache/get', (req, res) => {
   }
 });
 
-app.post('/api/cache/set', (req, res) => {
+app.post('/api/cache/set', async (req, res) => {
   const { key, data, provider, model } = req.body;
   try {
-    CacheServer.set(key, data, provider, model);
+    await CacheServer.set(key, data, provider, model);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message });

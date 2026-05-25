@@ -39,6 +39,7 @@ import logger from './server/lib/logger.ts';
 import { safetyGateMiddleware } from './server/middleware/safetyGate.ts';
 import { createSessionToken, verifySessionToken } from './server/lib/keyVault.ts';
 import { cleanupProcesses } from './server/lib/processRegistry.ts';
+import { CodebaseScanner } from './server/lib/codebaseScanner.ts';
 
 // DNS override
 if (process.env.NYX_OVERRIDE_DNS === 'true') {
@@ -187,6 +188,11 @@ async function startServer() {
   const shutdown = () => {
     console.log('[Server] Gracefully shutting down...');
     cleanupProcesses();
+    try {
+      CodebaseScanner.dispose();
+    } catch (e: any) {
+      console.error('[Shutdown] Failed to dispose CodebaseScanner:', e.message);
+    }
     server.close(() => {
       process.exit(0);
     });
@@ -202,5 +208,10 @@ process.on('unhandledRejection', (e) => console.error('[UnhandledRejection]', e)
 process.on('uncaughtException',  (e) => {
   console.error('[UncaughtException]', e);
   cleanupProcesses();
+  try {
+    CodebaseScanner.dispose();
+  } catch (err: any) {
+    console.error('[UncaughtException] Failed to dispose CodebaseScanner:', err.message);
+  }
   process.exit(1);
 });
