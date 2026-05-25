@@ -331,14 +331,14 @@ async function performWebSearch(query: string) {
 }
 
 // POST /api/nyx/codebase-search - Scan local codebase and return directory layout and top matches
-nyxRouter.post('/codebase-search', (req, res) => {
+nyxRouter.post('/codebase-search', async (req, res) => {
   const { query } = req.body;
   if (!query) {
     return res.status(400).json({ error: 'Missing query parameters for codebase search.' });
   }
 
   try {
-    const results = CodebaseScanner.search(query, 5);
+    const results = await CodebaseScanner.search(query, 5);
     const directoryStructure = CodebaseScanner.getDirectoryStructure();
     res.json({
       success: true,

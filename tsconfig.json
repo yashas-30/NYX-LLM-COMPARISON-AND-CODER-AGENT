@@ -11,6 +11,9 @@
     ],
     "skipLibCheck": true,
     "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
     "isolatedModules": true,
     "moduleDetection": "force",
     "allowJs": true,
@@ -19,12 +22,36 @@
       "@/*": [
         "./src/*",
         "./*"
+      ],
+      "electron-vite": [
+        "./node_modules/electron-vite/dist/index.d.ts"
+      ],
+      "electron-updater": [
+        "./node_modules/electron-updater/out/main.d.ts"
+      ],
+      "@xenova/transformers": [
+        "./node_modules/@xenova/transformers/types/transformers.d.ts"
+      ],
+      "electron-window-state": [
+        "./node_modules/electron-window-state/index.d.ts"
+      ],
+      "conf": [
+        "./node_modules/conf/dist/source/index.d.ts"
       ]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
   "exclude": ["node_modules", "dist", "scratch", ".nyx-cache", ".nyx-models"],
+  "include": [
+    "src/**/*",
+    "electron/**/*",
+    "server/**/*",
+    "shared/**/*",
+    "electron.vite.config.ts",
+    "vite.config.ts",
+    "server.ts"
+  ],
   "watchOptions": {
     "excludeDirectories": ["**/node_modules", "**/dist", "**/scratch", "**/.nyx-cache", "**/.nyx-models"],
     "excludeFiles": ["**/server.log", "**/server.err"]

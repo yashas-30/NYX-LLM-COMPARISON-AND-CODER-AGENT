@@ -364,7 +364,7 @@ const EmptyState: React.FC<{
         transition={{ delay: 0.3, duration: 0.5 }}
         className="text-[20px] font-black tracking-tight text-foreground/80 leading-tight"
       >
-        How can <span className="text-primary font-black">NYX</span> assist your project today?
+        How can <span className="font-black text-foreground">NY<span className="text-[#3b82f6]">X</span></span> assist your project today?
       </motion.h1>
       <motion.p
         initial={{ opacity: 0, y: 8 }}

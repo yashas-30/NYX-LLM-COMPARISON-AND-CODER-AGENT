@@ -1,13 +1,14 @@
 /**
  * @file server/lib/codebaseScanner.ts
- * @description Local repository indexer and RAG search engine for internal files.
+ * @description Local repository neural RAG search engine with sqlite-vec and all-MiniLM-L6-v2 embeddings.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { getWorkspaceRoot } from './paths.ts';
+import { pipeline } from '@xenova/transformers';
 
-// Directory and file exclusions to maintain high performance and avoid context bloat
+// Directory and file exclusions to maintain high performance
 const EXCLUDE_DIRS = new Set([
   'node_modules',
   '.git',
@@ -18,9 +19,12 @@ const EXCLUDE_DIRS = new Set([
   '.claude',
   '.vscode',
   'dist',
+  'dist-electron',
+  'dist-server',
+  'dist-desktop',
   'public',
   'graphify-out',
-  'scratch'
+  'scratch',
 ]);
 
 const EXCLUDE_FILES = new Set([
@@ -28,10 +32,10 @@ const EXCLUDE_FILES = new Set([
   'server.err',
   'server.log',
   'skills-lock.json',
-  'metadata.json'
+  'metadata.json',
+  'secure-vault.json',
 ]);
 
-// Allow only readable code/text file extensions
 const ALLOWED_EXTENSIONS = new Set([
   '.ts', '.tsx',
   '.js', '.jsx',
@@ -43,14 +47,7 @@ const ALLOWED_EXTENSIONS = new Set([
   '.rs',
   '.go',
   '.yaml',
-  '.yml'
-]);
-
-// Stop words to filter out of the query tokenization
-const STOP_WORDS = new Set([
-  'how', 'to', 'the', 'a', 'is', 'for', 'in', 'of', 'and', 'we', 'can', 'i', 'you', 'it', 'on',
-  'this', 'that', 'with', 'by', 'an', 'are', 'what', 'be', 'at', 'or', 'do', 'as', 'file', 'code',
-  'folder', 'directory', 'project', 'repository', 'local', 'nyx', 'agent', 'model'
+  '.yml',
 ]);
 
 interface ScannedFile {
@@ -66,12 +63,174 @@ interface SearchResult {
 }
 
 export class CodebaseScanner {
+  private static embedder: any = null;
+  private static vectors: Map<string, number[]> = new Map(); // file_path -> 384-dim embedding
+  private static isInitialized = false;
+  private static watcher: fs.FSWatcher | null = null;
+  private static currentWatchedRoot = '';
+  private static cacheFilePath = '';
+
   /**
-   * Recursively scans the directory starting at process.cwd()
+   * Initializes the Xenova all-MiniLM-L6-v2 model and vector store cache
+   */
+  public static async init(): Promise<void> {
+    if (this.isInitialized) return;
+    try {
+      console.log('[RAG] Loading neural embedding model (all-MiniLM-L6-v2)...');
+      this.embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+      
+      const cacheDir = path.join(getWorkspaceRoot(), '.nyx-cache');
+      if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
+      }
+      this.cacheFilePath = path.join(cacheDir, 'codebase-embeddings.json');
+      this.loadEmbeddingsCache();
+      
+      this.setupFileWatcher();
+      this.isInitialized = true;
+      
+      // Perform initial indexing asynchronously
+      setImmediate(() => {
+        this.indexWorkspace().catch(err => console.error('[RAG] Indexing failed:', err));
+      });
+      
+      console.log('[RAG] Neural Codebase Scanner initialized successfully.');
+    } catch (err) {
+      console.error('[RAG] Failed to initialize codebase scanner:', err);
+    }
+  }
+
+  private static loadEmbeddingsCache(): void {
+    try {
+      if (fs.existsSync(this.cacheFilePath)) {
+        const raw = fs.readFileSync(this.cacheFilePath, 'utf8');
+        const parsed = JSON.parse(raw);
+        this.vectors = new Map(Object.entries(parsed));
+        console.log(`[RAG] Loaded ${this.vectors.size} cached vector embeddings.`);
+      }
+    } catch (err) {
+      console.error('[RAG] Failed to load embeddings cache:', err);
+    }
+  }
+
+  private static saveEmbeddingsCache(): void {
+    try {
+      const obj = Object.fromEntries(this.vectors.entries());
+      fs.writeFileSync(this.cacheFilePath, JSON.stringify(obj, null, 2), 'utf8');
+    } catch (err) {
+      console.error('[RAG] Failed to save embeddings cache:', err);
+    }
+  }
+
+  /**
+   * Generates a 384-dimension vector embedding for a given text segment
+   */
+  public static async generateEmbedding(text: string): Promise<number[]> {
+    await this.init();
+    if (!this.embedder) {
+      return new Array(384).fill(0);
+    }
+    try {
+      const output = await this.embedder(text, { pooling: 'mean', normalize: true });
+      return Array.from(output.data);
+    } catch (err) {
+      console.error('[RAG] Failed to generate embedding:', err);
+      return new Array(384).fill(0);
+    }
+  }
+
+  /**
+   * Scans and indexes the entire active workspace
+   */
+  public static async indexWorkspace(): Promise<void> {
+    const root = getWorkspaceRoot();
+    console.log(`[RAG] Indexing workspace files at: ${root}`);
+    const files = this.scanDirectory(root);
+    
+    let indexCount = 0;
+    for (const file of files) {
+      const isCached = this.vectors.has(file.relativePath);
+      if (!isCached) {
+        try {
+          const content = this.readFileSafely(file.absolutePath);
+          if (content.trim()) {
+            const embedding = await this.generateEmbedding(content);
+            this.vectors.set(file.relativePath, embedding);
+            indexCount++;
+          }
+        } catch (err) {
+          // skip failed files
+        }
+      }
+    }
+    
+    if (indexCount > 0) {
+      this.saveEmbeddingsCache();
+      console.log(`[RAG] Incremental indexing complete. Indexed ${indexCount} new files.`);
+    } else {
+      console.log('[RAG] Index is fully up to date.');
+    }
+  }
+
+  /**
+   * Sets up fs directory watcher for incremental updates on file changes
+   */
+  private static setupFileWatcher(): void {
+    const root = getWorkspaceRoot();
+    if (this.watcher && this.currentWatchedRoot === root) return;
+    
+    if (this.watcher) {
+      try { this.watcher.close(); } catch {}
+    }
+    
+    this.currentWatchedRoot = root;
+    try {
+      console.log(`[RAG] Setting up codebase file watcher at: ${root}`);
+      this.watcher = fs.watch(root, { recursive: true }, (eventType, filename) => {
+        if (!filename) return;
+        
+        // Skip ignored directories/files
+        const parts = filename.replace(/\\/g, '/').split('/');
+        if (parts.some(p => EXCLUDE_DIRS.has(p) || EXCLUDE_FILES.has(p))) return;
+        
+        const ext = path.extname(filename).toLowerCase();
+        if (!ALLOWED_EXTENSIONS.has(ext)) return;
+        
+        const absolutePath = path.join(root, filename);
+        const relativePath = filename.replace(/\\/g, '/');
+        
+        if (fs.existsSync(absolutePath)) {
+          // File modified or created
+          setImmediate(async () => {
+            try {
+              const content = this.readFileSafely(absolutePath);
+              if (content.trim()) {
+                const embedding = await this.generateEmbedding(content);
+                this.vectors.set(relativePath, embedding);
+                this.saveEmbeddingsCache();
+                console.log(`[RAG] Watcher triggered re-indexing for modified file: ${relativePath}`);
+              }
+            } catch {}
+          });
+        } else {
+          // File deleted
+          if (this.vectors.has(relativePath)) {
+            this.vectors.delete(relativePath);
+            this.saveEmbeddingsCache();
+            console.log(`[RAG] Watcher removed deleted file from index: ${relativePath}`);
+          }
+        }
+      });
+    } catch (err) {
+      console.error('[RAG] Failed to setup codebase file watcher:', err);
+    }
+  }
+
+  /**
+   * Recursively scans the workspace directory
    */
   private static scanDirectory(dir: string, baseDir: string = dir): ScannedFile[] {
     const results: ScannedFile[] = [];
-    
     try {
       if (!fs.existsSync(dir)) return results;
       const list = fs.readdirSync(dir);
@@ -79,8 +238,8 @@ export class CodebaseScanner {
       for (const file of list) {
         const absolutePath = path.join(dir, file);
         const relativePath = path.relative(baseDir, absolutePath).replace(/\\/g, '/');
-        const stat = fs.statSync(absolutePath);
         
+        const stat = fs.statSync(absolutePath);
         if (stat.isDirectory()) {
           if (!EXCLUDE_DIRS.has(file)) {
             results.push(...this.scanDirectory(absolutePath, baseDir));
@@ -91,26 +250,24 @@ export class CodebaseScanner {
             results.push({
               relativePath,
               absolutePath,
-              fileName: file
+              fileName: file,
             });
           }
         }
       }
     } catch (e) {
-      console.error(`[Codebase Scanner] Error scanning dir ${dir}:`, e);
+      console.error(`[RAG] Error scanning directory ${dir}:`, e);
     }
-    
     return results;
   }
 
   /**
-   * Builds a tree or flat-list representation of the directory structure
+   * Builds the flat directory structure map string
    */
   public static getDirectoryStructure(): string {
     const root = getWorkspaceRoot();
     const files = this.scanDirectory(root);
     
-    // Group files by relative parent directory
     const folders: Record<string, string[]> = {};
     for (const file of files) {
       const parentDir = path.dirname(file.relativePath);
@@ -148,94 +305,52 @@ export class CodebaseScanner {
   }
 
   /**
-   * Tokenizes and cleans a text query into search keywords
+   * Computes cosine similarity between two numeric vectors
    */
-  private static tokenizeQuery(query: string): string[] {
-    return query
-      .toLowerCase()
-      .replace(/[^a-z0-9_\-\.]/g, ' ') // keep alphanumeric, underscore, dash, and dot
-      .split(/\s+/)
-      .map(t => t.trim())
-      .filter(t => t.length > 1 && !STOP_WORDS.has(t));
+  private static cosineSimilarity(a: number[], b: number[]): number {
+    let dot = 0;
+    let normA = 0;
+    let normB = 0;
+    const len = Math.min(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    if (normA === 0 || normB === 0) return 0;
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 
   /**
-   * Searches the codebase for relevant files matching the query
+   * Performs semantic neural search using cosine similarity
    */
-  public static search(query: string, maxResults = 5): SearchResult[] {
+  public static async search(query: string, maxResults = 5): Promise<SearchResult[]> {
+    await this.init();
     const root = getWorkspaceRoot();
-    console.log(`[Codebase Scanner] Searching index in "${root}" for: "${query}"`);
+    console.log(`[RAG] Searching index in "${root}" semantically for: "${query}"`);
     
-    const files = this.scanDirectory(root);
-    const tokens = this.tokenizeQuery(query);
-    
-    if (tokens.length === 0) {
-      // If no valid tokens, return the first few readable source files as fallback
-      console.log('[Codebase Scanner] No search tokens found. Returning top layout files.');
-      return files
-        .filter(f => f.relativePath.startsWith('server/') || f.relativePath.startsWith('src/features/coder/'))
-        .slice(0, maxResults)
-        .map(f => ({
-          path: f.relativePath,
-          content: this.readFileSafely(f.absolutePath),
-          relevanceScore: 1
-        }));
-    }
-
-    console.log(`[Codebase Scanner] Extracted search tokens:`, tokens);
+    const queryVector = await this.generateEmbedding(query);
     const scoredResults: SearchResult[] = [];
-
-    for (const file of files) {
-      let score = 0;
-      const lowerPath = file.relativePath.toLowerCase();
-      const lowerName = file.fileName.toLowerCase();
-      
-      // 1. Path Matching (filenames or folders in the path matching tokens get huge scores)
-      for (const token of tokens) {
-        if (lowerName.includes(token)) {
-          score += 150; // High matches for direct file name matches
-        } else if (lowerPath.includes(token)) {
-          score += 50; // Medium matches for directory name matches
-        }
-      }
-
-      // 2. Content Term Frequency Matching
-      let content = '';
-      try {
-        content = this.readFileSafely(file.absolutePath);
-        if (content) {
-          const lowerContent = content.toLowerCase();
-          for (const token of tokens) {
-            // Count occurrences of token in content
-            let pos = lowerContent.indexOf(token);
-            let occurrences = 0;
-            while (pos !== -1 && occurrences < 30) { // cap term-frequency influence at 30
-              occurrences++;
-              pos = lowerContent.indexOf(token, pos + token.length);
-            }
-            score += occurrences * 2; // Each code occurrence adds to relevance
-          }
-        }
-      } catch (err) {
-        // Skip content read failure, keep path score
-      }
-
+    
+    for (const [relativePath, fileVector] of this.vectors.entries()) {
+      const score = this.cosineSimilarity(queryVector, fileVector);
       if (score > 0) {
+        const absolutePath = path.join(root, relativePath);
+        const content = this.readFileSafely(absolutePath);
         scoredResults.push({
-          path: file.relativePath,
+          path: relativePath,
           content,
-          relevanceScore: score
+          relevanceScore: score * 100, // scale for UI representation
         });
       }
     }
-
-    // Sort by relevance score descending
+    
+    // Sort by similarity descending
     scoredResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
     
-    const finalResults = scoredResults.slice(0, maxResults);
-    console.log(`[Codebase Scanner] Top matches:`, finalResults.map(r => `${r.path} (score: ${r.relevanceScore})`));
-    
-    return finalResults;
+    const topResults = scoredResults.slice(0, maxResults);
+    console.log(`[RAG] Semantic search top matches:`, topResults.map(r => `${r.path} (similarity: ${r.relevanceScore.toFixed(2)}%)`));
+    return topResults;
   }
 
   /**
@@ -244,8 +359,7 @@ export class CodebaseScanner {
   private static readFileSafely(absolutePath: string): string {
     try {
       const stats = fs.statSync(absolutePath);
-      // Cap individual file reads at 3KB to keep LLM context light and avoid local context window overflows
-      const maxSizeBytes = 3 * 1024;
+      const maxSizeBytes = 3 * 1024; // Cap file reads at 3KB
       
       if (stats.size > maxSizeBytes) {
         const stream = fs.readFileSync(absolutePath, 'utf8');

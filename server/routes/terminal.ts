@@ -25,7 +25,7 @@ terminalRouter.post('/run', async (req, res) => {
     return res.status(400).json({ error: "Command is required" });
   }
 
-  const { child, error } = spawnSandbox(command, cwd);
+  const { child, error } = await spawnSandbox(command, cwd);
   if (error) {
     return res.status(400).json({ error });
   }
@@ -85,26 +85,27 @@ terminalRouter.post('/prompt', (req, res) => {
     legacyTasks.set(nodeId, { output: 'Execution started. Connect to stream or wait.', isFinished: false });
     
     // Spawn in background and gather output for the legacy poll route
-    const { child, error } = spawnSandbox(command, cwd);
-    if (error) {
-      legacyTasks.set(nodeId, { output: `Sandbox Error: ${error}`, isFinished: true });
-    } else if (child) {
-      let accum = '';
-      child.stdout?.on('data', (d) => { accum += d.toString(); });
-      child.stderr?.on('data', (d) => { accum += d.toString(); });
-      child.on('close', (code) => {
-        legacyTasks.set(nodeId, {
-          output: accum || `Exited with code ${code}`,
-          isFinished: true
+    spawnSandbox(command, cwd).then(({ child, error }) => {
+      if (error) {
+        legacyTasks.set(nodeId, { output: `Sandbox Error: ${error}`, isFinished: true });
+      } else if (child) {
+        let accum = '';
+        child.stdout?.on('data', (d) => { accum += d.toString(); });
+        child.stderr?.on('data', (d) => { accum += d.toString(); });
+        child.on('close', (code) => {
+          legacyTasks.set(nodeId, {
+            output: accum || `Exited with code ${code}`,
+            isFinished: true
+          });
         });
-      });
-      child.on('error', (err) => {
-        legacyTasks.set(nodeId, {
-          output: accum + `\nProcess error: ${err.message}`,
-          isFinished: true
+        child.on('error', (err) => {
+          legacyTasks.set(nodeId, {
+            output: accum + `\nProcess error: ${err.message}`,
+            isFinished: true
+          });
         });
-      });
-    }
+      }
+    });
   }
 
   res.json({ status: 'started', execId });
@@ -137,7 +138,7 @@ terminalRouter.get('/poll', (req, res) => {
  * Server-Sent Events stream for execution.
  * Can consume a registered execId, or spawn command directly via query params.
  */
-terminalRouter.get('/stream', (req, res) => {
+terminalRouter.get('/stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -168,7 +169,7 @@ terminalRouter.get('/stream', (req, res) => {
   }
 
   const startTime = Date.now();
-  const { child, error } = spawnSandbox(command, cwd);
+  const { child, error } = await spawnSandbox(command, cwd);
 
   if (error) {
     res.write(`event: error\ndata: ${JSON.stringify({ message: error })}\n\n`);

@@ -4,7 +4,6 @@
 
 import 'dotenv/config';
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import { fileURLToPath } from 'url';
 import { isProd, VAULT_DIR, LOGS_DIR, getWorkspaceRoot, setWorkspaceRoot } from './server/lib/paths.ts';
 import path from 'path';
@@ -40,8 +39,15 @@ import { loadKeys, saveKeys, createSessionToken, verifySessionToken, getVaultSta
 // ── DNS: prefer Cloudflare for fastest lookups on Windows ─────────────────────
 try { dns.setServers(['1.1.1.1', '8.8.8.8']); } catch { }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+let _filename = '';
+let _dirname = '';
+try {
+  _filename = __filename;
+  _dirname = __dirname;
+} catch {
+  _filename = fileURLToPath(import.meta.url);
+  _dirname = path.dirname(_filename);
+}
 const PORT       = parseInt(process.env.PORT || '3000', 10);
 const FASTIFY_PORT = parseInt(process.env.FASTIFY_PORT || '3001', 10);
 
@@ -531,10 +537,10 @@ async function startServer() {
 
   // ── Vite Dev Middleware or Static Production Assets ────────────────────────
   if (isProd) {
-    let distPath = path.join(__dirname, 'dist');
+    let distPath = path.join(_dirname, 'dist');
     // Self-healing path resolution: check if dist folder exists locally or in parent dir (dist-server sibling)
     if (!fs.existsSync(path.join(distPath, 'index.html'))) {
-      distPath = path.join(__dirname, '../dist');
+      distPath = path.join(_dirname, '../dist');
     }
     console.log(`[Server] Serving static production assets from: ${distPath}`);
     app.use(express.static(distPath));
@@ -545,6 +551,7 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   } else {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
     app.use(vite.middlewares);
   }
@@ -560,7 +567,11 @@ async function startServer() {
     socket.setNoDelay(true); // Disable Nagle's algorithm for instant small packet delivery
   });
 
-  server.listen(PORT, '0.0.0.0', () => {
+  const host = '127.0.0.1';
+  if (host !== '127.0.0.1') {
+    throw new Error('Security Breach: Express server bound outside localhost.');
+  }
+  server.listen(PORT, host, () => {
     console.log(`🚀 NYX READY: http://localhost:${PORT}`);
   });
 }

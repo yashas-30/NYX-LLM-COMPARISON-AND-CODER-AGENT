@@ -30,7 +30,7 @@ const fastify = Fastify({
 });
 
 // Enable CORS for frontend connections
-await fastify.register(fastifyCors, {
+fastify.register(fastifyCors, {
   origin: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-nyx-session-token'],
@@ -474,8 +474,12 @@ fastify.post('/quota', async (request, reply) => {
 fastify.get('/health', async () => ({ status: 'ok', server: 'fastify' }));
 
 export async function startFastifyServer(port: number = 3001): Promise<void> {
+  const host = '127.0.0.1';
+  if (host !== '127.0.0.1') {
+    throw new Error('Security Breach: Fastify gateway bound outside localhost.');
+  }
   try {
-    await fastify.listen({ port, host: '0.0.0.0' });
+    await fastify.listen({ port, host });
     console.log(`⚡ Fastify API Server running on port ${port}`);
   } catch (err) {
     fastify.log.error(err);

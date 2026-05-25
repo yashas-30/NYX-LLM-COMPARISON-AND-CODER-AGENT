@@ -96,6 +96,29 @@ export const useDashboardState = (onExit?: () => void) => {
       }
     }
 
+    // Load keys from secure safeStorage vault in Electron on mount
+    const loadSecureKeys = async () => {
+      if (typeof window !== 'undefined' && (window as any).nyxIPC) {
+        const ipc = (window as any).nyxIPC;
+        try {
+          const listRes = await ipc.invoke('vault:list-keys');
+          if (listRes.success && Array.isArray(listRes.data)) {
+            const keys: Record<string, string> = {};
+            for (const provider of listRes.data) {
+              const getRes = await ipc.invoke('vault:get-key', { provider });
+              if (getRes.success && getRes.data) {
+                keys[provider] = getRes.data;
+              }
+            }
+            security.setApiKeys(keys);
+          }
+        } catch (err) {
+          console.error('[Vault] Failed to retrieve secure keys on mount:', err);
+        }
+      }
+    };
+    loadSecureKeys();
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

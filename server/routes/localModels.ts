@@ -128,7 +128,7 @@ localModelsRouter.post('/chat', async (req, res) => {
   
   let codebaseContext = '';
   if (query) {
-    const searchResults = CodebaseScanner.search(query, 3);
+    const searchResults = await CodebaseScanner.search(query, 3);
     if (searchResults && searchResults.length > 0) {
       codebaseContext = '\n\n=== RELEVANT CODEBASE FILES ===\n';
       for (const file of searchResults) {

@@ -80,9 +80,10 @@ export const CoderHeader: React.FC<CoderHeaderProps> = ({
         )}
 
         {/* Logo */}
-        <div className="flex items-center gap-1.5">
-          <Logo size={22} />
-          <span className="text-[11px] font-black tracking-tight text-foreground/70 hidden sm:block">NYX</span>
+        <div className="flex items-center gap-1.5 select-none pl-1">
+          <span className="text-[14px] font-black tracking-widest text-foreground font-sans">
+            NY<span className="text-[#3b82f6]">X</span>
+          </span>
         </div>
 
         <div className="w-px h-4 bg-white/10 mx-1" />
