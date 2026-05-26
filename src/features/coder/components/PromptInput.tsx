@@ -218,11 +218,11 @@ export const PromptInput: React.FC<PromptInputProps> = ({
     localSettings.gpuLayers < 90 ? 'Balanced' : 'Full VRAM';
   const gpuColor =
     localSettings.gpuLayers === 0 ? 'text-zinc-400' :
-    localSettings.gpuLayers < 50 ? 'text-amber-400' : 'text-emerald-400';
+    localSettings.gpuLayers < 50 ? 'text-[#E0B86F]/70' : 'text-[#E0B86F]';
 
   /* ── Render ──────────────────────────────────────────────────────────── */
   return (
-    <div className="shrink-0 w-full flex flex-col items-center px-4 pb-4 pt-2 bg-background z-30">
+    <div className="shrink-0 w-full flex flex-col items-center px-4 pb-4 pt-2 bg-[#191918] z-30">
       <div className={`relative w-full transition-all duration-500 ease-out ${prompt.trim().length > 0 ? 'max-w-3xl' : 'max-w-2xl'}`}>
 
         {/* ── Hardware critique panel ─────────────────────────────────── */}
@@ -253,7 +253,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                     onClick={() => { onPromptChange(optimizePromptText(prompt, analysis)); toast.success('Prompt optimized!'); }}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/45 text-[9px] font-black uppercase tracking-widest text-primary transition-all"
                   >
-                    <Zap className="w-3 h-3 text-amber-400 fill-amber-400 animate-pulse" />
+                    <Zap className="w-3 h-3 text-[#E0B86F] fill-[#E0B86F] animate-pulse" />
                     Auto-Optimize Spec
                   </motion.button>
                 </div>
@@ -328,20 +328,20 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                 exit={{ opacity: 0, y: 12, scale: 0.97 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                 /* Double-Bezel Architecture */
-                className="absolute bottom-full mb-3 left-0 right-0 z-[500] bg-white/[0.02] border border-white/5 p-1 rounded-3xl shadow-2xl backdrop-blur-3xl overflow-hidden"
+                className="absolute bottom-full mb-3 left-0 right-0 z-[500] bg-[#222221] border border-white/[0.04] p-1 rounded-3xl shadow-2xl overflow-hidden"
               >
                 {/* Inner Core */}
-                <div className="w-full bg-[#0B0E14]/98 border border-white/10 rounded-[calc(1.5rem-4px)] overflow-hidden">
+                <div className="w-full bg-[#222221]/98 border border-white/5 rounded-[calc(1.5rem-4px)] overflow-hidden">
                   
                   {/* ── Header ─────────────────────────────────────────────── */}
                   <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.05]">
                     <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-xl bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
-                        <SlidersHorizontal size={13} className="text-cyan-400" />
+                      <div className="w-7 h-7 rounded-xl bg-[#E0B86F]/10 border border-[#E0B86F]/20 flex items-center justify-center">
+                        <SlidersHorizontal size={13} className="text-[#E0B86F]" />
                       </div>
                       <div>
                         <p className="text-[11px] font-black uppercase tracking-[0.18em] text-foreground/85">Local Inference</p>
-                        <p className="text-[8px] text-cyan-400/80 font-semibold uppercase tracking-wider mt-0.5">
+                        <p className="text-[8px] text-[#E0B86F]/80 font-semibold uppercase tracking-wider mt-0.5">
                           {currentModel?.name || 'GGUF Model'} · settings
                         </p>
                       </div>
@@ -421,7 +421,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                       type="button"
                       onClick={resetLocalSettings}
                       title="Reset to defaults"
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-wider text-muted-foreground/35 hover:text-amber-400 hover:bg-amber-500/8 border border-transparent hover:border-amber-500/15 transition-all"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-wider text-muted-foreground/35 hover:text-[#E0B86F] hover:bg-[#E0B86F]/8 border border-transparent hover:border-[#E0B86F]/15 transition-all"
                     >
                       <RotateCcw size={9} />
                       Reset
@@ -448,8 +448,8 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                     <div className="space-y-6">
                       {/* GPU / VRAM */}
                       <section>
-                        <SectionLabel icon={<MemoryStick size={9} />} label="GPU / VRAM" color="text-primary" />
-                        <div className="mt-3 p-3.5 rounded-2xl bg-primary/[0.04] border border-primary/10 space-y-2.5">
+                        <SectionLabel icon={<MemoryStick size={9} />} label="GPU / VRAM" color="text-[#E0B86F]" />
+                        <div className="mt-3 p-3.5 rounded-2xl bg-[#E0B86F]/[0.04] border border-[#E0B86F]/10 space-y-2.5">
                           <div className="flex items-center justify-between">
                             <span className="text-[8px] font-bold text-muted-foreground/50 uppercase tracking-wider">GPU Layers (ngl)</span>
                             <div className="flex items-center gap-1.5">
@@ -461,7 +461,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                             type="range" min={0} max={99} step={1}
                             value={localSettings.gpuLayers}
                             onChange={e => updateLocal('gpuLayers', Number(e.target.value))}
-                            className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-primary bg-white/8"
+                            className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-[#E0B86F] bg-white/8"
                           />
                           <div className="flex justify-between">
                             <span className="text-[7px] text-muted-foreground/25">CPU Only</span>
@@ -481,7 +481,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
 
                       {/* Context */}
                       <section>
-                        <SectionLabel icon={<Layers size={9} />} label="Context & Memory" color="text-purple-400" />
+                        <SectionLabel icon={<Layers size={9} />} label="Context & Memory" color="text-[#E0B86F]" />
                         <div className="mt-3">
                           <ParamSlider
                             label="Context Size"
@@ -489,7 +489,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                             value={localSettings.contextSize}
                             min={512} max={32768} step={512}
                             display={v => `${Math.round(v / 1024)}K`}
-                            accent="accent-purple-500"
+                            accent="accent-[#E0B86F]"
                             onChange={v => updateLocal('contextSize', v)}
                           />
                         </div>
@@ -497,7 +497,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
 
                       {/* CPU Compute */}
                       <section>
-                        <SectionLabel icon={<Cpu size={9} />} label="CPU Compute" color="text-amber-400" />
+                        <SectionLabel icon={<Cpu size={9} />} label="CPU Compute" color="text-[#E0B86F]" />
                         <div className="mt-3 space-y-4">
                           <ParamSlider
                             label="CPU Threads"
@@ -505,7 +505,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                             value={localSettings.threads}
                             min={1} max={32} step={1}
                             display={v => `${v}`}
-                            accent="accent-amber-500"
+                            accent="accent-[#E0B86F]"
                             onChange={v => updateLocal('threads', v)}
                           />
                           <ParamSlider
@@ -514,7 +514,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                             value={localSettings.batchSize}
                             min={64} max={2048} step={64}
                             display={v => `${v}`}
-                            accent="accent-amber-500"
+                            accent="accent-[#E0B86F]"
                             onChange={v => updateLocal('batchSize', v)}
                           />
                         </div>
@@ -524,7 +524,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                     {/* Right column — Sampling */}
                     <div className="space-y-6">
                       <section>
-                        <SectionLabel icon={<Thermometer size={9} />} label="Sampling" color="text-rose-400" />
+                        <SectionLabel icon={<Thermometer size={9} />} label="Sampling" color="text-[#E0B86F]" />
                         <div className="mt-3 space-y-4">
                           <ParamSlider
                             label="Temperature"
@@ -532,7 +532,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                             value={localSettings.temperature ?? 0.7}
                             min={0} max={2} step={0.05}
                             display={v => (v ?? 0.7).toFixed(2)}
-                            accent="accent-rose-500"
+                            accent="accent-[#E0B86F]"
                             onChange={v => updateLocal('temperature', v)}
                             isFloat
                           />
@@ -542,7 +542,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                             value={localSettings.topP ?? 0.95}
                             min={0} max={1} step={0.01}
                             display={v => (v ?? 0.95).toFixed(2)}
-                            accent="accent-rose-500"
+                            accent="accent-[#E0B86F]"
                             onChange={v => updateLocal('topP', v)}
                             isFloat
                           />
@@ -552,7 +552,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                             value={localSettings.topK ?? 40}
                             min={0} max={200} step={1}
                             display={v => `${v ?? 40}`}
-                            accent="accent-rose-500"
+                            accent="accent-[#E0B86F]"
                             onChange={v => updateLocal('topK', v)}
                           />
                           <ParamSlider
@@ -561,7 +561,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                             value={localSettings.repeatPenalty ?? 1.1}
                             min={1} max={2} step={0.05}
                             display={v => (v ?? 1.1).toFixed(2)}
-                            accent="accent-rose-500"
+                            accent="accent-[#E0B86F]"
                             onChange={v => updateLocal('repeatPenalty', v)}
                             isFloat
                           />
@@ -586,7 +586,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                                   onClick={() => updateLocal('mirostat', v)}
                                   className={`flex-1 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all ${
                                     localSettings.mirostat === v
-                                      ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                                      ? 'bg-[#E0B86F]/15 text-[#E0B86F] border border-[#E0B86F]/30'
                                       : 'bg-white/4 text-muted-foreground/35 border border-white/6 hover:bg-white/8 hover:text-muted-foreground/60'
                                   }`}
                                 >
@@ -621,9 +621,9 @@ export const PromptInput: React.FC<PromptInputProps> = ({
           transition={{ type: 'spring', stiffness: 380, damping: 30 }}
           className="relative w-full"
         >
-          {/* Double-Bezel for Prompt Input Box */}
-          <div className="w-full p-[2px] bg-white/[0.02] border border-white/5 rounded-3xl shadow-2xl focus-within:border-primary/30 focus-within:shadow-[0_0_20px_rgba(34,211,238,0.06)] transition-all duration-300">
-            <div className="flex flex-col gap-2 p-2 bg-[#0B0E14]/90 backdrop-blur-2xl border border-white/5 rounded-[calc(1.5rem-2px)] focus-within:border-primary/20 transition-all">
+          {/* Single clean pill in Claude warm charcoal background */}
+          <div className="w-full p-[1px] bg-white/[0.03] border border-white/[0.04] rounded-2xl shadow-xl focus-within:border-white/10 transition-all duration-300">
+            <div className="flex flex-col gap-2.5 p-2 bg-[#262625] rounded-[calc(1rem-1px)] transition-all">
 
               {/* Attachment chip */}
               <AnimatePresence>
@@ -632,17 +632,17 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                     initial={{ opacity: 0, scale: 0.9, y: -4 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9, y: -4 }}
-                    className="flex items-center justify-between gap-2 px-3 py-1.5 bg-[#1B2336]/60 border border-white/5 rounded-2xl self-start mx-1"
+                    className="flex items-center justify-between gap-2 px-3 py-1.5 bg-[#2D2D2B] border border-white/5 rounded-xl self-start mx-1"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <Paperclip className="w-3 h-3 text-primary/60 shrink-0" />
-                      <span className="text-[10px] font-mono text-muted-foreground/70 truncate max-w-[200px]">{selectedFile.name}</span>
-                      <span className="text-[8px] text-muted-foreground/30 shrink-0">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                      <Paperclip className="w-3 h-3 text-[#E0B86F] shrink-0" />
+                      <span className="text-[10px] font-mono text-zinc-300 truncate max-w-[200px]">{selectedFile.name}</span>
+                      <span className="text-[8px] text-zinc-500 shrink-0">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setSelectedFile(null)}
-                      className="p-0.5 rounded-full hover:bg-white/5 text-muted-foreground/40 hover:text-foreground/60 transition-all cursor-pointer"
+                      className="p-0.5 rounded-full hover:bg-white/5 text-zinc-500 hover:text-zinc-300 transition-all cursor-pointer"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -651,15 +651,15 @@ export const PromptInput: React.FC<PromptInputProps> = ({
               </AnimatePresence>
 
               {/* Textarea */}
-              <div className="flex items-start gap-2 px-1">
+              <div className="flex items-start gap-1.5 px-1">
                 <motion.button
-                  whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.05)' }}
+                  whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.03)' }}
                   whileTap={{ scale: 0.85, rotate: 45 }}
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="mt-1 p-1.5 rounded-full text-muted-foreground/45 hover:text-primary transition-all shrink-0 cursor-pointer"
+                  className="mt-1 p-2 rounded-xl text-zinc-500 hover:text-white transition-all shrink-0 cursor-pointer"
                 >
-                  <Plus size={16} />
+                  <Plus size={15} />
                 </motion.button>
                 <textarea
                   ref={textareaRef}
@@ -672,27 +672,27 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                       handleSubmit(e);
                     }
                   }}
-                  placeholder="Ask anything..."
-                  className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-1.5 px-1 resize-none min-h-[36px] max-h-[220px] font-medium outline-none text-foreground/90 placeholder:text-muted-foreground/35"
+                  placeholder="Write a message..."
+                  className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-2 px-1 resize-none min-h-[36px] max-h-[220px] font-medium outline-none text-foreground/90 placeholder:text-zinc-500"
                   style={{ scrollbarWidth: 'none' }}
                 />
                 <motion.button
-                  whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.05)' }}
+                  whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.03)' }}
                   whileTap={{ scale: 0.9 }}
                   type="button"
-                  className="mt-1 p-1.5 rounded-full text-muted-foreground/30 hover:text-primary transition-all shrink-0 cursor-pointer"
+                  className="mt-1 p-2 rounded-xl text-zinc-500 hover:text-white transition-all shrink-0 cursor-pointer"
                 >
                   <Mic size={15} />
                 </motion.button>
               </div>
 
               {/* Bottom toolbar */}
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-0.5">
+              <div className="flex items-center justify-between px-1.5">
+                <div className="flex items-center gap-1">
 
                   {/* Model selector button */}
                   <motion.button
-                    whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.04)' }}
+                    whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.03)' }}
                     whileTap={{ scale: 0.95 }}
                     type="button"
                     onClick={e => {
@@ -700,26 +700,22 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                       setShowModelSelector(v => !v);
                       setShowSettings(false);
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all select-none cursor-pointer ${
-                      currentModel
-                        ? 'text-foreground/75 border border-white/5 bg-white/[0.01]'
-                        : 'text-amber-400 border border-amber-400/20 bg-amber-500/5 hover:bg-amber-500/10'
-                    }`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all select-none cursor-pointer border border-white/[0.04] bg-[#222221] text-zinc-300 hover:text-white`}
                   >
-                    {currentModel ? getCustomModelIcon(currentModel) : <Bot className="w-3.5 h-3.5 text-amber-400/70" />}
-                    <span className="truncate max-w-[120px]">{currentModel?.name || 'Select model'}</span>
+                    {currentModel ? getCustomModelIcon(currentModel) : <Bot className="w-3.5 h-3.5 text-zinc-400" />}
+                    <span className="truncate max-w-[140px]">{currentModel?.name || 'Select model'}</span>
                     <ChevronDown className="w-3 h-3 opacity-40" />
                   </motion.button>
 
-                  <div className="w-px h-4 bg-white/10 mx-1" />
+                  <div className="w-px h-4 bg-white/5 mx-1.5" />
 
                   {/* Web search */}
                   <ToolButton
                     active={webSearchEnabled}
                     onClick={() => onWebSearchToggle(!webSearchEnabled)}
                     title="Web Search"
-                    icon={<Globe size={13} strokeWidth={1.5} className={webSearchEnabled ? 'animate-pulse' : ''} />}
-                    activeColor="text-primary bg-primary/10 border-primary/20"
+                    icon={<Globe size={13} strokeWidth={1.5} className={webSearchEnabled ? 'animate-pulse text-[#E0B86F]' : ''} />}
+                    activeColor="text-[#E0B86F] bg-white/[0.03] border-white/10"
                   />
 
                   {/* ⚙ Settings — only for local GGUF models */}
@@ -736,15 +732,15 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                           <SettingsIcon
                             size={13}
                             strokeWidth={1.5}
-                            className={`transition-transform duration-300 ${showSettings ? 'rotate-45 text-primary' : ''}`}
+                            className={`transition-transform duration-300 ${showSettings ? 'rotate-45 text-[#E0B86F]' : ''}`}
                           />
                         }
-                        activeColor="text-primary bg-primary/10 border-primary/20"
+                        activeColor="text-[#E0B86F] bg-white/[0.03] border-white/10"
                       />
-                      {/* Pulsing blue dot */}
+                      {/* Pulsing gold dot */}
                       {!showSettings && (
-                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-primary border-[1.5px] border-card pointer-events-none">
-                          <span className="block w-full h-full rounded-full bg-primary animate-ping opacity-60" />
+                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#E0B86F] border-[1.5px] border-[#262625] pointer-events-none">
+                          <span className="block w-full h-full rounded-full bg-[#E0B86F] animate-ping opacity-60" />
                         </span>
                       )}
                     </div>
@@ -759,21 +755,21 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                       whileTap={{ scale: 0.95 }}
                       type="button"
                       onClick={onStop}
-                      className="h-8.5 px-4 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center gap-1.5 border border-red-500/20 text-[9px] font-black tracking-widest uppercase transition-all cursor-pointer"
+                      className="h-8 px-4 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center gap-1.5 border border-red-500/20 text-[9px] font-black tracking-widest uppercase transition-all cursor-pointer"
                     >
                       <StopCircle className="w-3.5 h-3.5 animate-pulse" />
                       Stop
                     </motion.button>
                   ) : (
                     <motion.button
-                      whileHover={{ scale: canSubmit ? 1.05 : 1, boxShadow: canSubmit ? '0 0 12px rgba(34, 211, 238, 0.3)' : 'none' }}
+                      whileHover={{ scale: canSubmit ? 1.05 : 1, boxShadow: canSubmit ? '0 0 12px rgba(224, 184, 111, 0.2)' : 'none' }}
                       whileTap={{ scale: canSubmit ? 0.95 : 1 }}
                       type="submit"
                       disabled={!canSubmit}
-                      className={`h-8.5 w-8.5 rounded-xl flex items-center justify-center transition-all border cursor-pointer ${
+                      className={`h-8 w-8 rounded-xl flex items-center justify-center transition-all border cursor-pointer ${
                         canSubmit
-                          ? 'bg-primary text-black border-primary'
-                          : 'bg-white/5 border-transparent text-muted-foreground/30 cursor-not-allowed'
+                          ? 'bg-[#E0B86F] text-black border-[#E0B86F] font-bold'
+                          : 'bg-white/5 border-transparent text-zinc-600 cursor-not-allowed'
                       }`}
                     >
                       <Send size={13} strokeWidth={2.5} />

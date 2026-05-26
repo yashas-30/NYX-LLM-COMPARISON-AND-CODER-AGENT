@@ -109,15 +109,15 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
   const canApply = !isExecutable && lang !== 'text';
 
   return (
-    /* Double-Bezel for CodeBlock */
-    <div className="relative group/code my-4 p-[2px] bg-white/[0.02] border border-white/5 rounded-2xl shadow-2xl text-left">
-      <div className="rounded-[calc(1rem-2px)] overflow-hidden bg-[#0B0E14]/90 border border-white/5">
+    /* Premium flat warm slate card style */
+    <div className="relative group/code my-4 p-[1px] bg-white/[0.03] border border-white/[0.04] rounded-2xl shadow-xl text-left">
+      <div className="rounded-[calc(1rem-1px)] overflow-hidden bg-[#222221] border border-white/[0.03]">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 bg-white/[0.02] border-b border-white/5">
+        <div className="flex items-center justify-between px-4 py-2.5 bg-[#1E1E1D] border-b border-white/[0.03]">
           <div className="flex items-center gap-2">
-            <Terminal size={10} className="text-primary/60" />
-            <span className="text-[9px] font-black uppercase tracking-[0.25em] text-primary/75">{lang}</span>
+            <Terminal size={10} className="text-[#E0B86F]" />
+            <span className="text-[9px] font-black uppercase tracking-[0.25em] text-zinc-400">{lang}</span>
           </div>
           <div className="flex items-center gap-2">
             {isExecutable && (
@@ -134,10 +134,10 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
             )}
             {canApply && (
               <motion.button
-                whileHover={{ scale: 1.02, backgroundColor: 'rgba(34,211,238,0.15)', borderColor: 'rgba(34,211,238,0.3)' }}
+                whileHover={{ scale: 1.02, backgroundColor: 'rgba(224,184,111,0.15)', borderColor: 'rgba(224,184,111,0.3)' }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowApplyPanel(!showApplyPanel)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:text-cyan-300 transition-all text-[8px] font-black uppercase tracking-widest shadow-sm cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#E0B86F]/10 border border-[#E0B86F]/20 text-[#E0B86F] hover:text-white transition-all text-[8px] font-black uppercase tracking-widest shadow-sm cursor-pointer"
               >
                 <Save size={9} />
                 <span>Apply</span>
@@ -157,7 +157,7 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
             </motion.button>
           </div>
         </div>
-
+ 
         {/* Apply File Panel */}
         <AnimatePresence>
           {showApplyPanel && (
@@ -165,10 +165,10 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="bg-[#0B0E14] border-b border-white/5 px-4 py-3.5 flex flex-col gap-2.5"
+              className="bg-[#222221] border-b border-white/5 px-4 py-3.5 flex flex-col gap-2.5"
             >
               <div className="flex items-center gap-2">
-                <FileText size={12} className="text-primary" />
+                <FileText size={12} className="text-[#E0B86F]" />
                 <span className="text-[10px] text-muted-foreground/75 font-black uppercase tracking-wider">Save to Workspace:</span>
               </div>
               <div className="flex items-center gap-2">
@@ -177,12 +177,12 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
                   value={filePath}
                   onChange={(e) => setFilePath(e.target.value)}
                   placeholder="e.g., src/components/Button.tsx"
-                  className="flex-1 px-3 py-2 rounded-xl bg-white/[0.02] border border-white/5 text-xs text-foreground placeholder-muted-foreground/30 focus:outline-none focus:border-primary/50 transition-colors font-mono"
+                  className="flex-1 px-3 py-2 rounded-xl bg-white/[0.02] border border-white/5 text-xs text-foreground placeholder-muted-foreground/30 focus:outline-none focus:border-[#E0B86F]/50 transition-colors font-mono"
                 />
                 <button
                   onClick={handleApplyFile}
                   disabled={applyStatus === 'writing'}
-                  className="px-4 py-2 rounded-xl bg-primary text-black font-black text-[10px] uppercase tracking-wider transition-colors hover:opacity-95 disabled:opacity-50 shrink-0 cursor-pointer shadow-[0_0_12px_rgba(34,211,238,0.25)]"
+                  className="px-4 py-2 rounded-xl bg-[#E0B86F] text-[#191918] font-bold text-[10px] uppercase tracking-wider transition-colors hover:opacity-95 disabled:opacity-50 shrink-0 cursor-pointer shadow-[0_0_12px_rgba(224,184,111,0.2)]"
                 >
                   {applyStatus === 'writing' ? 'Writing...' : 'Write File'}
                 </button>
@@ -271,7 +271,7 @@ const MarkdownContent: React.FC<{ content: string; isStreaming?: boolean }> = ({
             return <CodeBlock language={match ? match[1] : 'text'} code={String(children).replace(/\n$/, '')} />;
           }
           return (
-            <code className="px-1.5 py-0.5 rounded-md bg-primary/8 border border-primary/15 text-primary text-[11px] font-mono font-semibold" {...props}>
+            <code className="px-1.5 py-0.5 rounded-md bg-white/[0.04] border border-white/10 text-[#E0B86F] text-[11px] font-mono font-semibold" {...props}>
               {children}
             </code>
           );
@@ -279,7 +279,7 @@ const MarkdownContent: React.FC<{ content: string; isStreaming?: boolean }> = ({
         h1: ({ children }) => <h1 className="text-base font-black tracking-tight text-foreground mt-5 mb-2 pb-2 border-b border-white/10">{children}</h1>,
         h2: ({ children }) => (
           <h2 className="text-[13px] font-black tracking-tight text-foreground mt-4 mb-2 flex items-center gap-2">
-            <span className="w-1 h-4 rounded-full bg-primary inline-block shrink-0" />
+            <span className="w-1 h-4 rounded-full bg-[#E0B86F] inline-block shrink-0" />
             {children}
           </h2>
         ),
@@ -290,9 +290,9 @@ const MarkdownContent: React.FC<{ content: string; isStreaming?: boolean }> = ({
         ol: ({ children }) => <ol className="list-decimal pl-6 space-y-1 my-2 text-sm text-foreground/75">{children}</ol>,
         li: ({ children }) => <li className="leading-relaxed pl-1">{children}</li>,
         strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
-        em: ({ children }) => <em className="italic text-primary/75">{children}</em>,
+        em: ({ children }) => <em className="italic text-[#E0B86F]/80">{children}</em>,
         blockquote: ({ children }) => (
-          <blockquote className="my-2 pl-3 py-1 border-l-2 border-primary/40 bg-primary/4 rounded-r-lg text-sm text-foreground/65 italic">
+          <blockquote className="my-2 pl-3 py-1 border-l-2 border-[#E0B86F]/45 bg-white/[0.01] rounded-r-lg text-sm text-foreground/65 italic">
             {children}
           </blockquote>
         ),
@@ -302,11 +302,11 @@ const MarkdownContent: React.FC<{ content: string; isStreaming?: boolean }> = ({
             <table className="w-full text-[11px]">{children}</table>
           </div>
         ),
-        thead: ({ children }) => <thead className="bg-primary/8 text-primary border-b border-white/8">{children}</thead>,
-        th: ({ children }) => <th className="px-3 py-2 text-left font-black uppercase tracking-wider text-[9px]">{children}</th>,
+        thead: ({ children }) => <thead className="bg-white/[0.04] text-[#E0B86F] border-b border-white/8">{children}</thead>,
+        th: ({ children }) => <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-[9px] text-zinc-400">{children}</th>,
         td: ({ children }) => <td className="px-3 py-2 border-t border-white/4 text-foreground/75">{children}</td>,
         a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/75 transition-colors">
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#E0B86F] underline underline-offset-2 hover:opacity-85 transition-colors">
             {children}
           </a>
         ),
@@ -315,7 +315,7 @@ const MarkdownContent: React.FC<{ content: string; isStreaming?: boolean }> = ({
       {content}
     </ReactMarkdown>
     {isStreaming && (
-      <span className="inline-block w-[3px] h-3.5 ml-0.5 bg-primary/50 animate-pulse align-middle rounded-sm" />
+      <span className="inline-block w-[3px] h-3.5 ml-0.5 bg-[#E0B86F]/80 animate-pulse align-middle rounded-sm" />
     )}
   </div>
 );
@@ -335,8 +335,8 @@ const EmptyState: React.FC<{
     className="flex flex-col items-center justify-center min-h-[65vh] text-center px-6 gap-6 relative overflow-hidden"
   >
     {/* Background warm aesthetic glow */}
-    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[380px] h-[380px] bg-primary/5 dark:bg-primary/8 rounded-full blur-[90px] pointer-events-none select-none -z-10 animate-pulse" />
-
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[380px] h-[380px] bg-[#E0B86F]/[0.02] rounded-full blur-[90px] pointer-events-none select-none -z-10 animate-pulse" />
+ 
     {/* Elegant bird logo with entrance and floating animations split to prevent Lottie measurement glitch */}
     <motion.div
       initial={{ opacity: 0 }}
@@ -350,12 +350,12 @@ const EmptyState: React.FC<{
         className="relative flex items-center justify-center transform-gpu"
       >
         {/* Premium static hardware-accelerated logo glow */}
-        <div className="absolute w-24 h-24 bg-primary/20 dark:bg-primary/30 rounded-full blur-[45px] pointer-events-none select-none transform-gpu" />
-
+        <div className="absolute w-24 h-24 bg-[#E0B86F]/[0.08] rounded-full blur-[45px] pointer-events-none select-none transform-gpu" />
+ 
         <Logo size={90} className="relative z-10 hover:scale-105 transition-transform duration-300 transform-gpu cursor-default" />
       </motion.div>
     </motion.div>
-
+ 
     {/* Typography Hierarchy */}
     <div className="space-y-2 max-w-sm">
       <motion.h1
@@ -364,7 +364,7 @@ const EmptyState: React.FC<{
         transition={{ delay: 0.3, duration: 0.5 }}
         className="text-[20px] font-black tracking-tight text-foreground/80 leading-tight"
       >
-        How can <span className="font-black text-foreground">NY<span className="text-primary">X</span></span> assist your project today?
+        How can <span className="font-black text-foreground">NY<span className="text-[#E0B86F]">X</span></span> assist your project today?
       </motion.h1>
       <motion.p
         initial={{ opacity: 0, y: 8 }}
@@ -375,7 +375,7 @@ const EmptyState: React.FC<{
         Native Local Intelligence & Cloud Swarm
       </motion.p>
     </div>
-
+ 
     {/* Suggested Prompts Grid */}
     {suggestedPrompts && suggestedPrompts.length > 0 && (
       <motion.div
@@ -387,13 +387,13 @@ const EmptyState: React.FC<{
         {suggestedPrompts.slice(0, 4).map((p, idx) => (
           <motion.button
             key={idx}
-            whileHover={{ scale: 1.01, backgroundColor: 'rgba(34, 211, 238, 0.06)', borderColor: 'rgba(34, 211, 238, 0.25)' }}
+            whileHover={{ scale: 1.01, backgroundColor: 'rgba(224, 184, 111, 0.05)', borderColor: 'rgba(224, 184, 111, 0.2)' }}
             whileTap={{ scale: 0.99 }}
             onClick={() => onSuggestedPromptClick?.(p)}
-            className="p-4 text-[11px] font-bold text-left rounded-2xl bg-white/[0.01] border border-white/5 text-foreground/75 hover:text-primary transition-all duration-200 cursor-pointer flex items-center justify-between shadow-sm"
+            className="p-4 text-[11px] font-bold text-left rounded-2xl bg-white/[0.01] border border-white/5 text-foreground/75 hover:text-[#E0B86F] transition-all duration-200 cursor-pointer flex items-center justify-between shadow-sm"
           >
             <span>{p}</span>
-            <span className="text-[10px] text-primary/50 font-extrabold ml-2">➔</span>
+            <span className="text-[10px] text-[#E0B86F]/70 font-extrabold ml-2">➔</span>
           </motion.button>
         ))}
       </motion.div>
@@ -428,13 +428,7 @@ const MessageBubble = React.memo<MessageBubbleProps>(({
     >
       {isUser ? (
         /* ── User bubble: right-aligned glassmorphic pill ── */
-        <div className={`
-          max-w-[85%] sm:max-w-[75%] py-3 px-4.5 rounded-2xl rounded-tr-sm
-          text-[13px] leading-[1.75] font-semibold
-          bg-[#1B2336]/60 backdrop-blur-xl
-          border border-primary/20
-          text-[#E6EDF3] shadow-md shadow-primary/5
-        `}>
+        <div className="max-w-[85%] sm:max-w-[75%] py-3 px-4.5 rounded-2xl bg-[#2D2D2B] border border-white/[0.03] text-[13px] leading-[1.75] text-[#E6EDF3] shadow-md shadow-black/10 select-text">
           {msg.content}
         </div>
       ) : (
@@ -451,7 +445,7 @@ const MessageBubble = React.memo<MessageBubbleProps>(({
                 <div className="mt-3 flex items-center gap-3 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity duration-300">
                   <button
                     onClick={() => onCopy(msg.content, `msg-${index}`)}
-                    className="flex items-center gap-1 text-[9px] text-muted-foreground/30 hover:text-primary transition-colors cursor-pointer uppercase font-black tracking-widest"
+                    className="flex items-center gap-1 text-[9px] text-muted-foreground/30 hover:text-[#E0B86F] transition-colors cursor-pointer uppercase font-black tracking-widest"
                   >
                     {copiedId === `msg-${index}` ? (
                       <><Check size={9} className="text-emerald-400" /><span className="text-emerald-400">Copied</span></>
@@ -469,7 +463,7 @@ const MessageBubble = React.memo<MessageBubbleProps>(({
                 {[0, 1, 2].map(n => (
                   <motion.div
                     key={n}
-                    className="w-1.5 h-1.5 rounded-full bg-primary/50"
+                    className="w-1.5 h-1.5 rounded-full bg-[#E0B86F]/50"
                     animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1, 0.8] }}
                     transition={{ duration: 1.2, repeat: Infinity, delay: n * 0.2 }}
                   />
@@ -536,7 +530,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   }, [history.length, rowVirtualizer]);
 
   return (
-    <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden bg-background">
+    <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden bg-[#191918]">
       <div
         ref={consoleRef}
         onScroll={handleScroll}

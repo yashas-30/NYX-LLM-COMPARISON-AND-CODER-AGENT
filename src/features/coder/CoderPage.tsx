@@ -9,7 +9,7 @@ import { FREE_OPENCODE_MODELS } from '@/src/config/models';
 import { ModelDefinition, Provider } from '@/src/core/types';
 import { toast } from '@/src/components/ui/sonner';
 
-import { MessageList, PromptInput } from './components';
+import { CoderHeader, MessageList, PromptInput } from './components';
 import { SubagentPanel } from './components/SubagentPanel';
 import { getCustomModelIcon } from './utils/modelIcons';
 import { useCoderLogic } from './hooks/useCoderLogic';
@@ -86,6 +86,17 @@ export const CoderPage: React.FC<CoderPageProps> = ({
     return mergedModels.find(m => m.id === currentModelId) || null;
   }, [currentModelId, mergedModels]);
 
+  const badgeStatus = useMemo(() => {
+    if (isLoading) return 'loading';
+    if (!currentModel) return 'no_key';
+    const provider = currentModel.provider;
+    const status = providerStatuses[provider];
+    if (status === 'online') return 'success';
+    if (status === 'offline') return 'offline';
+    if (status === 'no-key') return 'no_key';
+    return 'success';
+  }, [isLoading, currentModel, providerStatuses]);
+
   const handleSubmit = useCallback((finalPrompt: string) => {
     if (!finalPrompt.trim() || isLoading) return;
     if (!currentModelId) {
@@ -113,6 +124,17 @@ export const CoderPage: React.FC<CoderPageProps> = ({
       className="h-full w-full flex flex-col min-h-0 overflow-hidden"
     >
       <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative">
+        <CoderHeader
+          activeMode={activeMode}
+          onModeChange={setActiveMode}
+          metrics={metrics}
+          isLoading={isLoading}
+          badgeStatus={badgeStatus}
+          onClear={clearHistory}
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={onToggleSidebar}
+          sessionTitle={chatSessions?.activeSession?.title || 'New chat'}
+        />
         <SubagentPanel tasks={subagentTasks} isLoading={isLoading} />
         <MessageList
           history={history}
