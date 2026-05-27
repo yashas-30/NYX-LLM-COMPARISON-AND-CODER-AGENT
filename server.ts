@@ -14,7 +14,7 @@ import helmet from 'helmet';
 import './server/lib/apiAgent.ts'; // 🚀 Init global connection pooling
 
 // New extracted routes
-import { vaultRouter } from './server/routes/vault.ts';
+import { vaultRouter } from './server/features/vault/vault.router.ts';
 import { adminRouter } from './server/routes/admin.ts';
 import { systemRouter } from './server/features/system/system.router.ts';
 import { healthRouter } from './server/features/system/health.router.ts';
@@ -41,7 +41,7 @@ import { warmupDNS, startFastifyServer } from './server/lib/fastifyApi.ts';
 import { requestIdMiddleware } from './server/middleware/requestId.ts';
 import logger from './server/lib/logger.ts';
 import { safetyGateMiddleware } from './server/middleware/safetyGate.ts';
-import { createSessionToken, verifySessionToken } from './server/lib/keyVault.ts';
+import { createSessionToken, verifySessionToken } from './server/features/vault/vault.service.ts';
 import { cleanupProcesses } from './server/lib/processRegistry.ts';
 import { CodebaseScanner } from './server/lib/codebaseScanner.ts';
 import { runMigrations } from './server/db/migrator.ts';

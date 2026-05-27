@@ -10,7 +10,7 @@ import https from 'https';
 import dns from 'node:dns';
 
 import { DNS_CACHE, preWarmDns as resolveHostname } from './apiAgent.js';
-import { loadKeys, verifySessionToken } from './keyVault.ts';
+import { loadKeys, verifySessionToken } from '../features/vault/vault.service.ts';
 import { UnifiedEngine } from './unifiedEngine.ts';
 
 // SSRF protection: reject private/loopback addresses in gateway URLs

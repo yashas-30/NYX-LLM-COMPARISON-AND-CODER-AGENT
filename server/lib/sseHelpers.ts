@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { createSessionToken } from './keyVault.ts';
+import { createSessionToken } from '../features/vault/vault.service.ts';
 
 /**
  * Sends a cryptographically fresh rotated session token as SSE metadata.

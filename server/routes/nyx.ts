@@ -10,7 +10,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { validate } from '../middleware/validate.ts';
 import { writeFileSchema, nyxCriticSchema, nyxSearchSchema, codebaseSearchSchema } from '../schemas/index.ts';
-import { loadKeys } from '../lib/keyVault.ts';
+import { loadKeys } from '../features/vault/vault.service.ts';
 
 const execAsync = promisify(exec);
 

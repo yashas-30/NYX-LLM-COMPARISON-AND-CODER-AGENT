@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { loadKeys, saveKeys, createSessionToken, getVaultStatus, backupVault, exportVault, importVault } from '../lib/keyVault.ts';
-import { validate } from '../middleware/validate.ts';
-import { vaultStoreSchema } from '../schemas/index.ts';
+import { loadKeys, saveKeys, createSessionToken, getVaultStatus, backupVault, exportVault, importVault } from './vault.service.ts';
+import { validate } from '../../middleware/validate.ts';
+import { vaultStoreSchema } from './vault.schema.ts';
 
 export const vaultRouter = Router();
 

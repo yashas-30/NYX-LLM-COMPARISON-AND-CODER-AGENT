@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Gateway } from '../gateway.ts';
-import { loadKeys } from '../keyVault.ts';
+import { loadKeys } from '../../features/vault/vault.service.ts';
 
-// Mock keyVault loadKeys
-vi.mock('../keyVault.ts', () => ({
+// Mock vault.service loadKeys
+vi.mock('../../features/vault/vault.service.ts', () => ({
   loadKeys: vi.fn(),
   verifySessionToken: vi.fn(),
 }));

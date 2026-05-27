@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
-import { VAULT_DIR, APP_STATE_DIR } from './paths.ts';
+import { VAULT_DIR, APP_STATE_DIR } from '../../lib/paths.ts';
 const VAULT_FILE = path.join(VAULT_DIR, 'vault.enc');
 
 // Derive 32-byte key for AES-256-GCM

@@ -4,7 +4,7 @@
  * Supports Cloudflare AI Gateway proxying and provider-specific routing.
  */
 
-import { loadKeys } from './keyVault.ts';
+import { loadKeys } from '../features/vault/vault.service.ts';
 
 export type Provider = 'gemini' | 'openrouter' | 'nvidia' | 'opencode' | 'openai' | 'anthropic' | 'deepseek' | 'groq' | 'mistral' | 'together' | 'pollinations' | 'nyx-native' | 'qwen-local';
 
