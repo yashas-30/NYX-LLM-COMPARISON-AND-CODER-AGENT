@@ -66,18 +66,6 @@ export class HybridModelRouter {
         estimatedCost: 'free'
       };
     }
-
-    const qwenStatus = await checkStatusFn('qwen-local').catch(() => 'offline' as const);
-    if (qwenStatus === 'online') {
-      return {
-        modelId: 'qwen-1.5b-local',
-        provider: 'qwen-local' as Provider,
-        reasoning: 'Qwen Python engine is available locally',
-        estimatedLatency: 100,
-        estimatedCost: 'free'
-      };
-    }
-
     return {
       modelId: 'pollinations/openai-fast',
       provider: 'pollinations' as Provider,

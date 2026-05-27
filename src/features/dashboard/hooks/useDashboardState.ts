@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTokenUsage } from '@src/shared/context/TokenUsageContext';
+import { fetchWithAuth } from '@src/infrastructure/api/authFetch';
 
 // Modular Hooks
 import { useSecurityState } from './useSecurityState';
@@ -55,6 +56,7 @@ export const useDashboardState = (onExit?: () => void) => {
   const { usage, updateUsage: trackUsage, refreshProviderQuota } = useTokenUsage();
 
   const [localModelsEnabled, setLocalModelsEnabled] = useState(false);
+  const [localLibraryModels, setLocalLibraryModels] = useState<any[]>([]);
 
   // 2. Security & API Keys
   const security = useSecurityState({}, (provider, key) => refreshProviderQuota(provider, key));
@@ -140,6 +142,41 @@ export const useDashboardState = (onExit?: () => void) => {
     localStorage.setItem('nyx_coder_models_v2', JSON.stringify(models));
   }, [models]);
 
+  // Load GGUF models dynamically from /api/nyx/local-models
+  const loadLocalLibraryModels = async () => {
+    try {
+      const res = await fetchWithAuth('/api/nyx/local-models');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.models && Array.isArray(data.models)) {
+          const completed = data.models
+            .filter((m: any) => m.status === 'completed' || m.status === 'downloading')
+            .map((m: any) => ({
+              id: m.id,
+              name: m.name,
+              provider: 'nyx-native',
+              description: m.description || `Local GGUF model (${m.size || ''})`,
+              specs: {
+                contextWindow: m.contextLength || '8K',
+                trainingData: 'N/A',
+                maxOutput: 'N/A',
+                modality: 'Text'
+              },
+              status: m.status
+            }));
+          setLocalLibraryModels(completed);
+        }
+      }
+    } catch (err) {
+      console.error('[useDashboardState] Failed to load local models:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadLocalLibraryModels();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('nyx_model_settings', JSON.stringify(modelSettings));
   }, [modelSettings]);
@@ -160,12 +197,17 @@ export const useDashboardState = (onExit?: () => void) => {
 
     // Registry (simplified)
     localModelsEnabled, setLocalModelsEnabled,
+    localLibraryModels,
 
     // Security
     ...security,
 
     // Connectivity
-    statuses, refreshStatuses,
+    statuses,
+    refreshStatuses: async () => {
+      await refreshStatuses();
+      await loadLocalLibraryModels();
+    },
     
     // Shared usage tracker for features
     trackUsage

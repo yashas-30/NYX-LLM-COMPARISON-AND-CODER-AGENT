@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { ModelProvider } from '@src/types';
+import { fetchWithAuth } from '@src/infrastructure/api/authFetch';
 
 export interface ModelSettings {
   temperature: number;
@@ -25,6 +26,8 @@ export interface NyxState {
   models: Record<'nyx', string>;
   apiKeys: Record<string, string>;
   statuses: Record<string, 'online' | 'offline' | 'no-key'>;
+  privacyMode: boolean;
+  rememberKeys: boolean;
   
   // Actions
   setActiveMode: (mode: ActiveMode) => void;
@@ -35,6 +38,9 @@ export interface NyxState {
   setApiKeys: (keys: Record<string, string>) => void;
   updateApiKey: (provider: string, key: string) => Promise<void>;
   clearApiKeys: () => Promise<void>;
+  setPrivacyMode: (enabled: boolean) => void;
+  setRememberKeys: (enabled: boolean) => void;
+  clearPrivacyData: () => void;
   
   // Lifecycle & Sync actions
   fetchWorkspacePath: () => Promise<void>;
@@ -66,6 +72,8 @@ export const useNyxStore = create<NyxState>()(
       models: { nyx: '' },
       apiKeys: {},
       statuses: {},
+      privacyMode: false,
+      rememberKeys: false,
 
       setActiveMode: (mode) => set({ activeMode: mode }),
       setWorkspacePath: (path) => set({ workspacePath: path }),
@@ -76,8 +84,28 @@ export const useNyxStore = create<NyxState>()(
         })),
       setModel: (mid) => set({ models: { nyx: mid } }),
       setApiKeys: (keys) => set({ apiKeys: keys }),
+      setPrivacyMode: (enabled) => {
+        set({ privacyMode: enabled });
+        if (enabled) {
+          get().clearPrivacyData();
+        }
+      },
+      setRememberKeys: (enabled) => set({ rememberKeys: enabled }),
+      clearPrivacyData: () => {
+        set({ apiKeys: {}, statuses: {} });
+      },
 
       updateApiKey: async (provider, key) => {
+        const { privacyMode, rememberKeys } = get();
+        if (privacyMode || !rememberKeys) {
+          // In privacy mode or when rememberKeys is disabled, store in memory only
+          set((state) => ({
+            apiKeys: { ...state.apiKeys, [provider]: key },
+          }));
+          await get().refreshStatuses();
+          return;
+        }
+
         const ipc = (window as any).nyxIPC;
         if (ipc && typeof ipc.invoke === 'function') {
           try {
@@ -114,7 +142,7 @@ export const useNyxStore = create<NyxState>()(
 
       fetchWorkspacePath: async () => {
         try {
-          const res = await fetch('/api/workspace');
+          const res = await fetchWithAuth('/api/workspace');
           if (res.ok) {
             const data = await res.json();
             set({ workspacePath: data.workspace || '' });
@@ -131,7 +159,7 @@ export const useNyxStore = create<NyxState>()(
             const directory = await ipc.showOpenDirectory();
             if (directory) {
               // Post to API to set active workspace
-              const res = await fetch('/api/workspace/select', {
+              const res = await fetchWithAuth('/api/workspace/select', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ path: directory })
@@ -149,6 +177,9 @@ export const useNyxStore = create<NyxState>()(
       },
 
       loadSecureKeys: async () => {
+        const { rememberKeys } = get();
+        if (!rememberKeys) return; // Do not auto-load saved keys if rememberKeys is disabled
+
         const ipc = (window as any).nyxIPC;
         if (ipc && typeof ipc.invoke === 'function') {
           try {
@@ -171,18 +202,14 @@ export const useNyxStore = create<NyxState>()(
       },
 
       refreshStatuses: async () => {
-        const providers: ModelProvider[] = ['gemini', 'openrouter', 'nvidia', 'opencode', 'pollinations', 'nyx-native', 'qwen-local'];
+        const providers: ModelProvider[] = ['gemini', 'openrouter', 'nvidia', 'opencode', 'pollinations', 'nyx-native'];
         const newStatuses: Record<string, 'online' | 'offline' | 'no-key'> = {};
         
         try {
           // Check local models status
-          const nativeRes = await fetch('/api/nyx/local-models/status').catch(() => null);
+          const nativeRes = await fetchWithAuth('/api/nyx/local-models/status').catch(() => null);
           const nativeOnline = nativeRes && nativeRes.ok && (await nativeRes.json()).activeModelId;
           newStatuses['nyx-native'] = nativeOnline ? 'online' : 'offline';
-
-          // Check Qwen local status
-          const qwenRes = await fetch('http://127.0.0.1:3002/health').catch(() => null);
-          newStatuses['qwen-local'] = qwenRes && qwenRes.ok ? 'online' : 'offline';
 
           // Pollinations is always online (public API)
           newStatuses['pollinations'] = 'online';
@@ -192,7 +219,7 @@ export const useNyxStore = create<NyxState>()(
           if (vaultRes && vaultRes.ok) {
             const vaultStatus = await vaultRes.json();
             for (const p of providers) {
-              if (['pollinations', 'nyx-native', 'qwen-local'].includes(p)) continue;
+              if (['pollinations', 'nyx-native'].includes(p)) continue;
               const hasVaultKey = vaultStatus[p];
               const hasMemoryKey = !!get().apiKeys[p];
               
@@ -205,7 +232,7 @@ export const useNyxStore = create<NyxState>()(
           } else {
             // Fallback: check key memory store
             for (const p of providers) {
-              if (['pollinations', 'nyx-native', 'qwen-local'].includes(p)) continue;
+              if (['pollinations', 'nyx-native'].includes(p)) continue;
               newStatuses[p] = get().apiKeys[p] ? 'online' : 'no-key';
             }
           }
@@ -222,6 +249,8 @@ export const useNyxStore = create<NyxState>()(
         localModelsEnabled: state.localModelsEnabled,
         modelSettings: state.modelSettings,
         models: state.models,
+        privacyMode: state.privacyMode,
+        rememberKeys: state.rememberKeys,
       }),
     }
   )

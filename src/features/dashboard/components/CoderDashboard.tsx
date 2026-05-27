@@ -20,6 +20,7 @@ import {
   Library
 } from 'lucide-react';
 import { toast } from '@src/shared/components/ui/sonner';
+import { CommandPalette } from '@src/shared/components/CommandPalette';
 
 type ViewMode = 'coder' | 'registry' | 'settings';
 
@@ -54,7 +55,18 @@ export const CoderDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
     models, setModel,
     updateApiKey,
     clearApiKeys,
+    localLibraryModels,
   } = useDashboardState(onExit);
+
+  const allModels = React.useMemo(() => {
+    const seen = new Set();
+    const merged = [...localLibraryModels, ...AVAILABLE_MODELS];
+    return merged.filter(m => {
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+  }, [localLibraryModels]);
 
   const { theme } = useTheme();
   const chatSessions = useChatSessions();
@@ -273,10 +285,20 @@ export const CoderDashboard: React.FC<{ onExit?: () => void }> = ({ onExit }) =>
               updateApiKey={updateApiKey}
               clearApiKeys={clearApiKeys}
               coderState={coderState}
-              allModels={AVAILABLE_MODELS}
+              allModels={allModels}
             />
           </AnimatePresence>
         </div>
+
+        {/* Command Palette */}
+        <CommandPalette
+          activeMode={activeMode}
+          setActiveMode={setActiveMode}
+          createSession={createSession}
+          clearHistory={coderState.clearHistory}
+          models={models}
+          setModel={setModel}
+        />
       </main>
     </ErrorBoundary>
   );

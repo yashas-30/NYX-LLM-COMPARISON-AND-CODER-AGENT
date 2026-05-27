@@ -4,6 +4,7 @@ import { Key, ChevronUp, ChevronDown, Network, Trash2 } from 'lucide-react';
 import { AVAILABLE_MODELS } from '@src/features/model-registry/config/models';
 import { useTokenUsage } from '@src/shared/context/TokenUsageContext';
 import { toast } from '@src/shared/components/ui/sonner';
+import { useNyxStore } from '@src/shared/store/useNyxStore';
 
 interface ProviderConfig {
   id: string;
@@ -58,6 +59,9 @@ export const ApiKeyVault: React.FC<ApiKeyVaultProps> = ({
   clearApiKeys,
 }) => {
   const { usage, resetUsage } = useTokenUsage();
+  const rememberKeys = useNyxStore(state => state.rememberKeys);
+  const setRememberKeys = useNyxStore(state => state.setRememberKeys);
+  const updateApiKey = useNyxStore(state => state.updateApiKey);
 
   const providers = PROVIDER_CONFIGS.map(p => ({
     ...p,
@@ -69,6 +73,19 @@ export const ApiKeyVault: React.FC<ApiKeyVaultProps> = ({
   };
 
   const handleSaveToVault = async () => {
+    if (!rememberKeys) {
+      // Save keys ephemerally to Zustand in-memory state
+      for (const provider of Object.keys(keysInput)) {
+        const val = keysInput[provider];
+        if (val !== undefined && val.trim().length > 0) {
+          await updateApiKey(provider, val);
+        }
+      }
+      toast.success('API keys applied ephemerally (memory-only)!');
+      setKeysInput({});
+      return;
+    }
+
     try {
       const res = await fetch('/api/vault/store', {
         method: 'POST',
@@ -76,7 +93,7 @@ export const ApiKeyVault: React.FC<ApiKeyVaultProps> = ({
         body: JSON.stringify({ keys: keysInput })
       });
       if (res.ok) {
-        toast.success('API keys successfully saved to server vault!');
+        toast.success('API keys successfully saved to secure server vault!');
         setKeysInput({});
         await fetchVaultStatus();
       } else {
@@ -110,6 +127,32 @@ export const ApiKeyVault: React.FC<ApiKeyVaultProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Remember Keys Opt-in */}
+      <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] flex items-center justify-between gap-4 select-none">
+        <div className="flex-1">
+          <p className="text-[10px] font-black uppercase tracking-[0.1em] text-foreground/80">Remember Keys on this Device</p>
+          <p className="text-[8px] text-muted-foreground/50 mt-0.5 leading-normal">
+            Encrypts and persists keys in local system keychain using Electron safeStorage (DPAPI/TPM). If disabled, keys are kept ephemerally in RAM and wiped on close.
+          </p>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={rememberKeys}
+            onChange={(e) => {
+              setRememberKeys(e.target.checked);
+              if (e.target.checked) {
+                toast.success("Safe Storage Enabled: API keys will be secured in device keychain.");
+              } else {
+                toast.info("Safe Storage Disabled: API keys will be ephemeral (memory only).");
+              }
+            }}
+            className="sr-only peer"
+          />
+          <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#22D3EE] peer-checked:after:bg-zinc-950" />
+        </label>
+      </div>
+
       <div className="space-y-2">
         {providers.map(p => {
           const hasKey = vaultStatus[p.id];
@@ -258,7 +301,7 @@ export const ApiKeyVault: React.FC<ApiKeyVaultProps> = ({
           onClick={handleSaveToVault}
           className="w-full mt-2 py-2.5 rounded-xl bg-[#22D3EE] hover:bg-[#22D3EE]/90 text-black text-[11px] font-bold uppercase tracking-[0.2em] transition-all cursor-pointer shadow-md hover:shadow-lg active:scale-95"
         >
-          Save to Server Vault
+          {rememberKeys ? "Save to Secure Device Vault" : "Apply Ephemerally (In-Memory Only)"}
         </motion.button>
       )}
 

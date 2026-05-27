@@ -48,6 +48,8 @@ interface CoderPageProps {
   codebaseKnowledgeEnabled: boolean;
   setCodebaseKnowledgeEnabled: (val: boolean) => void;
   mode: 'chat' | 'code';
+  agentMode?: 'chat' | 'coder' | null;
+  agentReasoning?: string;
 }
 
 export const CoderPage: React.FC<CoderPageProps> = ({
@@ -81,6 +83,8 @@ export const CoderPage: React.FC<CoderPageProps> = ({
   codebaseKnowledgeEnabled,
   setCodebaseKnowledgeEnabled,
   mode,
+  agentMode = null,
+  agentReasoning = '',
 }) => {
 
   const [prompt, setPrompt] = useState('');
@@ -140,6 +144,7 @@ export const CoderPage: React.FC<CoderPageProps> = ({
       className="h-full w-full flex flex-col min-h-0 overflow-hidden"
     >
       <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden relative bg-background">
+
         <CoderHeader
           activeMode={activeMode}
           onModeChange={setActiveMode}
@@ -150,6 +155,7 @@ export const CoderPage: React.FC<CoderPageProps> = ({
           sidebarOpen={sidebarOpen}
           onToggleSidebar={onToggleSidebar}
           sessionTitle={chatSessions?.activeSession?.title || 'New chat'}
+          mode={mode}
         />
         {mode === 'code' && subagentTasks && subagentTasks.length > 0 && (
           <div className="px-6 pt-3 shrink-0">
@@ -197,6 +203,8 @@ export const CoderPage: React.FC<CoderPageProps> = ({
                   onCodebaseKnowledgeToggle={setCodebaseKnowledgeEnabled}
                   mode={mode}
                   alignDropdown="bottom"
+                  agentMode={agentMode}
+                  agentReasoning={agentReasoning}
                 />
               </div>
 
@@ -248,6 +256,8 @@ export const CoderPage: React.FC<CoderPageProps> = ({
               onCodebaseKnowledgeToggle={setCodebaseKnowledgeEnabled}
               mode={mode}
               alignDropdown="top"
+              agentMode={agentMode}
+              agentReasoning={agentReasoning}
             />
           </>
         )}

@@ -10,8 +10,7 @@ export type Provider =
   | 'terminal'
   | 'opencode'
   | 'pollinations'
-  | 'nyx-native'
-  | 'qwen-local';
+  | 'nyx-native';
 
 export interface AISettings {
   temperature?: number;

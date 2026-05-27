@@ -5,6 +5,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { FREE_OPENCODE_MODELS, CLAUDE_MODELS, AVAILABLE_MODELS, POLLINATIONS_MODELS } from '@src/features/model-registry/config/models';
 import { ModelOption } from '@src/types';
 import { ProviderIcon, getProviderLabel } from '@src/shared/components/ui/ProviderIcon';
+import { AIService } from '@src/features/coder/services/ai.service';
 
 interface Props {
   currentModelId?: string;
@@ -79,6 +80,43 @@ export const ModelSelector: React.FC<Props> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const parentRef = useRef<HTMLDivElement>(null);
+  const [localLibraryModels, setLocalLibraryModels] = React.useState<ModelOption[]>([]);
+
+  React.useEffect(() => {
+    let active = true;
+    const loadLocalModels = async () => {
+      try {
+        const res = await AIService.fetchWithAuth('/api/nyx/local-models');
+        if (res.ok) {
+          const data = await res.json();
+          if (active && data.models && Array.isArray(data.models)) {
+            const completed = data.models
+              .filter((m: any) => m.status === 'completed' || m.status === 'downloading')
+              .map((m: any) => ({
+                id: m.id,
+                name: m.name,
+                provider: 'nyx-native',
+                description: m.description || `Local GGUF model (${m.size || ''})`,
+                specs: {
+                  contextWindow: m.contextLength || '8K',
+                  trainingData: 'N/A',
+                  maxOutput: 'N/A',
+                  modality: 'Text'
+                },
+                status: m.status
+              }));
+            setLocalLibraryModels(completed);
+          }
+        }
+      } catch (err) {
+        console.error('[ModelSelector] Failed to load local models:', err);
+      }
+    };
+    loadLocalModels();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!dropdown || !onClose) return;
@@ -103,14 +141,21 @@ export const ModelSelector: React.FC<Props> = ({
   const mergedModels = useMemo(() => {
     const extraModels = [...FREE_OPENCODE_MODELS, ...CLAUDE_MODELS, ...POLLINATIONS_MODELS];
     const seenIds = new Set();
-    const allSources = [...allModels, ...extraModels];
+    
+    // Filter out static presets if we successfully loaded active models
+    const filteredAllModels = allModels.filter(m => m.provider !== 'nyx-native');
+    const nativeSource = localLibraryModels.length > 0 
+      ? localLibraryModels 
+      : allModels.filter(m => m.provider === 'nyx-native');
+
+    const allSources = [...filteredAllModels, ...nativeSource, ...extraModels];
     return allSources.filter(m => {
       if (seenIds.has(m.id)) return false;
       seenIds.add(m.id);
       if (!isCoder && (m.provider === 'opencode')) return false;
       return true;
     });
-  }, [allModels, isCoder]);
+  }, [allModels, isCoder, localLibraryModels]);
 
   const groupedModels = useMemo(() => {
     const groups: Record<string, any[]> = {};

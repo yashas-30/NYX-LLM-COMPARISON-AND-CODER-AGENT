@@ -209,13 +209,7 @@ const RAW_AVAILABLE_MODELS: ModelOption[] = [
     description: 'The native NYX agent running locally on-device. Fully powered by Google\'s Gemma 4 E2B.',
     specs: { contextWindow: '128K', trainingData: '2026', maxOutput: '4K', modality: 'Text' }
   },
-  {
-    id: 'qwen-1.5b-local',
-    name: 'Qwen 2.5 Coder 1.5B (Local Python)',
-    provider: 'qwen-local',
-    description: 'Ultra-fast local Qwen 1.5B model running on Python causal LM server.',
-    specs: { contextWindow: '32K', trainingData: '2024', maxOutput: '8K', modality: 'Text' }
-  },
+
   {
     id: 'qwen2.5-coder-1.5b-native',
     name: 'Qwen 2.5 Coder 1.5B (GGUF)',
@@ -268,7 +262,7 @@ const RAW_AVAILABLE_MODELS: ModelOption[] = [
 ];
 
 // Deduplicate by ID to prevent duplicate entries in the model selector
-const ALLOWED_PROVIDERS = ['gemini', 'openrouter', 'nvidia', 'opencode', 'pollinations', 'nyx-native', 'qwen-local'];
+const ALLOWED_PROVIDERS = ['gemini', 'openrouter', 'nvidia', 'opencode', 'pollinations', 'nyx-native'];
 const _seen = new Set<string>();
 export const AVAILABLE_MODELS: ModelOption[] = RAW_AVAILABLE_MODELS
   .filter(m => ALLOWED_PROVIDERS.includes(m.provider))

@@ -35,7 +35,6 @@ import { opencodeRouter } from './server/features/opencode/opencode.router.ts';
 import { nyxRouter } from './server/features/nyx/nyx.router.ts';
 import { pollinationsRouter } from './server/features/ai-providers/pollinations.router.ts';
 import { localModelsRouter } from './server/features/local-models/localModels.router.ts';
-import { qwenLocalRouter } from './server/features/local-models/qwenLocal.router.ts';
 
 import { warmupDNS, startFastifyServer } from './server/lib/fastifyApi.ts';
 import { requestIdMiddleware } from './server/middleware/requestId.ts';
@@ -180,7 +179,6 @@ async function startServer() {
   app.use('/api/nyx/local-models', localModelLimiter, localModelsRouter);
   app.use('/api/nyx',          nyxRouter);
   app.use('/api/pollinations', aiLimiter, safetyGateMiddleware, pollinationsRouter);
-  app.use('/api/qwen-local',   aiLimiter, safetyGateMiddleware, qwenLocalRouter);
 
   if (isProd) {
     let distPath = path.join(_dirname, 'dist');

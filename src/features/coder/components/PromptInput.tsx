@@ -3,20 +3,22 @@
  * @description Prompt pill with LM Studio-style per-model inference settings panel.
  *   Settings panel appears above the whole pill (same level as model selector),
  *   resets per local model switch, only visible when a GGUF local model is active.
+ *   Enriched with high-fidelity, Granola-style micro-animations and interactions.
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Send, Settings as SettingsIcon, Check, StopCircle,
-  Paperclip, X, Zap, Info, ChevronDown, Bot, Globe, Plus,
+  Paperclip, X, Zap, Info, ChevronDown, Bot, Globe,
   Mic, SlidersHorizontal, MemoryStick, Cpu, Thermometer,
-  Layers, RotateCcw, AlertTriangle
+  Layers, RotateCcw
 } from 'lucide-react';
 import { ModelSelector } from '@src/features/model-registry/components/ModelSelector';
 import { ModelDefinition } from '@src/infrastructure/types';
 import { toast } from '@src/shared/components/ui/sonner';
 import { analyzePrompt, optimizePromptText } from '@/shared/promptAnalyzer';
+import { AgentModeBadge } from './AgentModeBadge';
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 interface PromptInputProps {
@@ -43,6 +45,8 @@ interface PromptInputProps {
   onCodebaseKnowledgeToggle: (enabled: boolean) => void;
   mode?: 'chat' | 'code';
   alignDropdown?: 'top' | 'bottom';
+  agentMode?: 'chat' | 'coder' | null;
+  agentReasoning?: string;
 }
 
 interface LocalInferenceSettings {
@@ -57,19 +61,28 @@ interface LocalInferenceSettings {
   mirostat: 0 | 1 | 2;
 }
 
-const DEFAULT_LOCAL: LocalInferenceSettings = {
-  gpuLayers: 99,
-  contextSize: 2048,
-  threads: 4,
-  batchSize: 512,
-  temperature: 0.7,
-  topP: 0.95,
-  topK: 40,
-  repeatPenalty: 1.1,
-  mirostat: 0,
+/* ── Staggered Entrance Variants for Granola Tags ───────────────────────── */
+const tagContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+      delayChildren: 0.05,
+    }
+  }
 };
 
-/* ── Component ───────────────────────────────────────────────────────────── */
+const tagItemVariants = {
+  hidden: { opacity: 0, x: -10, scale: 0.95 },
+  visible: { 
+    opacity: 1, 
+    x: 0, 
+    scale: 1,
+    transition: { type: 'spring', stiffness: 350, damping: 25 }
+  }
+};
+
 export const PromptInput: React.FC<PromptInputProps> = ({
   prompt,
   onPromptChange,
@@ -88,14 +101,21 @@ export const PromptInput: React.FC<PromptInputProps> = ({
   getCustomModelIcon,
   webSearchEnabled,
   onWebSearchToggle,
+  codebaseKnowledgeEnabled,
+  onCodebaseKnowledgeToggle,
   mode,
   alignDropdown = 'top',
+  agentMode = null,
+  agentReasoning = '',
 }) => {
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
   const [selectedProvider, setSelectedProvider] = useState<string>('gemini');
   const [showSettings, setShowSettings] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const isSubmitting = useRef(false);
   const localSettings = modelSettings;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -113,7 +133,6 @@ export const PromptInput: React.FC<PromptInputProps> = ({
   /* ── Reset settings when switching local models ──────────────────────── */
   useEffect(() => {
     if (isLocalModel) {
-      // Close settings panel when switching models so the user sees the reset
       setShowSettings(false);
     }
   }, [currentModelId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -128,21 +147,18 @@ export const PromptInput: React.FC<PromptInputProps> = ({
   /* ── Global keyboard shortcuts ────────────────────────────────────────── */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 1. Toggle Model Selector (Cmd+K / Ctrl+K)
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setShowModelSelector(v => !v);
         setShowSettings(false);
       }
 
-      // 2. Stop active inference (Escape)
       if (e.key === 'Escape' && isLoading) {
         e.preventDefault();
         onStop();
         toast.info('Generation stopped');
       }
 
-      // 3. Clear Chat History (Cmd+Shift+C / Ctrl+Shift+C)
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
         e.preventDefault();
         onClearHistory();
@@ -153,6 +169,18 @@ export const PromptInput: React.FC<PromptInputProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isLoading, onStop, onClearHistory]);
+
+  // Listen for global open selector events
+  useEffect(() => {
+    const handleOpenSelector = () => {
+      setShowModelSelector(true);
+      setShowSettings(false);
+    };
+    window.addEventListener('nyx:open-model-selector', handleOpenSelector);
+    return () => {
+      window.removeEventListener('nyx:open-model-selector', handleOpenSelector);
+    };
+  }, []);
 
   const analysis = prompt ? analyzePrompt(prompt) : null;
   const isHardware = analysis?.hardware?.isHardware || false;
@@ -192,24 +220,32 @@ export const PromptInput: React.FC<PromptInputProps> = ({
 
   const handleSubmit = async (e?: React.SyntheticEvent) => {
     e?.preventDefault();
-    if (!prompt.trim() || isLoading) return;
+    if (!prompt.trim() || isLoading || isSubmitting.current) return;
     if (!currentModelId) { toast.error('Please select a model first'); return; }
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    let finalPrompt = prompt;
-    if (selectedFile) {
-      try {
-        const content = await new Promise<string>((res, rej) => {
-          const r = new FileReader();
-          r.onload = () => res(r.result as string);
-          r.onerror = () => rej(r.error);
-          r.readAsText(selectedFile);
-        });
-        finalPrompt = `[ATTACHED FILE: ${selectedFile.name}]\n\`\`\`\n${content}\n\`\`\`\n\n${prompt}`;
-        setSelectedFile(null);
-      } catch { toast.error('Could not read file'); return; }
+    
+    isSubmitting.current = true;
+    try {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      let finalPrompt = prompt;
+      if (selectedFile) {
+        try {
+          const content = await new Promise<string>((res, rej) => {
+            const r = new FileReader();
+            r.onload = () => res(r.result as string);
+            r.onerror = () => rej(r.error);
+            r.readAsText(selectedFile);
+          });
+          finalPrompt = `[ATTACHED FILE: ${selectedFile.name}]\n\`\`\`\n${content}\n\`\`\`\n\n${prompt}`;
+          setSelectedFile(null);
+        } catch { toast.error('Could not read file'); return; }
+      }
+      onSubmit(finalPrompt);
+      adjustHeight(true);
+    } finally {
+      setTimeout(() => {
+        isSubmitting.current = false;
+      }, 500);
     }
-    onSubmit(finalPrompt);
-    adjustHeight(true);
   };
 
   const canSubmit = !!prompt.trim() && !!currentModelId && !isLoading;
@@ -224,9 +260,9 @@ export const PromptInput: React.FC<PromptInputProps> = ({
     localSettings.gpuLayers === 0 ? 'text-zinc-400' :
     localSettings.gpuLayers < 50 ? 'text-[#22D3EE]/70' : 'text-[#22D3EE]';
 
-  /* ── Render ──────────────────────────────────────────────────────────── */
   return (
-    <div className="shrink-0 w-full flex flex-col items-center px-4 pb-4 pt-2 bg-background z-30">
+    <div className="shrink-0 w-full flex flex-col items-center px-4 pb-4 pt-2 bg-background z-30 gap-2">
+      <AgentModeBadge mode={agentMode} reasoning={agentReasoning} isLoading={isLoading} />
       <div className={`relative w-full transition-all duration-500 ease-out ${prompt.trim().length > 0 ? 'max-w-3xl' : 'max-w-2xl'}`}>
 
         {/* ── Hardware critique panel ─────────────────────────────────── */}
@@ -313,14 +349,10 @@ export const PromptInput: React.FC<PromptInputProps> = ({
           )}
         </AnimatePresence>
 
-        {/* ══════════════════════════════════════════════════════════════════
-            Settings Panel — above the pill, same level as model selector.
-            Only rendered when a local GGUF model is active.
-        ══════════════════════════════════════════════════════════════════ */}
+        {/* ── Settings Panel ────────────────────────────────────────── */}
         <AnimatePresence>
           {isLocalModel && showSettings && (
             <>
-              {/* Click-away backdrop */}
               <div
                 className="fixed inset-0 z-[499]"
                 onClick={() => setShowSettings(false)}
@@ -331,13 +363,10 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 12, scale: 0.97 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                /* Double-Bezel Architecture */
                 className="absolute bottom-full mb-3 left-0 right-0 z-[500] bg-card border border-white/[0.04] p-1 rounded-3xl shadow-2xl overflow-hidden"
               >
-                {/* Inner Core */}
                 <div className="w-full bg-card/98 border border-white/[0.04] rounded-[calc(1.5rem-4px)] overflow-hidden">
                   
-                  {/* ── Header ─────────────────────────────────────────────── */}
                   <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/[0.05]">
                     <div className="flex items-center gap-3">
                       <div className="w-7 h-7 rounded-xl bg-[#22D3EE]/10 border border-[#22D3EE]/20 flex items-center justify-center">
@@ -350,284 +379,403 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                         </p>
                       </div>
                     </div>
-                  <div className="flex items-center gap-1.5">
-                    <motion.button
-                      whileTap={{ scale: 0.88 }}
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          const modelIdParam = currentModelId ? `?modelId=${currentModelId}` : '';
-                          const res = await fetch(`/api/system${modelIdParam}`);
-                          const sys = await res.json();
-                          const ramGB = sys.totalmem / (1024 * 1024 * 1024);
-                          const vramGB = (sys.vram || 0) / (1024 * 1024 * 1024);
-                          
-                          let newGpu = 10;
-                          let recommendedModel = currentModelId || 'nyx-gemma-4-e2b-it';
-                          let message = '';
+                    <div className="flex items-center gap-1.5">
+                      <motion.button
+                        whileTap={{ scale: 0.88 }}
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const modelIdParam = currentModelId ? `?modelId=${currentModelId}` : '';
+                            const res = await fetch(`/api/system${modelIdParam}`);
+                            const sys = await res.json();
+                            const ramGB = sys.totalmem / (1024 * 1024 * 1024);
+                            const vramGB = (sys.vram || 0) / (1024 * 1024 * 1024);
+                            
+                            let newGpu = 10;
+                            let recommendedModel = currentModelId || 'nyx-gemma-4-e2b-it';
+                            let message = '';
 
-                          if (sys.optimalLayers) {
-                            newGpu = sys.optimalLayers.gpuLayers;
-                            message = sys.optimalLayers.message;
-                            if (vramGB >= 8 && currentModelId === 'nyx-gemma-4-e2b-it') {
-                              recommendedModel = 'qwen2.5-coder-3b-native';
-                              message += ` High VRAM detected, switching to qwen2.5-coder-3b-native for optimal code generation.`;
-                            }
-                          } else {
-                            if (vramGB >= 8) {
-                              newGpu = 99;
-                              recommendedModel = 'qwen2.5-coder-3b-native';
-                              message = `High VRAM detected (${Math.round(vramGB)}GB). Optimal settings applied.`;
-                            } else if (vramGB > 0) {
-                              newGpu = Math.floor(vramGB * 10);
-                              recommendedModel = 'nyx-gemma-4-e2b-it';
-                              message = `VRAM detected (${vramGB.toFixed(1)}GB). Optimal settings applied.`;
-                            } else if (ramGB >= 24) {
-                              newGpu = 99;
-                              recommendedModel = 'qwen2.5-coder-3b-native';
-                              message = `High RAM detected (${Math.round(ramGB)}GB). Optimal settings applied.`;
-                            } else if (ramGB >= 15) {
-                              newGpu = 50;
-                              recommendedModel = 'qwen2.5-coder-3b-native';
-                              message = `Moderate RAM detected (${Math.round(ramGB)}GB). Optimal settings applied.`;
-                            } else if (ramGB >= 7) {
-                              newGpu = 20;
-                              message = `System analyzed: ${Math.round(ramGB)}GB RAM. Settings adjusted.`;
+                            if (sys.optimalLayers) {
+                              newGpu = sys.optimalLayers.gpuLayers;
+                              message = sys.optimalLayers.message;
+                              if (vramGB >= 8 && currentModelId === 'nyx-gemma-4-e2b-it') {
+                                recommendedModel = 'qwen2.5-coder-3b-native';
+                                message += ` High VRAM detected, switching to qwen2.5-coder-3b-native for optimal code generation.`;
+                              }
                             } else {
-                              message = `Basic system: ${Math.round(ramGB)}GB RAM. Using safe defaults.`;
+                              if (vramGB >= 8) {
+                                newGpu = 99;
+                                recommendedModel = 'qwen2.5-coder-3b-native';
+                                message = `High VRAM detected (${Math.round(vramGB)}GB). Optimal settings applied.`;
+                              } else if (vramGB > 0) {
+                                newGpu = Math.floor(vramGB * 10);
+                                recommendedModel = 'nyx-gemma-4-e2b-it';
+                                message = `VRAM detected (${vramGB.toFixed(1)}GB). Optimal settings applied.`;
+                              } else if (ramGB >= 24) {
+                                newGpu = 99;
+                                recommendedModel = 'qwen2.5-coder-3b-native';
+                                message = `High RAM detected (${Math.round(ramGB)}GB). Optimal settings applied.`;
+                              } else if (ramGB >= 15) {
+                                newGpu = 50;
+                                recommendedModel = 'qwen2.5-coder-3b-native';
+                                message = `Moderate RAM detected (${Math.round(ramGB)}GB). Optimal settings applied.`;
+                              } else if (ramGB >= 7) {
+                                newGpu = 20;
+                                message = `System analyzed: ${Math.round(ramGB)}GB RAM. Settings adjusted.`;
+                              } else {
+                                message = `Basic system: ${Math.round(ramGB)}GB RAM. Using safe defaults.`;
+                              }
                             }
+
+                            const newThreads = Math.max(1, Math.floor(sys.cpus * 0.75));
+                            
+                            onModelSettingsChange({
+                               ...modelSettings,
+                               gpuLayers: newGpu,
+                               threads: newThreads
+                             });
+                             if (recommendedModel && recommendedModel !== currentModelId) {
+                               onModelSelect(recommendedModel);
+                             }
+                            
+                            toast.success(message);
+                          } catch (e) {
+                            toast.error('Failed to analyze system');
                           }
-
-                          const newThreads = Math.max(1, Math.floor(sys.cpus * 0.75));
-                          
-                          onModelSettingsChange({
-                             ...modelSettings,
-                             gpuLayers: newGpu,
-                             threads: newThreads
-                           });
-                           if (recommendedModel && recommendedModel !== currentModelId) {
-                             onModelSelect(recommendedModel);
-                           }
-                          
-                          toast.success(message);
-                        } catch (e) {
-                          toast.error('Failed to analyze system');
-                        }
-                      }}
-                      title="Auto-adjust based on system specs"
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-wider text-muted-foreground/35 hover:text-emerald-400 hover:bg-emerald-500/8 border border-transparent hover:border-emerald-500/15 transition-all"
-                    >
-                      <Zap size={9} />
-                      Analyze System
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.88 }}
-                      type="button"
-                      onClick={resetLocalSettings}
-                      title="Reset to defaults"
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-wider text-muted-foreground/35 hover:text-[#22D3EE] hover:bg-[#22D3EE]/8 border border-transparent hover:border-[#22D3EE]/15 transition-all"
-                    >
-                      <RotateCcw size={9} />
-                      Reset
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.88 }}
-                      type="button"
-                      onClick={() => setShowSettings(false)}
-                      className="p-1.5 rounded-xl text-muted-foreground/30 hover:text-foreground/70 hover:bg-white/5 transition-all"
-                    >
-                      <Check size={13} />
-                    </motion.button>
-                  </div>
-                </div>
-
-                {/* ── Body — 2-column grid ────────────────────────────────── */}
-                <div
-                  className="overflow-y-auto max-h-[60dvh] sm:max-h-[420px] px-4 sm:px-6 py-4 sm:py-5"
-                  style={{ scrollbarWidth: 'none' }}
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
-
-                    {/* Left column */}
-                    <div className="space-y-6">
-                      {/* GPU / VRAM */}
-                      <section>
-                        <SectionLabel icon={<MemoryStick size={9} />} label="GPU / VRAM" color="text-[#22D3EE]" />
-                        <div className="mt-3 p-3.5 rounded-2xl bg-[#22D3EE]/[0.04] border border-[#22D3EE]/10 space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[8px] font-bold text-muted-foreground/50 uppercase tracking-wider">GPU Layers (ngl)</span>
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-[8px] font-black uppercase tracking-wider ${gpuColor}`}>{gpuModeLabel}</span>
-                              <span className="text-[10px] font-mono font-bold text-foreground/45 tabular-nums">{localSettings.gpuLayers}</span>
-                            </div>
-                          </div>
-                          <input
-                            type="range" min={0} max={99} step={1}
-                            value={localSettings.gpuLayers}
-                            onChange={e => updateLocal('gpuLayers', Number(e.target.value))}
-                            className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-[#22D3EE] bg-white/8"
-                          />
-                          <div className="flex justify-between">
-                            <span className="text-[7px] text-muted-foreground/25">CPU Only</span>
-                            <span className="text-[7px] text-muted-foreground/25">Full VRAM</span>
-                          </div>
-                          <p className="text-[7px] text-muted-foreground/28 leading-relaxed">
-                            {localSettings.gpuLayers === 0
-                              ? 'All compute on CPU. No VRAM used.'
-                              : localSettings.gpuLayers < 30
-                              ? 'Low VRAM offload. Good for 2–4 GB.'
-                              : localSettings.gpuLayers < 70
-                              ? 'Balanced split. Recommended for 8 GB VRAM.'
-                              : 'Max VRAM offload. Requires 12+ GB.'}
-                          </p>
-                        </div>
-                      </section>
-
-                      {/* Context */}
-                      <section>
-                        <SectionLabel icon={<Layers size={9} />} label="Context & Memory" color="text-[#22D3EE]" />
-                        <div className="mt-3">
-                          <ParamSlider
-                            label="Context Size"
-                            hint="Tokens the model attends to. More = larger RAM footprint."
-                            value={localSettings.contextSize}
-                            min={512} max={32768} step={512}
-                            display={v => `${Math.round(v / 1024)}K`}
-                            accent="accent-[#22D3EE]"
-                            onChange={v => updateLocal('contextSize', v)}
-                          />
-                        </div>
-                      </section>
-
-                      {/* CPU Compute */}
-                      <section>
-                        <SectionLabel icon={<Cpu size={9} />} label="CPU Compute" color="text-[#22D3EE]" />
-                        <div className="mt-3 space-y-4">
-                          <ParamSlider
-                            label="CPU Threads"
-                            hint="Parallel threads for CPU inference layers."
-                            value={localSettings.threads}
-                            min={1} max={32} step={1}
-                            display={v => `${v}`}
-                            accent="accent-[#22D3EE]"
-                            onChange={v => updateLocal('threads', v)}
-                          />
-                          <ParamSlider
-                            label="Batch Size"
-                            hint="Tokens per step during prompt prefill."
-                            value={localSettings.batchSize}
-                            min={64} max={2048} step={64}
-                            display={v => `${v}`}
-                            accent="accent-[#22D3EE]"
-                            onChange={v => updateLocal('batchSize', v)}
-                          />
-                        </div>
-                      </section>
+                        }}
+                        title="Auto-adjust based on system specs"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-wider text-muted-foreground/35 hover:text-emerald-400 hover:bg-emerald-500/8 border border-transparent hover:border-emerald-500/15 transition-all"
+                      >
+                        <Zap size={9} />
+                        Analyze System
+                      </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.88 }}
+                        type="button"
+                        onClick={resetLocalSettings}
+                        title="Reset to defaults"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-wider text-muted-foreground/35 hover:text-[#22D3EE] hover:bg-[#22D3EE]/8 border border-transparent hover:border-[#22D3EE]/15 transition-all"
+                      >
+                        <RotateCcw size={9} />
+                        Reset
+                      </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.88 }}
+                        type="button"
+                        onClick={() => setShowSettings(false)}
+                        className="p-1.5 rounded-xl text-muted-foreground/30 hover:text-foreground/70 hover:bg-white/5 transition-all"
+                      >
+                        <Check size={13} />
+                      </motion.button>
                     </div>
+                  </div>
 
-                    {/* Right column — Sampling */}
-                    <div className="space-y-6">
-                      <section>
-                        <SectionLabel icon={<Thermometer size={9} />} label="Sampling" color="text-[#22D3EE]" />
-                        <div className="mt-3 space-y-4">
-                          <ParamSlider
-                            label="Temperature"
-                            hint="Randomness. 0 = deterministic, 1+ = creative."
-                            value={localSettings.temperature ?? 0.7}
-                            min={0} max={2} step={0.05}
-                            display={v => (v ?? 0.7).toFixed(2)}
-                            accent="accent-[#22D3EE]"
-                            onChange={v => updateLocal('temperature', v)}
-                            isFloat
-                          />
-                          <ParamSlider
-                            label="Top-P (Nucleus)"
-                            hint="Cumulative probability cutoff for token selection."
-                            value={localSettings.topP ?? 0.95}
-                            min={0} max={1} step={0.01}
-                            display={v => (v ?? 0.95).toFixed(2)}
-                            accent="accent-[#22D3EE]"
-                            onChange={v => updateLocal('topP', v)}
-                            isFloat
-                          />
-                          <ParamSlider
-                            label="Top-K"
-                            hint="Sample from top K tokens only. 0 = disabled."
-                            value={localSettings.topK ?? 40}
-                            min={0} max={200} step={1}
-                            display={v => `${v ?? 40}`}
-                            accent="accent-[#22D3EE]"
-                            onChange={v => updateLocal('topK', v)}
-                          />
-                          <ParamSlider
-                            label="Repeat Penalty"
-                            hint="Penalises recently used tokens. > 1.0 reduces repetition."
-                            value={localSettings.repeatPenalty ?? 1.1}
-                            min={1} max={2} step={0.05}
-                            display={v => (v ?? 1.1).toFixed(2)}
-                            accent="accent-[#22D3EE]"
-                            onChange={v => updateLocal('repeatPenalty', v)}
-                            isFloat
-                          />
-
-                          {/* Mirostat */}
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <div>
-                                <span className="text-[8px] font-bold text-muted-foreground/55 uppercase tracking-wider">Mirostat</span>
-                                <p className="text-[7px] text-muted-foreground/28 mt-0.5">Adaptive sampler — overrides Top-P / Top-K.</p>
+                  <div
+                    className="overflow-y-auto max-h-[60dvh] sm:max-h-[420px] px-4 sm:px-6 py-4 sm:py-5"
+                    style={{ scrollbarWidth: 'none' }}
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                      <div className="space-y-6">
+                        <section>
+                          <SectionLabel icon={<MemoryStick size={9} />} label="GPU / VRAM" color="text-[#22D3EE]" />
+                          <div className="mt-3 p-3.5 rounded-2xl bg-[#22D3EE]/[0.04] border border-[#22D3EE]/10 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[8px] font-bold text-muted-foreground/50 uppercase tracking-wider">GPU Layers (ngl)</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-[8px] font-black uppercase tracking-wider ${gpuColor}`}>{gpuModeLabel}</span>
+                                <span className="text-[10px] font-mono font-bold text-foreground/45 tabular-nums">{localSettings.gpuLayers}</span>
                               </div>
-                              <span className="text-[10px] font-mono font-bold text-foreground/40 tabular-nums">
-                                {localSettings.mirostat === 0 ? 'Off' : `v${localSettings.mirostat}`}
-                              </span>
                             </div>
-                            <div className="flex gap-2">
-                              {([0, 1, 2] as const).map(v => (
-                                <motion.button
-                                  key={v}
-                                  whileTap={{ scale: 0.9 }}
-                                  type="button"
-                                  onClick={() => updateLocal('mirostat', v)}
-                                  className={`flex-1 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all ${
-                                    localSettings.mirostat === v
-                                      ? 'bg-[#22D3EE]/15 text-[#22D3EE] border border-[#22D3EE]/30'
-                                      : 'bg-white/4 text-muted-foreground/35 border border-white/6 hover:bg-white/8 hover:text-muted-foreground/60'
-                                  }`}
-                                >
-                                  {v === 0 ? 'Off' : `v${v}`}
-                                </motion.button>
-                              ))}
+                            <input
+                              type="range" min={0} max={99} step={1}
+                              value={localSettings.gpuLayers}
+                              onChange={e => updateLocal('gpuLayers', Number(e.target.value))}
+                              className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-[#22D3EE] bg-white/8"
+                            />
+                            <div className="flex justify-between">
+                              <span className="text-[7px] text-muted-foreground/25">CPU Only</span>
+                              <span className="text-[7px] text-muted-foreground/25">Full VRAM</span>
+                            </div>
+                            <p className="text-[7px] text-muted-foreground/28 leading-relaxed">
+                              {localSettings.gpuLayers === 0
+                                ? 'All compute on CPU. No VRAM used.'
+                                : localSettings.gpuLayers < 30
+                                ? 'Low VRAM offload. Good for 2–4 GB.'
+                                : localSettings.gpuLayers < 70
+                                ? 'Balanced split. Recommended for 8 GB VRAM.'
+                                : 'Max VRAM offload. Requires 12+ GB.'}
+                            </p>
+                          </div>
+                        </section>
+
+                        <section>
+                          <SectionLabel icon={<Layers size={9} />} label="Context & Memory" color="text-[#22D3EE]" />
+                          <div className="mt-3">
+                            <ParamSlider
+                              label="Context Size"
+                              hint="Tokens the model attends to. More = larger RAM footprint."
+                              value={localSettings.contextSize}
+                              min={512} max={32768} step={512}
+                              display={v => `${Math.round(v / 1024)}K`}
+                              accent="accent-[#22D3EE]"
+                              onChange={v => updateLocal('contextSize', v)}
+                            />
+                          </div>
+                        </section>
+
+                        <section>
+                          <SectionLabel icon={<Cpu size={9} />} label="CPU Compute" color="text-[#22D3EE]" />
+                          <div className="mt-3 space-y-4">
+                            <ParamSlider
+                              label="CPU Threads"
+                              hint="Parallel threads for CPU inference layers."
+                              value={localSettings.threads}
+                              min={1} max={32} step={1}
+                              display={v => `${v}`}
+                              accent="accent-[#22D3EE]"
+                              onChange={v => updateLocal('threads', v)}
+                            />
+                            <ParamSlider
+                              label="Batch Size"
+                              hint="Tokens per step during prompt prefill."
+                              value={localSettings.batchSize}
+                              min={64} max={2048} step={64}
+                              display={v => `${v}`}
+                              accent="accent-[#22D3EE]"
+                              onChange={v => updateLocal('batchSize', v)}
+                            />
+                          </div>
+                        </section>
+                      </div>
+
+                      <div className="space-y-6">
+                        <section>
+                          <SectionLabel icon={<Thermometer size={9} />} label="Sampling" color="text-[#22D3EE]" />
+                          <div className="mt-3 space-y-4">
+                            <ParamSlider
+                              label="Temperature"
+                              hint="Randomness. 0 = deterministic, 1+ = creative."
+                              value={localSettings.temperature ?? 0.7}
+                              min={0} max={2} step={0.05}
+                              display={v => (v ?? 0.7).toFixed(2)}
+                              accent="accent-[#22D3EE]"
+                              onChange={v => updateLocal('temperature', v)}
+                              isFloat
+                            />
+                            <ParamSlider
+                              label="Top-P (Nucleus)"
+                              hint="Cumulative probability cutoff for token selection."
+                              value={localSettings.topP ?? 0.95}
+                              min={0} max={1} step={0.01}
+                              display={v => (v ?? 0.95).toFixed(2)}
+                              accent="accent-[#22D3EE]"
+                              onChange={v => updateLocal('topP', v)}
+                              isFloat
+                            />
+                            <ParamSlider
+                              label="Top-K"
+                              hint="Sample from top K tokens only. 0 = disabled."
+                              value={localSettings.topK ?? 40}
+                              min={0} max={200} step={1}
+                              display={v => `${v ?? 40}`}
+                              accent="accent-[#22D3EE]"
+                              onChange={v => updateLocal('topK', v)}
+                            />
+                            <ParamSlider
+                              label="Repeat Penalty"
+                              hint="Penalises recently used tokens. > 1.0 reduces repetition."
+                              value={localSettings.repeatPenalty ?? 1.1}
+                              min={1} max={2} step={0.05}
+                              display={v => (v ?? 1.1).toFixed(2)}
+                              accent="accent-[#22D3EE]"
+                              onChange={v => updateLocal('repeatPenalty', v)}
+                              isFloat
+                            />
+
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <div>
+                                  <span className="text-[8px] font-bold text-muted-foreground/55 uppercase tracking-wider">Mirostat</span>
+                                  <p className="text-[7px] text-muted-foreground/28 mt-0.5">Adaptive sampler — overrides Top-P / Top-K.</p>
+                                </div>
+                                <span className="text-[10px] font-mono font-bold text-foreground/40 tabular-nums">
+                                  {localSettings.mirostat === 0 ? 'Off' : `v${localSettings.mirostat}`}
+                                </span>
+                              </div>
+                              <div className="flex gap-2">
+                                {([0, 1, 2] as const).map(v => (
+                                  <motion.button
+                                    key={v}
+                                    whileTap={{ scale: 0.9 }}
+                                    type="button"
+                                    onClick={() => updateLocal('mirostat', v)}
+                                    className={`flex-1 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all ${
+                                      localSettings.mirostat === v
+                                        ? 'bg-[#22D3EE]/15 text-[#22D3EE] border border-[#22D3EE]/30'
+                                        : 'bg-white/4 text-muted-foreground/35 border border-white/6 hover:bg-white/8 hover:text-muted-foreground/60'
+                                    }`}
+                                  >
+                                    {v === 0 ? 'Off' : `v${v}`}
+                                  </motion.button>
+                                ))}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </section>
+                        </section>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-white/[0.04] flex items-start gap-2 px-6 pb-5">
+                      <Info size={9} className="text-muted-foreground/20 mt-0.5 shrink-0" />
+                      <p className="text-[7px] text-muted-foreground/20 leading-relaxed">
+                        GPU Layers apply when the model is loaded into Resident RAM + VRAM. All other sampling parameters take effect on the next generation. Settings reset automatically when you switch models.
+                      </p>
                     </div>
                   </div>
-
-                  {/* Footer note */}
-                  <div className="mt-5 pt-4 border-t border-white/[0.04] flex items-start gap-2 px-6 pb-5">
-                    <Info size={9} className="text-muted-foreground/20 mt-0.5 shrink-0" />
-                    <p className="text-[7px] text-muted-foreground/20 leading-relaxed">
-                      GPU Layers apply when the model is loaded into Resident RAM + VRAM. All other sampling parameters take effect on the next generation. Settings reset automatically when you switch models.
-                    </p>
-                  </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
             </>
           )}
         </AnimatePresence>
 
-        {/* ── Main pill ─────────────────────────────────────────────────── */}
+        {/* ── Granola-Style Dark Mode Prompt Capsule ─────────────────────── */}
         <motion.form
           onSubmit={handleSubmit}
           layout
           transition={{ type: 'spring', stiffness: 380, damping: 30 }}
           className="relative w-full"
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file) {
+              setSelectedFile(file);
+              toast.success(`Attached via Drop: ${file.name}`);
+            }
+          }}
         >
-          {/* Single clean pill in Claude warm charcoal background */}
-          <div className="w-full p-[1px] bg-white/[0.03] border border-white/[0.04] rounded-2xl shadow-xl focus-within:border-white/10 transition-all duration-300">
-            <div className="flex flex-col gap-2.5 p-2 bg-card rounded-[calc(1rem-1px)] transition-all">
+          {/* Outer capsule wrapper */}
+          <div className={`w-full flex flex-col bg-zinc-900/60 backdrop-blur-xl border rounded-[24px] p-1.5 shadow-2xl transition-all duration-300 ${
+            isDragging 
+              ? 'border-[#22D3EE] shadow-[0_0_24px_rgba(34,211,238,0.2)] bg-[#22D3EE]/5' 
+              : 'border-white/[0.04] focus-within:border-white/10'
+          }`}>
+            
+            {/* Top row of interactive feature pills (tags) - Staggered mount animations */}
+            <motion.div 
+              variants={tagContainerVariants}
+              initial="hidden"
+              animate="visible"
+              className="flex items-center justify-between px-3 py-2 border-b border-white/[0.03] overflow-x-auto gap-3 scrollbar-none select-none"
+            >
+              <div className="flex items-center gap-2">
+                {/* Tag 1: List Tasks */}
+                <motion.button
+                  variants={tagItemVariants}
+                  whileHover={{ y: -1.5, scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="button"
+                  onClick={() => {
+                    onPromptChange("List active tasks and show current workspace status.");
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/[0.03] border border-emerald-500/10 hover:border-emerald-500/25 transition-all text-left text-zinc-300 hover:text-white cursor-pointer shrink-0"
+                >
+                  <span className="w-3.5 h-3.5 rounded bg-emerald-500/15 flex items-center justify-center text-[9px] font-black text-emerald-400 leading-none font-mono">/</span>
+                  <span className="text-[9.5px] font-bold tracking-tight">List tasks</span>
+                </motion.button>
+
+                {/* Tag 2: Optimize Prompt */}
+                <motion.button
+                  variants={tagItemVariants}
+                  whileHover={{ y: -1.5, scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="button"
+                  onClick={() => {
+                    if (prompt.trim()) {
+                      onPromptChange(optimizePromptText(prompt, analysis));
+                      toast.success('Prompt optimized!');
+                    } else {
+                      toast.error('Type a prompt first to optimize it');
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/[0.03] border border-cyan-500/10 hover:border-cyan-500/25 transition-all text-left text-zinc-300 hover:text-white cursor-pointer shrink-0"
+                >
+                  <span className="w-3.5 h-3.5 rounded bg-cyan-500/15 flex items-center justify-center text-[9px] font-black text-cyan-400 leading-none font-mono">/</span>
+                  <span className="text-[9.5px] font-bold tracking-tight">Optimize prompt</span>
+                </motion.button>
+
+                {/* Tag 3: Codebase Search */}
+                <motion.button
+                  variants={tagItemVariants}
+                  whileHover={{ y: -1.5, scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="button"
+                  onClick={() => {
+                    onCodebaseKnowledgeToggle(!codebaseKnowledgeEnabled);
+                    toast.success(`Codebase knowledge ${!codebaseKnowledgeEnabled ? 'enabled' : 'disabled'}`);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all text-left cursor-pointer shrink-0 ${
+                    codebaseKnowledgeEnabled
+                      ? 'bg-purple-500/10 border border-purple-500/35 text-white'
+                      : 'bg-purple-500/[0.03] border border-purple-500/10 text-zinc-300 hover:text-white hover:border-purple-500/25'
+                  }`}
+                >
+                  <span className={`w-3.5 h-3.5 rounded flex items-center justify-center text-[9px] font-black leading-none font-mono ${
+                    codebaseKnowledgeEnabled ? 'bg-purple-500 text-black font-extrabold' : 'bg-purple-500/15 text-purple-400'
+                  }`}>/</span>
+                  <span className="text-[9.5px] font-bold tracking-tight">Codebase search</span>
+                </motion.button>
+
+                {/* Tag 4: Reset Context */}
+                <motion.button
+                  variants={tagItemVariants}
+                  whileHover={{ y: -1.5, scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="button"
+                  onClick={() => {
+                    onClearHistory();
+                    onPromptChange('');
+                    toast.success('Context reset');
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/[0.03] border border-amber-500/10 hover:border-amber-500/25 transition-all text-left text-zinc-300 hover:text-white cursor-pointer shrink-0"
+                >
+                  <span className="w-3.5 h-3.5 rounded bg-amber-500/15 flex items-center justify-center text-[9px] font-black text-amber-400 leading-none font-mono">/</span>
+                  <span className="text-[9.5px] font-bold tracking-tight">Reset context</span>
+                </motion.button>
+              </div>
+
+              {/* Right Tag: All Models */}
+              <motion.button
+                variants={tagItemVariants}
+                whileHover={{ y: -1.5, scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="button"
+                onClick={() => {
+                  setShowModelSelector(v => !v);
+                  setShowSettings(false);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.02] border border-white/5 hover:border-white/15 text-zinc-400 hover:text-white cursor-pointer shrink-0"
+              >
+                <Bot size={11} className="text-zinc-500 shrink-0" />
+                <span className="text-[9.5px] font-bold tracking-tight">All models</span>
+              </motion.button>
+            </motion.div>
+
+            {/* Inner box: input area itself - Focused Glow transition */}
+            <div className={`w-full bg-[#121214] border rounded-[16px] p-3 mt-1.5 flex flex-col gap-2 relative shadow-inner transition-all duration-300 ${
+              isFocused 
+                ? 'border-[#22D3EE]/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.02),0_0_16px_rgba(34,211,238,0.06)]' 
+                : 'border-white/[0.02]'
+            }`}>
+              {isDragging && (
+                <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-[2px] rounded-[16px] flex items-center justify-center z-50 border border-dashed border-[#22D3EE]/30 pointer-events-none">
+                  <span className="text-xs font-black uppercase tracking-widest text-[#22D3EE] animate-pulse flex items-center gap-2">
+                    <Paperclip size={12} /> Drop to attach file
+                  </span>
+                </div>
+              )}
 
               {/* Attachment chip */}
               <AnimatePresence>
@@ -654,11 +802,53 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                 )}
               </AnimatePresence>
 
-              {/* Textarea */}
-              <div className="flex items-start gap-1.5 px-1.5">
+              {/* Dropdown badge (My notes all meetings ˅ equivalent) */}
+              <div className="flex items-center gap-2 px-1">
+                <motion.button
+                  whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.05)' }}
+                  whileTap={{ scale: 0.98 }}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowModelSelector(v => !v);
+                    setShowSettings(false);
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/5 text-[10px] font-bold text-zinc-300 transition-all select-none cursor-pointer"
+                >
+                  {currentModel ? getCustomModelIcon(currentModel) : <Bot className="w-3 h-3 text-zinc-500" />}
+                  <span className="truncate max-w-[150px]">{currentModel?.name || 'Select model'}</span>
+                  <ChevronDown className="w-3 h-3 opacity-40 shrink-0" />
+                </motion.button>
+                
+                {/* Configure settings indicator (local-only) */}
+                {isLocalModel && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                    onClick={() => {
+                      setShowSettings(v => !v);
+                      setShowModelSelector(false);
+                    }}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all cursor-pointer ${
+                      showSettings 
+                        ? 'bg-[#22D3EE]/10 text-[#22D3EE] border border-[#22D3EE]/30'
+                        : 'bg-white/[0.03] border border-white/5 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <SlidersHorizontal size={9} />
+                    <span>Configure</span>
+                  </motion.button>
+                )}
+              </div>
+
+              {/* Textarea area */}
+              <div className="flex items-start gap-1.5 px-1">
                 <textarea
                   ref={textareaRef}
                   value={prompt}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
                   onChange={e => { onPromptChange(e.target.value); adjustHeight(); }}
                   onKeyDown={e => {
                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -667,125 +857,96 @@ export const PromptInput: React.FC<PromptInputProps> = ({
                       handleSubmit(e);
                     }
                   }}
-                  placeholder="Ask anything, @ to mention, / for actions"
-                  className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-2 px-1.5 resize-none min-h-[36px] max-h-[220px] font-medium outline-none text-foreground/90 placeholder:text-zinc-500"
+                  placeholder="Type / for actions, ask anything..."
+                  className="flex-1 bg-transparent border-none focus:ring-0 text-sm py-1.5 px-1 resize-none min-h-[36px] max-h-[220px] font-medium outline-none text-foreground/90 placeholder:text-zinc-600 focus:outline-none"
                   style={{ scrollbarWidth: 'none' }}
                 />
               </div>
 
-              {/* Bottom toolbar */}
-              <div className="flex items-center justify-between px-1.5 pt-1">
+              {/* Bottom controls row */}
+              <div className="flex items-center justify-between px-1 pt-1.5 border-t border-white/[0.02]">
+                {/* Search: Auto badge toggle */}
                 <div className="flex items-center gap-2">
-                  {/* File upload + button */}
                   <motion.button
-                    whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.03)' }}
-                    whileTap={{ scale: 0.85 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-1.5 rounded-xl text-zinc-500 hover:text-white transition-all shrink-0 cursor-pointer"
-                    title="Upload File"
-                  >
-                    <Plus size={15} />
-                  </motion.button>
-
-                  {/* Model selector button */}
-                  <motion.button
-                    whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.03)' }}
-                    whileTap={{ scale: 0.95 }}
-                    type="button"
-                    onClick={e => {
-                      e.stopPropagation();
-                      setShowModelSelector(v => !v);
-                      setShowSettings(false);
+                    onClick={() => {
+                      onWebSearchToggle(!webSearchEnabled);
+                      toast.success(`Web Search ${!webSearchEnabled ? 'enabled' : 'disabled'}`);
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all select-none cursor-pointer border border-white/[0.04] bg-card text-zinc-300 hover:text-white`}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9.5px] font-extrabold uppercase tracking-wider transition-all select-none cursor-pointer border ${
+                      webSearchEnabled
+                        ? 'bg-[#22D3EE]/10 border-[#22D3EE]/30 text-[#22D3EE]'
+                        : 'bg-white/[0.02] border-white/5 text-zinc-500 hover:text-zinc-300'
+                    }`}
                   >
-                    {currentModel ? getCustomModelIcon(currentModel) : <Bot className="w-3.5 h-3.5 text-zinc-400" />}
-                    <span className="truncate max-w-[140px]">{currentModel?.name || 'Select model'}</span>
-                    <ChevronDown className="w-3 h-3 opacity-40" />
+                    <Globe size={10} className={webSearchEnabled ? 'animate-pulse' : ''} />
+                    <span>Search: {webSearchEnabled ? 'Auto' : 'Off'}</span>
                   </motion.button>
-
-                  {webSearchEnabled && (
-                    <div className="w-px h-4 bg-white/[0.04] mx-0.5" />
-                  )}
-
-                  {/* Web search */}
-                  <ToolButton
-                    active={webSearchEnabled}
-                    onClick={() => onWebSearchToggle(!webSearchEnabled)}
-                    title="Web Search"
-                    icon={<Globe size={13} strokeWidth={1.5} className={webSearchEnabled ? 'animate-pulse text-[#22D3EE]' : ''} />}
-                    activeColor="text-[#22D3EE] bg-white/[0.03] border-white/[0.04]"
-                  />
-
-                  {/* ⚙ Settings — only for local GGUF models */}
-                  {isLocalModel && (
-                    <div className="relative">
-                      <ToolButton
-                        active={showSettings}
-                        onClick={() => {
-                          setShowSettings(v => !v);
-                          setShowModelSelector(false);
-                        }}
-                        title="Local Inference Settings"
-                        icon={
-                          <SettingsIcon
-                            size={13}
-                            strokeWidth={1.5}
-                            className={`transition-transform duration-300 ${showSettings ? 'rotate-45 text-[#22D3EE]' : ''}`}
-                          />
-                        }
-                        activeColor="text-[#22D3EE] bg-white/[0.03] border-white/[0.04]"
-                      />
-                      {/* Pulsing gold dot */}
-                      {!showSettings && (
-                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#22D3EE] border-[1.5px] border-zinc-900 pointer-events-none">
-                          <span className="block w-full h-full rounded-full bg-[#22D3EE] animate-ping opacity-60" />
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {/* Microphone icon */}
+                {/* Upload File, Voice, Submit */}
+                <div className="flex items-center gap-2.5">
+                  {/* Upload file button */}
                   <motion.button
-                    whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.03)' }}
+                    whileHover={{ scale: 1.08, color: '#FFFFFF' }}
                     whileTap={{ scale: 0.9 }}
                     type="button"
-                    className="p-1.5 rounded-xl text-zinc-500 hover:text-white transition-all shrink-0 cursor-pointer"
-                    title="Voice Input"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-zinc-500 hover:text-zinc-300 transition-all cursor-pointer p-1"
+                    title="Upload File"
                   >
-                    <Mic size={15} />
+                    <Paperclip size={14} />
                   </motion.button>
 
-                  {/* Stop / Submit */}
+                  {/* Microphone dictation button with Granola "Dancing Bars" on hover */}
+                  <div className="flex items-center gap-1.5 group/mic">
+                    {/* Three micro green audio bars that dance on mic button hover */}
+                    <div className="flex items-center gap-[1.5px] h-2.5 opacity-0 group-hover/mic:opacity-100 transition-opacity duration-300 select-none pointer-events-none">
+                      <span className="w-[1.5px] h-full bg-emerald-400 rounded-full animate-[bounce_0.6s_infinite_100ms]" />
+                      <span className="w-[1.5px] h-full bg-emerald-400 rounded-full animate-[bounce_0.6s_infinite_300ms]" />
+                      <span className="w-[1.5px] h-full bg-emerald-400 rounded-full animate-[bounce_0.6s_infinite_200ms]" />
+                    </div>
+                    
+                    <motion.button
+                      whileHover={{ scale: 1.08, color: '#FFFFFF' }}
+                      whileTap={{ scale: 0.9 }}
+                      type="button"
+                      className="text-zinc-500 hover:text-zinc-300 transition-all cursor-pointer p-1"
+                      title="Voice Input"
+                    >
+                      <Mic size={14} />
+                    </motion.button>
+                  </div>
+
+                  {/* Submit / Stop button */}
                   {(isLoading || canSubmit) && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center shrink-0">
                       {isLoading ? (
                         <motion.button
                           whileHover={{ scale: 1.02, backgroundColor: 'rgba(239,68,68,0.15)', borderColor: 'rgba(239,68,68,0.3)' }}
                           whileTap={{ scale: 0.95 }}
                           type="button"
                           onClick={onStop}
-                          className="h-8 px-4 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center gap-1.5 border border-red-500/20 text-[9px] font-black tracking-widest uppercase transition-all cursor-pointer"
+                          className="h-7 px-3.5 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center gap-1 border border-red-500/20 text-[9px] font-black tracking-widest uppercase transition-all cursor-pointer"
                         >
-                          <StopCircle className="w-3.5 h-3.5 animate-pulse" />
+                          <StopCircle className="w-3 h-3 animate-pulse" />
                           Stop
                         </motion.button>
                       ) : (
                         <motion.button
-                          whileHover={{ scale: canSubmit ? 1.05 : 1, boxShadow: canSubmit ? '0 0 12px rgba(34, 211, 238, 0.2)' : 'none' }}
+                          whileHover={{ scale: canSubmit ? 1.05 : 1, boxShadow: canSubmit ? '0 0 10px rgba(34, 211, 238, 0.25)' : 'none' }}
                           whileTap={{ scale: canSubmit ? 0.95 : 1 }}
                           type="submit"
                           disabled={!canSubmit}
-                          className={`h-8 w-8 rounded-xl flex items-center justify-center transition-all border cursor-pointer ${
+                          className={`h-7 w-7 rounded-full flex items-center justify-center transition-all border cursor-pointer ${
                             canSubmit
                               ? 'bg-[#22D3EE] text-black border-[#22D3EE] font-bold'
-                              : 'bg-white/5 border-transparent text-zinc-600 cursor-not-allowed'
+                              : 'bg-white/5 border-transparent text-zinc-700 cursor-not-allowed'
                           }`}
                         >
-                          <Send size={13} strokeWidth={2.5} />
+                          <Send size={11} strokeWidth={2.5} />
                         </motion.button>
                       )}
                     </div>

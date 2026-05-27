@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Zap, Trash2, Timer, PanelLeftOpen, ChevronDown, Share2 } from 'lucide-react';
+import { Zap, Trash2, Timer, PanelLeftOpen, ChevronDown, Share2, Lock, Unlock } from 'lucide-react';
 import { StatusBadge } from '@src/shared/components/ui/StatusBadge';
 import { AgentPersona } from '@src/infrastructure/types';
 import { toast } from '@src/shared/components/ui/sonner';
+import { useNyxStore } from '@src/shared/store/useNyxStore';
 
 interface CoderHeaderProps {
   activeMode?: 'coder' | 'registry' | 'settings';
@@ -16,6 +17,7 @@ interface CoderHeaderProps {
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
   sessionTitle?: string;
+  mode?: 'chat' | 'code';
 }
 
 function formatLatency(ms: number): string {
@@ -37,8 +39,11 @@ export const CoderHeader: React.FC<CoderHeaderProps> = ({
   sidebarOpen = true,
   onToggleSidebar,
   sessionTitle = 'New chat',
+  mode = 'chat',
 }) => {
   const [liveElapsed, setLiveElapsed] = useState(0);
+  const privacyMode = useNyxStore(state => state.privacyMode);
+  const setPrivacyMode = useNyxStore(state => state.setPrivacyMode);
 
   useEffect(() => {
     if (isLoading) {
@@ -86,6 +91,28 @@ export const CoderHeader: React.FC<CoderHeaderProps> = ({
 
       {/* Right: share, status, clear */}
       <div className="flex items-center gap-2.5">
+        {/* Privacy Mode Toggle */}
+        <motion.button
+          whileHover={{ scale: 1.05, backgroundColor: privacyMode ? 'rgba(239,68,68,0.1)' : 'rgba(34,211,238,0.05)' }}
+          whileTap={{ scale: 0.94 }}
+          onClick={() => {
+            setPrivacyMode(!privacyMode);
+            if (!privacyMode) {
+              toast.warning('Privacy Mode Enabled: Zero disk footprints, keys and history stored in memory only.');
+            } else {
+              toast.info('Privacy Mode Disabled: Normal SQLite / local storage persistence active.');
+            }
+          }}
+          className={`p-2 rounded-xl border transition-all cursor-pointer ${
+            privacyMode
+              ? 'text-red-400 bg-red-500/10 border-red-500/20'
+              : 'text-zinc-500 hover:text-white border-transparent hover:border-white/5'
+          }`}
+          title={privacyMode ? "Privacy Mode Active (Click to disable)" : "Toggle Privacy Mode"}
+        >
+          {privacyMode ? <Lock size={13} strokeWidth={2.2} /> : <Unlock size={13} strokeWidth={1.8} />}
+        </motion.button>
+
         {/* Share Action */}
         <motion.button
           whileHover={{ scale: 1.05, backgroundColor: 'rgba(255,255,255,0.05)' }}

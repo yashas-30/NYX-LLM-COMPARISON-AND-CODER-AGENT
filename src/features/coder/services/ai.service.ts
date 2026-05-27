@@ -219,8 +219,6 @@ export class AIService {
       resultText = await this.executePollinations(modelId, prompt, settings, systemInstruction, options?.history, onStream, signal);
     } else if (provider === 'nyx-native') {
       resultText = await this.executeNyxNative(modelId, prompt, systemInstruction, settings, options?.history, onStream, signal);
-    } else if (provider === 'qwen-local') {
-      resultText = await this.executeQwenLocal(modelId, prompt, systemInstruction, settings, options?.history, onStream, signal);
     } else {
       throw new Error(`Unsupported provider: ${provider}`);
     }
@@ -288,36 +286,7 @@ export class AIService {
 
 
 
-  private static async executeQwenLocal(
-    model: string,
-    prompt: string,
-    systemInstruction?: string,
-    settings?: AISettings,
-    history?: ChatMessage[],
-    onStream?: (t: string) => void,
-    signal?: AbortSignal
-  ): Promise<string> {
-    const response = await this.fetchWithAuth('/api/qwen-local/stream', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model,
-        prompt,
-        history,
-        systemInstruction,
-        settings
-      }),
-      signal
-    });
 
-    if (!response.ok) {
-      await this.handleNonOkResponse(response, 'Local Qwen Server');
-    }
-
-    return this.processStream(response, onStream);
-  }
 
   private static async executeNyxNative(
     model: string,
@@ -615,7 +584,7 @@ export class AIService {
 }
 
   private static validateApiKey(provider: Provider | string, key?: string) {
-    if (provider === 'pollinations' || provider === 'nyx-native' || provider === 'qwen-local') return;
+    if (provider === 'pollinations' || provider === 'nyx-native') return;
     // If no key is provided, let the backend vault validation handle auth
     if (!key) return;
     if (key) {
@@ -660,14 +629,6 @@ export class AIService {
           return data.activeModelId ? 'online' : 'offline';
         }
         return 'offline';
-      } catch {
-        return 'offline';
-      }
-    }
-    if (provider === 'qwen-local') {
-      try {
-        const response = await fetch('http://127.0.0.1:3002/health').catch(() => null);
-        return (response && response.ok) ? 'online' : 'offline';
       } catch {
         return 'offline';
       }

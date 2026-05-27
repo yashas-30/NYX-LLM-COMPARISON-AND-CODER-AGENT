@@ -108,7 +108,7 @@ export class ContinuationManager {
   private static estimateMaxTokens(provider: string, modelId: string, settings?: AISettings): number {
     if (settings?.maxTokens) return settings.maxTokens;
 
-    if (provider === 'nyx-native' || provider === 'qwen-local') {
+    if (provider === 'nyx-native') {
       return 4096;
     }
 

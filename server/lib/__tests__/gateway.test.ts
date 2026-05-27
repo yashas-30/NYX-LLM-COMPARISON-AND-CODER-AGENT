@@ -48,7 +48,6 @@ describe('Gateway Auth & Router', () => {
     it('always permits local or free-tier providers without keys', () => {
       expect(Gateway.validateAuth('nyx-native', 'some-local-model').valid).toBe(true);
       expect(Gateway.validateAuth('pollinations', 'some-art-model').valid).toBe(true);
-      expect(Gateway.validateAuth('qwen-local', 'qwen-coder').valid).toBe(true);
     });
 
     it('demands API key for OpenCode even for free models', () => {

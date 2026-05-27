@@ -507,6 +507,10 @@ export const MessageList: React.FC<MessageListProps> = ({
     getScrollElement: () => consoleRef.current,
     estimateSize: () => 120, // average estimated size of message bubble
     overscan: 5,
+    getItemKey: useCallback((index: number) => {
+      const msg = history[index];
+      return msg ? `${msg.timestamp}-${index}` : index;
+    }, [history]),
   });
 
   // Re-run scrollToBottom when new items are added to history

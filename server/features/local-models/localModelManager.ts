@@ -945,6 +945,7 @@ export const LocalModelManager = {
       setTimeout(() => {
         progress.status = 'completed';
         progress.progressPercentage = 100;
+        progress.message = 'Metadata saved. Layer shards will download on first run (~10-30 min for 70B)';
         activeDownloads.delete(modelId);
         downloadStates[modelId] = 'completed';
         saveStates();

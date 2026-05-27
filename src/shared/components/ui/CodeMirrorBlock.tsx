@@ -44,13 +44,9 @@ export const CodeMirrorBlock: React.FC<CodeMirrorBlockProps> = ({ code, language
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
 
+  // Initialize/recreate editor when language changes
   useEffect(() => {
     if (!containerRef.current) return;
-
-    // Clean up previous view if exists
-    if (viewRef.current) {
-      viewRef.current.destroy();
-    }
 
     const extensions: Extension[] = [
       lineNumbers(),
@@ -97,8 +93,26 @@ export const CodeMirrorBlock: React.FC<CodeMirrorBlockProps> = ({ code, language
 
     return () => {
       view.destroy();
+      viewRef.current = null;
     };
-  }, [code, language]);
+  }, [language]);
+
+  // Update editor doc when code changes (in-place update, avoiding recreation/destroy flicker)
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const currentDoc = view.state.doc.toString();
+    if (currentDoc !== code) {
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: currentDoc.length,
+          insert: code,
+        },
+      });
+    }
+  }, [code]);
 
   return (
     <div 

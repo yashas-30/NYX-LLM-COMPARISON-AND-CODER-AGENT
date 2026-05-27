@@ -33,8 +33,7 @@ export const SubagentPanel: React.FC<SubagentPanelProps> = ({ tasks, isLoading }
   const getProviderBadge = (task: SubagentTask) => {
     if (!task.assignedModel) return null;
     const isLocal =
-      task.assignedModel.provider === 'nyx-native' ||
-      task.assignedModel.provider === 'qwen-local';
+      task.assignedModel.provider === 'nyx-native';
 
     return (
       <span

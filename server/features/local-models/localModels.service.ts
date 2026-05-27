@@ -1,5 +1,6 @@
 import { LocalModelManager } from './localModelManager.ts';
 import { LocalModelRunner } from './localModelRunner.ts';
+import { ModelWarmCache } from './warmCache.ts';
 import { CodebaseScanner } from '../workspace/codebaseScanner.ts';
 import { RulesDb } from '../admin/admin.service.ts';
 
@@ -72,19 +73,19 @@ export class LocalModelsService {
   }
 
   async runModel(modelId: string, settings?: any) {
-    await LocalModelRunner.start(modelId, settings);
+    await ModelWarmCache.getInstance().keepWarm(modelId, settings);
     return { status: 'running', modelId };
   }
 
   async stopModel() {
-    await LocalModelRunner.stop();
+    await ModelWarmCache.getInstance().stop();
     return { status: 'stopped' };
   }
 
   deleteModel(modelId: string) {
     const activeModel = LocalModelRunner.getActiveModel();
     if (activeModel === modelId) {
-      LocalModelRunner.stop().catch(() => {});
+      ModelWarmCache.getInstance().stop().catch(() => {});
     }
     return LocalModelManager.deleteModel(modelId);
   }
@@ -133,12 +134,12 @@ export class LocalModelsService {
     const systemPrompt = `You are NYX, a professional and highly capable AI software engineering assistant.
 Always identify yourself as NYX. Never claim to be OpenAI, ChatGPT, Anthropic, or any other entity.
 Your tone is highly professional, direct, clear, objective, and authoritative—identical to Google Gemini. Avoid friendly fluff, excessive greetings, or marketing language like "premium". Focus on providing highly structured, precise, clean, and complete code solutions.
-
+ 
 Here is the current directory structure of the repository:
 ${directoryStructure}
 ${codebaseContext}
 ${rulesContext}
-
+ 
 Please analyze the context and provide highly optimized, syntax-correct solutions.`;
 
     const totalCharacters = messages.reduce((sum, m) => sum + (m.content || '').length, 0) + systemPrompt.length;
@@ -164,11 +165,14 @@ Please analyze the context and provide highly optimized, syntax-correct solution
           } else {
             console.log(`[Auto-Runner] Auto-starting local model ${requestedModel} with ${autoContextSize} context tokens...`);
           }
-          await LocalModelRunner.start(requestedModel, { contextSize: autoContextSize });
+          await ModelWarmCache.getInstance().keepWarm(requestedModel, { contextSize: autoContextSize });
         }
       } catch (startErr: any) {
         console.error('[Auto-Runner] Failed to start model with dynamic context:', startErr.message);
       }
+    } else {
+      // Refresh sliding TTL on every query
+      ModelWarmCache.getInstance().keepWarm(requestedModel, { contextSize: activeContextSize }).catch(() => {});
     }
 
     if (!LocalModelRunner.isRunning() || LocalModelRunner.getActiveModel() !== requestedModel) {
@@ -180,7 +184,9 @@ Please analyze the context and provide highly optimized, syntax-correct solution
       ...messages.filter(m => m.role !== 'system')
     ];
 
-    const targetUrl = 'http://127.0.0.1:12345/v1/chat/completions';
+    const currentActiveModel = LocalModelRunner.getActiveModel() || requestedModel;
+    const port = currentActiveModel.startsWith('airllm-') ? 12346 : 12345;
+    const targetUrl = `http://127.0.0.1:${port}/v1/chat/completions`;
     
     const response = await fetch(targetUrl, {
       method: 'POST',

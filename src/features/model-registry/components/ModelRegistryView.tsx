@@ -336,7 +336,7 @@ const ModelRegistryViewComponent: React.FC<ModelRegistryViewProps> = ({
 
   const cloudModels = useMemo(
     () => AVAILABLE_MODELS.filter(m =>
-      m.provider !== 'nyx-native' && m.provider !== 'qwen-local' &&
+      m.provider !== 'nyx-native' &&
       (m.name.toLowerCase().includes(query) || m.provider.toLowerCase().includes(query))
     ),
     [query]

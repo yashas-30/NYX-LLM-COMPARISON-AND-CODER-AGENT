@@ -231,6 +231,7 @@ if (!isSingleInstance) {
 let mainWindow = null;
 let tray = null;
 let serverManager = null;
+let isQuitting = false;
 function waitForPort(port, host = "127.0.0.1", timeout = 3e4) {
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
@@ -396,6 +397,7 @@ async function bootApp() {
   createTray();
   createMenus();
   setupAutoUpdater();
+  registerGlobalShortcuts();
 }
 function getAppIcon() {
   const isDev = !electron.app.isPackaged;
@@ -457,6 +459,12 @@ function createWindow(expressPort) {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     electron.shell.openExternal(details.url);
     return { action: "deny" };
+  });
+  mainWindow.on("close", (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      mainWindow?.hide();
+    }
   });
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -611,11 +619,34 @@ function setupAutoUpdater() {
     }
   });
 }
+function registerGlobalShortcuts() {
+  try {
+    electron.globalShortcut.register("CommandOrControl+Shift+Space", () => {
+      if (mainWindow) {
+        if (mainWindow.isVisible() && mainWindow.isFocused()) {
+          mainWindow.hide();
+        } else {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    });
+    console.log("[Electron] Registered global hotkey: Cmd/Ctrl+Shift+Space");
+  } catch (err) {
+    console.error("[Electron] Failed to register global hotkey:", err);
+  }
+}
 electron.app.on("ready", bootApp);
 electron.app.on("window-all-closed", () => {
-  electron.app.quit();
+  if (process.platform !== "darwin") {
+    electron.app.quit();
+  }
+});
+electron.app.on("will-quit", () => {
+  electron.globalShortcut.unregisterAll();
 });
 electron.app.on("before-quit", async (e) => {
+  isQuitting = true;
   if (serverManager) {
     e.preventDefault();
     await serverManager.shutdown();

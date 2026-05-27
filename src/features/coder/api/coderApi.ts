@@ -14,7 +14,7 @@ export interface CriticPayload {
 }
 
 export const triggerCritic = async (payload: CriticPayload): Promise<void> => {
-  await fetch('/api/nyx/critic', {
+  await AIService.fetchWithAuth('/api/nyx/critic', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -22,7 +22,7 @@ export const triggerCritic = async (payload: CriticPayload): Promise<void> => {
 };
 
 export const fetchEvolutionaryRules = async (): Promise<string[]> => {
-  const res = await fetch('/api/nyx/rules');
+  const res = await AIService.fetchWithAuth('/api/nyx/rules');
   if (!res.ok) throw new Error(`Failed to fetch rules: ${res.statusText}`);
   const data = await res.json();
   if (data.success && Array.isArray(data.rules)) {
@@ -32,7 +32,7 @@ export const fetchEvolutionaryRules = async (): Promise<string[]> => {
 };
 
 export const searchCodebase = async (query: string, signal?: AbortSignal): Promise<any> => {
-  const res = await fetch('/api/nyx/codebase-search', {
+  const res = await AIService.fetchWithAuth('/api/nyx/codebase-search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query }),
@@ -43,7 +43,7 @@ export const searchCodebase = async (query: string, signal?: AbortSignal): Promi
 };
 
 export const searchWeb = async (query: string, signal?: AbortSignal): Promise<any> => {
-  const res = await fetch('/api/nyx/search', {
+  const res = await AIService.fetchWithAuth('/api/nyx/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query }),

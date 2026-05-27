@@ -106,12 +106,8 @@ class AirLLMHandler(BaseHTTPRequestHandler):
                     messages.append({"role": "user" if r == 'user' else "assistant", "content": m.get('content', '')})
                 messages.append({"role": "user", "content": prompt})
 
-            stream = req_body.get('stream', True)
-            temperature = req_body.get('temperature', req_body.get('settings', {}).get('temperature', 0.1))
+            orig_temperature = req_body.get('temperature', req_body.get('settings', {}).get('temperature', 0.1))
             max_tokens = req_body.get('max_tokens', req_body.get('settings', {}).get('maxTokens', 512))
-
-            # Keep values safe for HF transformers
-            temperature = max(0.01, min(temperature, 2.0))
             max_tokens = int(max_tokens) if max_tokens else 512
 
             # Formulate chat format
@@ -140,7 +136,7 @@ class AirLLMHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": f"Tokenization failed: {str(tokenize_err)}"}).encode('utf-8'))
                 return
 
-            print(f"[AirLLM Server] Generating tokens (max_new_tokens: {max_tokens}, temp: {temperature})...")
+            print(f"[AirLLM Server] Generating tokens (max_new_tokens: {max_tokens}, temp: {orig_temperature})...")
 
             # Dual-Mode generation & streaming
             # Attempt real-time token-by-token streaming via TextIteratorStreamer.
@@ -155,12 +151,11 @@ class AirLLMHandler(BaseHTTPRequestHandler):
                     max_new_tokens=max_tokens,
                     use_cache=True
                 )
-                if temperature > 0.1:
-                    generation_kwargs['temperature'] = temperature
-                    generation_kwargs['do_sample'] = True
-                else:
-                    generation_kwargs['temperature'] = 0.1
+                if orig_temperature <= 0.0:
                     generation_kwargs['do_sample'] = False
+                else:
+                    generation_kwargs['temperature'] = max(0.01, min(orig_temperature, 2.0))
+                    generation_kwargs['do_sample'] = True
 
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/event-stream')
@@ -196,12 +191,11 @@ class AirLLMHandler(BaseHTTPRequestHandler):
                         max_new_tokens=max_tokens,
                         use_cache=True
                     )
-                    if temperature > 0.1:
-                        generation_kwargs['temperature'] = temperature
-                        generation_kwargs['do_sample'] = True
-                    else:
-                        generation_kwargs['temperature'] = 0.1
+                    if orig_temperature <= 0.0:
                         generation_kwargs['do_sample'] = False
+                    else:
+                        generation_kwargs['temperature'] = max(0.01, min(orig_temperature, 2.0))
+                        generation_kwargs['do_sample'] = True
 
                     # Run generation fully
                     outputs = model.generate(**generation_kwargs)
@@ -248,7 +242,7 @@ def run_server():
 
     parser = argparse.ArgumentParser(description="NYX Local Model AirLLM Service")
     parser.add_argument("--model", type=str, required=True, help="Hugging Face model repository ID")
-    parser.add_argument("--port", type=int, default=12345, help="Port to run the HTTP server on")
+    parser.add_argument("--port", type=int, default=12346, help="Port to run the HTTP server on")
     parser.add_argument("--compression", type=str, default="4bit", choices=["4bit", "8bit", "None"], help="Quantization block compression")
     parser.add_argument("--saving-path", type=str, required=True, help="Local directory to store sharded layers")
     args = parser.parse_args()
@@ -279,7 +273,7 @@ def run_server():
 
         # Only delete original HF downloads, never delete original local model weights
         is_local_path = os.path.exists(model_id)
-        delete_original = not is_local_path
+        delete_original = False
         
         print(f"[AirLLM Server] Loading mode: {'Local Directory Path' if is_local_path else 'Hugging Face Hub Repository'}")
         print(f"[AirLLM Server] Delete original weights after sharding: {delete_original}")

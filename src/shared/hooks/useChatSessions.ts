@@ -1,10 +1,6 @@
-/**
- * @file src/hooks/useChatSessions.ts
- * @description Manages persistent chat sessions stored in localStorage.
- */
-
 import { useState, useEffect, useCallback } from 'react';
 import { ChatMessage } from '@src/infrastructure/types';
+import { useNyxStore } from '@src/shared/store/useNyxStore';
 
 export interface ChatSession {
   id: string;
@@ -29,8 +25,14 @@ function deriveTitleFromMessages(messages: ChatMessage[]): string {
 }
 
 export function useChatSessions() {
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const privacyMode = useNyxStore(state => state.privacyMode);
+  
+  const [privacySessions, setPrivacySessions] = useState<ChatSession[]>([]);
+  const [regularSessions, setRegularSessions] = useState<ChatSession[]>([]);
   const [activeSid, setActiveSid] = useState<string | null>(null);
+
+  // Computed sessions list
+  const sessions = privacyMode ? privacySessions : regularSessions;
 
   // Load sessions from API or fallback to localStorage on mount
   useEffect(() => {
@@ -42,8 +44,8 @@ export function useChatSessions() {
         if (res.ok) {
           const serverSessions = await res.json();
           if (Array.isArray(serverSessions) && activeToken) {
-            setSessions(serverSessions);
-            if (serverSessions.length > 0) {
+            setRegularSessions(serverSessions);
+            if (serverSessions.length > 0 && !privacyMode) {
               setActiveSid(serverSessions[0].id);
             }
             return;
@@ -59,8 +61,8 @@ export function useChatSessions() {
         if (raw && activeToken) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            setSessions(parsed);
-            if (parsed.length > 0) {
+            setRegularSessions(parsed);
+            if (parsed.length > 0 && !privacyMode) {
               setActiveSid(parsed[0].id);
             }
           }
@@ -75,28 +77,75 @@ export function useChatSessions() {
     return () => {
       activeToken = false;
     };
-  }, []);
+  }, [privacyMode]);
 
-  // Persist sessions on every change
+  // Persist sessions on every change (regular sessions only!)
   useEffect(() => {
+    if (regularSessions.length === 0) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions.slice(0, MAX_SESSIONS)));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(regularSessions.slice(0, MAX_SESSIONS)));
     } catch (e) {
       console.warn('[useChatSessions] Failed to save sessions:', e);
     }
-  }, [sessions]);
+  }, [regularSessions]);
+
+  // Manage initial session creation when switching modes
+  useEffect(() => {
+    if (privacyMode) {
+      if (privacySessions.length > 0) {
+        setActiveSid(privacySessions[0].id);
+      } else {
+        const id = generateId();
+        const now = Date.now();
+        const session: ChatSession = {
+          id,
+          title: 'Private Chat',
+          messages: [],
+          createdAt: now,
+          updatedAt: now,
+        };
+        setPrivacySessions([session]);
+        setActiveSid(id);
+      }
+    } else {
+      if (regularSessions.length > 0) {
+        setActiveSid(regularSessions[0].id);
+      } else {
+        setActiveSid(null);
+      }
+    }
+  }, [privacyMode]);
+
+  // Listen for inactivity self-destruct trigger
+  useEffect(() => {
+    const handleWipe = () => {
+      setPrivacySessions([]);
+      setActiveSid(null);
+    };
+    window.addEventListener('nyx:privacy-inactivity-wipe', handleWipe);
+    return () => {
+      window.removeEventListener('nyx:privacy-inactivity-wipe', handleWipe);
+    };
+  }, []);
 
   const createSession = useCallback((initialMessages: ChatMessage[] = []): string => {
     const id = generateId();
     const now = Date.now();
     const session: ChatSession = {
       id,
-      title: deriveTitleFromMessages(initialMessages),
+      title: privacyMode ? 'Private Chat' : deriveTitleFromMessages(initialMessages),
       messages: initialMessages,
       createdAt: now,
       updatedAt: now,
     };
-    setSessions(prev => [session, ...prev]);
+
+    if (privacyMode) {
+      setPrivacySessions(prev => [session, ...prev]);
+      setActiveSid(id);
+      return id;
+    }
+
+    setRegularSessions(prev => [session, ...prev]);
     setActiveSid(id);
 
     // Sync to backend
@@ -107,11 +156,29 @@ export function useChatSessions() {
     }).catch(err => console.warn('[useChatSessions] Failed to sync session creation:', err));
 
     return id;
-  }, []);
+  }, [privacyMode]);
 
   const updateSession = useCallback((sid: string, messages: ChatMessage[]) => {
     const now = Date.now();
-    setSessions(prev =>
+
+    if (privacyMode) {
+      setPrivacySessions(prev =>
+        prev.map(s => {
+          if (s.id === sid) {
+            return {
+              ...s,
+              messages,
+              title: 'Private Chat',
+              updatedAt: now,
+            };
+          }
+          return s;
+        })
+      );
+      return;
+    }
+
+    setRegularSessions(prev =>
       prev.map(s => {
         if (s.id === sid) {
           const updated = {
@@ -131,23 +198,23 @@ export function useChatSessions() {
         return s;
       })
     );
-  }, []);
+  }, [privacyMode]);
 
   const deleteSession = useCallback((sid: string) => {
-    setSessions(prev => {
-      const next = prev.filter(s => s.id !== sid);
-      return next;
-    });
-    setActiveSid(prev => {
-      if (prev === sid) return null;
-      return prev;
-    });
+    if (privacyMode) {
+      setPrivacySessions(prev => prev.filter(s => s.id !== sid));
+      setActiveSid(prev => (prev === sid ? null : prev));
+      return;
+    }
+
+    setRegularSessions(prev => prev.filter(s => s.id !== sid));
+    setActiveSid(prev => (prev === sid ? null : prev));
 
     // Sync to backend
     fetch(`/api/conversations/${sid}`, {
       method: 'DELETE'
     }).catch(err => console.warn('[useChatSessions] Failed to sync session deletion:', err));
-  }, []);
+  }, [privacyMode]);
 
   const switchSession = useCallback((sid: string | null) => {
     setActiveSid(sid);

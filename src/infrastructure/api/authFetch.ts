@@ -44,6 +44,18 @@ export async function fetchWithAuth(url: string, init?: RequestInit, isStream = 
     // Clear cached session token to force a refresh on the next request
     sessionToken = null;
     tokenExpiresAt = 0;
+
+    // Auto-retry exactly once with a fresh token
+    console.log('[AuthFetch] Session token expired/invalid. Auto-refreshing and retrying once...');
+    const newToken = await getOrFetchSessionToken(isStream);
+    const retryHeaders = new Headers(init?.headers);
+    retryHeaders.set('Authorization', `Bearer ${newToken}`);
+    retryHeaders.set('x-nyx-session-token', newToken);
+
+    return fetch(url, {
+      ...init,
+      headers: retryHeaders
+    });
   }
 
   return response;

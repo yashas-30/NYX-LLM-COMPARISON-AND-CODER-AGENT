@@ -8,8 +8,7 @@ export type ModelProvider =
   | 'terminal'
   | 'opencode'
   | 'pollinations'
-  | 'nyx-native'
-  | 'qwen-local';
+  | 'nyx-native';
 
 export interface ModelSpecs {
   contextWindow: string;

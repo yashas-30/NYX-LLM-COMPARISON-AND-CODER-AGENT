@@ -125,7 +125,7 @@ export const useCoderLogic = ({
     clearMetrics();
   }, [chatSessions, clearMetrics]);
 
-  const { isLoading, runCoder, stopCoder, subagentTasks } = useAgentPipeline({
+  const { isLoading, runCoder, stopCoder, subagentTasks, agentMode, agentReasoning } = useAgentPipeline({
     models,
     apiKeys,
     agentPersonas,
@@ -157,6 +157,8 @@ export const useCoderLogic = ({
     setWebSearchEnabled,
     codebaseKnowledgeEnabled,
     setCodebaseKnowledgeEnabled,
-    subagentTasks
+    subagentTasks,
+    agentMode,
+    agentReasoning
   };
 };

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, Tray, Menu, session, shell, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, Tray, Menu, session, shell, nativeImage, globalShortcut } from 'electron';
 import { fork, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as net from 'net';
@@ -40,6 +40,7 @@ if (!isSingleInstance) {
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let serverManager: ServerManager | null = null;
+let isQuitting = false;
 
 function waitForPort(port: number, host = '127.0.0.1', timeout = 30000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -237,6 +238,7 @@ async function bootApp() {
   createTray();
   createMenus();
   setupAutoUpdater();
+  registerGlobalShortcuts();
 }
 
 function getAppIcon() {
@@ -314,6 +316,13 @@ function createWindow(expressPort: number) {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url);
     return { action: 'deny' };
+  });
+
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      mainWindow?.hide();
+    }
   });
 
   mainWindow.on('closed', () => {
@@ -480,13 +489,38 @@ function setupAutoUpdater() {
   });
 }
 
+function registerGlobalShortcuts() {
+  try {
+    globalShortcut.register('CommandOrControl+Shift+Space', () => {
+      if (mainWindow) {
+        if (mainWindow.isVisible() && mainWindow.isFocused()) {
+          mainWindow.hide();
+        } else {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    });
+    console.log('[Electron] Registered global hotkey: Cmd/Ctrl+Shift+Space');
+  } catch (err) {
+    console.error('[Electron] Failed to register global hotkey:', err);
+  }
+}
+
 app.on('ready', bootApp);
 
 app.on('window-all-closed', () => {
-  app.quit();
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on('before-quit', async (e) => {
+  isQuitting = true;
   if (serverManager) {
     e.preventDefault();
     await serverManager.shutdown();

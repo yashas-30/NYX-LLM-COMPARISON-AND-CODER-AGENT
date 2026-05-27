@@ -9,6 +9,7 @@ import { registerProcess } from '../../lib/processRegistry.ts';
 import kill from 'tree-kill';
 import { MODEL_LAYERS } from '../../config/constants.ts';
 import { Mutex } from 'async-mutex';
+import { ModelOptimizer, OptimizationProfile } from './modelOptimizer.ts';
 
 import { MODELS_DIR as BASE_DIR } from '../../lib/paths.ts';
 const BIN_DIR = path.join(BASE_DIR, 'bin');
@@ -18,6 +19,51 @@ const BINARY_PATH = path.join(BIN_DIR, 'llama-server.exe');
 if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
 
 type ModelState = 'idle' | 'downloading' | 'starting' | 'running' | 'stopping';
+
+function findPythonPath(): string {
+  const candidates = [
+    process.env.NYX_PYTHON_PATH,
+    'python3',
+    'python',
+    'py',
+    path.join(os.homedir(), '.conda', 'envs', 'nyx', 'bin', 'python'),
+    path.join(os.homedir(), 'miniconda3', 'envs', 'nyx', 'bin', 'python'),
+    path.join(os.homedir(), '.conda', 'envs', 'nyx', 'python.exe'),
+    path.join(os.homedir(), 'miniconda3', 'envs', 'nyx', 'python.exe'),
+    path.join(os.homedir(), 'anaconda3', 'envs', 'nyx', 'python.exe'),
+  ];
+
+  const vscodeSettingsPath = path.join(BASE_DIR, '..', '.vscode', 'settings.json');
+  if (fs.existsSync(vscodeSettingsPath)) {
+    try {
+      const vscodeSettings = JSON.parse(fs.readFileSync(vscodeSettingsPath, 'utf-8'));
+      if (vscodeSettings['python.defaultInterpreterPath']) {
+        candidates.unshift(vscodeSettings['python.defaultInterpreterPath']);
+      }
+    } catch {}
+  }
+
+  for (const c of candidates) {
+    if (!c) continue;
+    if (path.isAbsolute(c)) {
+      if (fs.existsSync(c)) {
+        return c;
+      }
+    } else {
+      return c;
+    }
+  }
+
+  return 'python';
+}
+
+function getModelFormat(modelId: string): 'gguf' | 'airllm' | 'unknown' {
+  if (modelId.startsWith('airllm-')) return 'airllm';
+  const presets = LocalModelManager.listModels();
+  const preset = presets.find(p => p.id === modelId);
+  if (preset?.fileName.endsWith('.gguf')) return 'gguf';
+  return 'unknown';
+}
 
 // ── State machine (mutex-protected) ──────────────────────────────────────────
 const runnerMutex = new Mutex();
@@ -39,7 +85,8 @@ function startHealthCheckLoop(): void {
   healthCheckInterval = setInterval(async () => {
     if (modelState !== 'running') { stopHealthCheckLoop(); return; }
     try {
-      const res = await fetch('http://127.0.0.1:12345/health', { signal: AbortSignal.timeout(3000) });
+      const port = activeModelId && activeModelId.startsWith('airllm-') ? 12346 : 12345;
+      const res = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(3000) });
       if (res.ok) {
         consecutiveHealthFailures = 0;
         return;
@@ -106,6 +153,58 @@ async function _stop(): Promise<void> {
 }
 
 const CONFIG_PATH = path.join(BASE_DIR, 'config.json');
+
+function killProcessOnPort(port: number): Promise<void> {
+  return new Promise((resolve) => {
+    const cmd = process.platform === 'win32'
+      ? `netstat -ano | findstr :${port}`
+      : `lsof -t -i:${port}`;
+      
+    exec(cmd, (err, stdout) => {
+      if (err || !stdout.trim()) {
+        resolve();
+        return;
+      }
+      
+      const lines = stdout.trim().split('\n');
+      const pids = new Set<string>();
+      
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        if (process.platform === 'win32') {
+          const pid = parts[parts.length - 1];
+          if (pid && /^\d+$/.test(pid) && pid !== '0') {
+            pids.add(pid);
+          }
+        } else {
+          const pid = parts[0];
+          if (pid && /^\d+$/.test(pid)) {
+            pids.add(pid);
+          }
+        }
+      }
+      
+      if (pids.size === 0) {
+        resolve();
+        return;
+      }
+      
+      const killPromises = Array.from(pids).map(pid => {
+        return new Promise<void>((res) => {
+          const killCmd = process.platform === 'win32'
+            ? `taskkill /F /PID ${pid}`
+            : `kill -9 ${pid}`;
+          console.log(`[Local Runner] Zombie detection: Killing process ${pid} on port ${port}...`);
+          exec(killCmd, () => res());
+        });
+      });
+      
+      Promise.all(killPromises).then(() => {
+        setTimeout(resolve, 800);
+      });
+    });
+  });
+}
 
 export const LocalModelRunner = {
   getState(): ModelState {
@@ -687,15 +786,71 @@ export const LocalModelRunner = {
     });
   },
 
-  async start(modelId: string, settings?: any, fallbackStage: 'none' | 'vulkan' | 'cpu' = 'none'): Promise<void> {
+  async start(
+    modelId: string, 
+    settings?: any, 
+    optimizationProfile?: OptimizationProfile, 
+    fallbackStage: 'none' | 'vulkan' | 'cpu' = 'none'
+  ): Promise<void> {
     return runnerMutex.runExclusive(async () => {
-      await this._startInternal(modelId, settings, fallbackStage);
+      await this._startInternal(modelId, settings, optimizationProfile, fallbackStage);
     });
   },
 
-  async _startInternal(modelId: string, settings?: any, fallbackStage: 'none' | 'vulkan' | 'cpu' = 'none'): Promise<void> {
+  async _startInternal(
+    modelId: string, 
+    settings?: any, 
+    optimizationProfile?: OptimizationProfile, 
+    fallbackStage: 'none' | 'vulkan' | 'cpu' = 'none'
+  ): Promise<void> {
     if (activeModelId === modelId && activeProcess && activeContextSize >= (settings?.contextSize || 2048)) {
       return; // Already running with equal or larger context window
+    }
+
+    const port = modelId.startsWith('airllm-') ? 12346 : 12345;
+    
+    // Check if the port is already alive and running the correct model
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(1500) });
+      if (res.ok) {
+        const healthData = await res.json().catch(() => ({}));
+        if (healthData.status === 'ok' || healthData.status === 'success') {
+          // Port is alive! Check if it's the model we want
+          let isSameModel = false;
+          try {
+            const propsRes = await fetch(`http://127.0.0.1:${port}/props`, { signal: AbortSignal.timeout(1500) });
+            if (propsRes.ok) {
+              const propsData = await propsRes.json();
+              const loadedPath = (propsData.model_path || '').toLowerCase();
+              const targetPreset = LocalModelManager.listModels().find(m => m.id === modelId);
+              const targetFileName = (targetPreset?.fileName || '').toLowerCase();
+              
+              if (targetFileName && loadedPath.includes(targetFileName)) {
+                isSameModel = true;
+              }
+            }
+          } catch {}
+          
+          if (isSameModel) {
+            console.log(`[Local Runner] Port ${port} is already running the correct model: ${modelId}. Adopting running server...`);
+            modelState = 'running';
+            activeModelId = modelId;
+            activeContextSize = settings?.contextSize || 2048;
+            startHealthCheckLoop();
+            return;
+          } else {
+            console.log(`[Local Runner] Port ${port} is active but running a different model or unresponsive. Freeing port...`);
+            await killProcessOnPort(port);
+          }
+        }
+      }
+    } catch {
+      // Port is not listening or timed out, which is normal
+    }
+
+    const format = getModelFormat(modelId);
+    if (format === 'unknown') {
+      throw new Error(`Unsupported model format or preset for modelId: '${modelId}'`);
     }
 
     if (modelId.startsWith('airllm-')) {
@@ -728,22 +883,12 @@ export const LocalModelRunner = {
         
         const airllmSavingPath = path.join(BASE_DIR, 'airllm', modelId);
 
-        let pythonPath = 'python';
-        const vscodeSettingsPath = path.join(BASE_DIR, '..', '.vscode', 'settings.json');
-        if (fs.existsSync(vscodeSettingsPath)) {
-          try {
-            const vscodeSettings = JSON.parse(fs.readFileSync(vscodeSettingsPath, 'utf-8'));
-            if (vscodeSettings['python.defaultInterpreterPath']) {
-              pythonPath = vscodeSettings['python.defaultInterpreterPath'];
-            }
-          } catch {}
-        }
-
+        const pythonPath = findPythonPath();
         const pythonScriptPath = path.join(BASE_DIR, '..', 'server', 'python', 'airllm_service.py');
         const compression = '4bit';
-        const port = 12345;
+        const port = 12346;
 
-        console.log(`Spawning Python AirLLM server for: ${modelPreset.name} (repo: ${hfRepoId}, compression: ${compression})`);
+        console.log(`Spawning Python AirLLM server for: ${modelPreset.name} (repo: ${hfRepoId}, compression: ${compression}) using ${pythonPath}`);
         startProgress = 30;
 
         const args = [
@@ -807,7 +952,7 @@ export const LocalModelRunner = {
 
           await new Promise(r => setTimeout(r, 1000));
           try {
-            const res = await fetch('http://127.0.0.1:12345/health');
+            const res = await fetch('http://127.0.0.1:12346/health');
             if (res.ok) {
               const data = await res.json();
               if (data.status === 'ok') {
@@ -828,7 +973,7 @@ export const LocalModelRunner = {
         modelState = 'running';
         activeContextSize = 4096;
         startHealthCheckLoop();
-        console.log(`AirLLM server running successfully on http://localhost:12345 with model ${modelPreset.name}`);
+        console.log(`AirLLM server running successfully on http://localhost:12346 with model ${modelPreset.name}`);
         return;
 
       } catch (err: any) {
@@ -850,6 +995,20 @@ export const LocalModelRunner = {
 
     modelState = 'starting';
     startProgress = 5;
+
+    if (!optimizationProfile && !modelId.startsWith('airllm-')) {
+      try {
+        const optimizer = new ModelOptimizer();
+        optimizationProfile = await optimizer.generateProfile(
+          modelId,
+          settings?.taskType || 'code',
+          settings?.priority || 'balanced'
+        );
+        console.log('[GPU Optimizer] Generated optimization profile:', JSON.stringify(optimizationProfile, null, 2));
+      } catch (err: any) {
+        console.error('[GPU Optimizer] Failed to auto-generate optimization profile:', err.message);
+      }
+    }
 
     let gpuLayers = 99;
     let localSettings = settings;
@@ -890,16 +1049,16 @@ export const LocalModelRunner = {
       if (fallbackStage === 'cpu') {
         gpuLayers = 0;
       } else {
-        gpuLayers = typeof localSettings?.gpuLayers === 'number' ? localSettings.gpuLayers : 99;
+        gpuLayers = optimizationProfile ? optimizationProfile.gpuLayers : (typeof localSettings?.gpuLayers === 'number' ? localSettings.gpuLayers : 99);
       }
-      const threads = typeof localSettings?.threads === 'number' ? localSettings.threads : defaultThreads;
-      const contextSize = typeof localSettings?.contextSize === 'number' ? localSettings.contextSize : 2048;
+      const threads = optimizationProfile ? optimizationProfile.threads : (typeof localSettings?.threads === 'number' ? localSettings.threads : defaultThreads);
+      const contextSize = optimizationProfile ? optimizationProfile.contextSize : (typeof localSettings?.contextSize === 'number' ? localSettings.contextSize : 2048);
 
       // Quantization tier enforcement
       const QUANT_TIERS = ['Q2_K', 'Q3_K_M', 'Q4_K_M', 'Q5_K_M', 'Q6_K', 'Q8_0'];
       const MIN_CODE_QUANT = 'Q4_K_M';
       const DEFAULT_CODE_QUANT = 'Q5_K_M';
-      let selectedQuant: string = localSettings?.quantization || DEFAULT_CODE_QUANT;
+      let selectedQuant: string = optimizationProfile ? optimizationProfile.quantization : (localSettings?.quantization || DEFAULT_CODE_QUANT);
       const quantIdx = QUANT_TIERS.indexOf(selectedQuant);
       const minQuantIdx = QUANT_TIERS.indexOf(MIN_CODE_QUANT);
       if (quantIdx >= 0 && quantIdx < minQuantIdx) {
@@ -978,15 +1137,24 @@ export const LocalModelRunner = {
 
       // Enable optimizations if GPU offloading is active
       if (gpuLayers > 0) {
-        if (usedBackend === 'cuda') {
-          args.push('--flash-attn', 'on'); // Only enable flash attention on CUDA to avoid Vulkan CPU-fallback slowdown
+        const useFlash = optimizationProfile ? optimizationProfile.useFlashAttn : (usedBackend === 'cuda');
+        if (useFlash) {
+          args.push('--flash-attn', 'on');
         }
-        args.push('--cont-batching');   // Continuous batching for parallel slot execution
-        args.push('--cache-type-k', 'q8_0'); // Quantize Key cache to 8-bit — halves KV memory overhead
-        args.push('--cache-type-v', 'q8_0'); // Quantize Value cache to 8-bit
+        args.push('--cont-batching');
+        
+        const cacheQuant = optimizationProfile ? optimizationProfile.kvCacheQuant : 'q8_0';
+        if (cacheQuant !== 'f16') {
+          args.push('--cache-type-k', cacheQuant);
+          args.push('--cache-type-v', cacheQuant);
+        }
 
         // Multi-GPU Splitting
-        if (gpuInfoList.length > 1) {
+        if (optimizationProfile?.tensorSplit && gpuInfoList.length > 1) {
+          args.push('--main-gpu', '0');
+          args.push('--split-mode', 'layer');
+          args.push('--tensor-split', optimizationProfile.tensorSplit.map(n => n.toFixed(2)).join(','));
+        } else if (gpuInfoList.length > 1) {
           args.push('--main-gpu', '0');
           args.push('--split-mode', 'layer');
           const totalGPUVram = gpuInfoList.reduce((sum: number, g: any) => sum + g.vramBytes, 0);
@@ -996,22 +1164,25 @@ export const LocalModelRunner = {
       }
 
       // Speculative Decoding (2-3x speedup)
-      const MODELS_DIR_PATH = path.dirname(model.filePath);
-      const draftModelPath = path.join(MODELS_DIR_PATH, `${modelId}-draft.gguf`);
-      if (fs.existsSync(draftModelPath)) {
-        args.push('--draft-model', draftModelPath);
-        args.push('--draft', '5'); // Speculate 5 tokens per draft step
-        console.log(`[Speculative Decoding] Draft model found: ${draftModelPath}. Speculating 5 tokens per step.`);
-      } else {
-        const genericDraftPaths = [
-          path.join(MODELS_DIR_PATH, 'llama-3.2-1b-native.gguf'),
-          path.join(MODELS_DIR_PATH, 'gemma-2-2b-it.gguf'),
-        ];
-        const foundDraft = genericDraftPaths.find(p => fs.existsSync(p));
-        if (foundDraft && foundDraft !== model.filePath) {
-          args.push('--draft-model', foundDraft);
+      const enableSpeculative = optimizationProfile ? optimizationProfile.speculativeDecoding : true;
+      if (enableSpeculative) {
+        const MODELS_DIR_PATH = path.dirname(model.filePath);
+        const draftModelPath = path.join(MODELS_DIR_PATH, `${modelId}-draft.gguf`);
+        if (fs.existsSync(draftModelPath)) {
+          args.push('--draft-model', draftModelPath);
           args.push('--draft', '5');
-          console.log(`[Speculative Decoding] Generic draft model found at: ${foundDraft}. Speculating 5 tokens per step.`);
+          console.log(`[Speculative Decoding] Draft model found: ${draftModelPath}. Speculating 5 tokens per step.`);
+        } else {
+          const genericDraftPaths = [
+            path.join(MODELS_DIR_PATH, 'llama-3.2-1b-native.gguf'),
+            path.join(MODELS_DIR_PATH, 'gemma-2-2b-it.gguf'),
+          ];
+          const foundDraft = genericDraftPaths.find(p => fs.existsSync(p));
+          if (foundDraft && foundDraft !== model.filePath) {
+            args.push('--draft-model', foundDraft);
+            args.push('--draft', '5');
+            console.log(`[Speculative Decoding] Generic draft model found at: ${foundDraft}. Speculating 5 tokens per step.`);
+          }
         }
       }
 
@@ -1171,5 +1342,70 @@ export const LocalModelRunner = {
     return runnerMutex.runExclusive(async () => {
       await _stop();
     });
+  },
+
+  getModelPort(modelId: string | null): number {
+    if (modelId && modelId.startsWith('airllm-')) return 12346;
+    return 12345;
+  },
+
+  async monitorAndAdjust(modelId: string): Promise<void> {
+    if (!this.isRunning() || modelState !== 'running') return;
+
+    const gpus = await this.detectGPUs();
+    if (gpus.length === 0) return;
+
+    const primaryGPU = gpus[0];
+    const freeVram = await this.getFreeVram();
+    
+    // Default config values
+    const config = {
+      enableDynamicUnload: true,
+      ramHeadroomMB: 2048
+    };
+
+    // Check VRAM pressure
+    const vramUsed = primaryGPU.vramBytes - freeVram;
+    const vramPressure = vramUsed / primaryGPU.vramBytes;
+
+    if (vramPressure > 0.9 && config.enableDynamicUnload) {
+      console.warn('[LocalModelRunner] VRAM pressure detected (>90%). Consider reducing context or layers.');
+    }
+
+    // Monitor system RAM
+    const freeRam = os.freemem();
+    if (freeRam < config.ramHeadroomMB * 1024 * 1024) {
+      console.warn('[LocalModelRunner] System RAM critically low.');
+    }
+  },
+
+  async getOptimalContextSize(
+    modelId: string, 
+    requestedTokens: number,
+    config = { vramHeadroomMB: 1024, ramHeadroomMB: 2048, minContextTokens: 1024, maxContextTokens: 32768 }
+  ): Promise<number> {
+    const gpus = await this.detectGPUs();
+    const freeRam = os.freemem();
+
+    // Calculate KV cache size for requested tokens
+    const optimal = await this.calculateOptimalLayers(modelId, requestedTokens);
+    const kvCacheSize = optimal.totalLayers * requestedTokens * 220 * 1024 / 32; // ~220KB per layer per token
+
+    // Check if it fits in available memory
+    const availableMemory = gpus.length > 0 
+      ? gpus[0].vramBytes + freeRam 
+      : freeRam;
+
+    const modelSize = optimal.fileSize;
+    const totalNeeded = modelSize + kvCacheSize + config.vramHeadroomMB * 1024 * 1024;
+
+    if (totalNeeded > availableMemory) {
+      // Scale down context to fit
+      const scaleFactor = availableMemory / totalNeeded;
+      const adjustedTokens = Math.floor(requestedTokens * scaleFactor * 0.9); // 10% safety margin
+      return Math.max(config.minContextTokens, adjustedTokens);
+    }
+
+    return Math.min(requestedTokens, config.maxContextTokens);
   }
 };

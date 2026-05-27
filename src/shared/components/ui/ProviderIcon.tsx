@@ -29,7 +29,6 @@ function getIcon(provider: string | undefined, size: number, className: string):
     case 'pollinations': return <Sparkles size={size} strokeWidth={1.5} className={`${className} text-amber-500 animate-pulse`} />;
     case 'terminal':  return <Bot size={size} strokeWidth={1.5} className={className} />;
     case 'nyx-native': return <Cpu size={size} strokeWidth={1.5} className={`${className} text-[#22D3EE] animate-pulse`} />;
-    case 'qwen-local': return <Sparkles size={size} strokeWidth={1.5} className={`${className} text-amber-400 animate-pulse`} />;
     default:          return <Cpu size={size} strokeWidth={1.5} className={className} />;
   }
 }
@@ -50,7 +49,6 @@ export function getProviderLabel(provider: string | undefined): string {
   if (provider === 'opencode') return 'Open Code';
   if (provider === 'pollinations') return 'Pollinations (Free)';
   if (provider === 'nyx-native') return 'NYX Native';
-  if (provider === 'qwen-local') return 'Qwen Local (Python)';
   if (provider === 'google') return 'Google';
   if (provider === 'meta') return 'Meta (Llama)';
   if (provider === 'microsoft') return 'Microsoft';

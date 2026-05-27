@@ -6,7 +6,7 @@
 
 import { loadKeys } from '../features/vault/vault.service.ts';
 
-export type Provider = 'gemini' | 'openrouter' | 'nvidia' | 'opencode' | 'openai' | 'anthropic' | 'deepseek' | 'groq' | 'mistral' | 'together' | 'pollinations' | 'nyx-native' | 'qwen-local';
+export type Provider = 'gemini' | 'openrouter' | 'nvidia' | 'opencode' | 'openai' | 'anthropic' | 'deepseek' | 'groq' | 'mistral' | 'together' | 'pollinations' | 'nyx-native';
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'model';
@@ -46,7 +46,7 @@ interface AIGatewayConfig {
 
 /**
  * Returns Cloudflare AI Gateway config for provider if enabled.
- * Local providers (nyx-native, qwen-local) always use direct connections.
+ * Local providers (nyx-native) always use direct connections.
  * @param provider - The AI provider to check
  * @returns AIGatewayConfig with enabled flag and baseUrl
  */
@@ -78,7 +78,6 @@ const getCloudflareGateway = (provider: Provider): AIGatewayConfig => {
     case 'together':
     case 'pollinations':
     case 'nyx-native':
-    case 'qwen-local':
       return { enabled: false, baseUrl: '' };
     default:
       return { enabled: false, baseUrl: '' };
@@ -99,7 +98,6 @@ const PROVIDER_URLS: Record<Provider, string> = {
   together: 'https://api.together.ai/v1',
   pollinations: 'https://text.pollinations.ai',
   'nyx-native': '',
-  'qwen-local': '',
 };
 
 // Free models on OpenCode Zen (verified from API)
@@ -241,7 +239,7 @@ export class Gateway {
 
   /**
    * Validates that we have proper authentication before making requests.
-   * Local providers (nyx-native, qwen-local) don't need keys.
+   * Local providers (nyx-native) don't need keys.
    * @param provider - The AI provider
    * @param modelId - The model identifier
    * @param apiKey - Optional user-provided API key
@@ -249,7 +247,7 @@ export class Gateway {
    */
   static validateAuth(provider: Provider, modelId: string, apiKey?: string): { valid: boolean; error?: string } {
     // Local providers don't need keys
-    if (['pollinations', 'nyx-native', 'qwen-local'].includes(provider)) {
+    if (['pollinations', 'nyx-native'].includes(provider)) {
       return { valid: true };
     }
 
