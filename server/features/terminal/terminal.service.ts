@@ -1,7 +1,8 @@
 import { spawn, exec, execSync, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import { getWorkspaceRoot } from './paths.ts';
+import crypto from 'crypto';
+import { getWorkspaceRoot } from '../../lib/paths.ts';
 
 let isDockerAvailableCache: boolean | null = null;
 
@@ -320,4 +321,58 @@ export async function spawnSandbox(command: string, cwd?: string): Promise<Sandb
     child,
     isDocker: true,
   };
+}
+
+export class TerminalService {
+  private static pendingExecutions = new Map<string, { command: string; cwd?: string }>();
+  private static legacyTasks = new Map<string, { output: string; isFinished: boolean }>();
+
+  static async spawn(command: string, cwd?: string) {
+    return await spawnSandbox(command, cwd);
+  }
+
+  static registerPrompt(nodeId: string | undefined, command: string, cwd?: string) {
+    const execId = crypto.randomUUID();
+    TerminalService.pendingExecutions.set(execId, { command, cwd });
+
+    if (nodeId) {
+      TerminalService.legacyTasks.set(nodeId, { output: 'Execution started. Connect to stream or wait.', isFinished: false });
+      
+      spawnSandbox(command, cwd).then(({ child, error }) => {
+        if (error) {
+          TerminalService.legacyTasks.set(nodeId, { output: `Sandbox Error: ${error}`, isFinished: true });
+        } else if (child) {
+          let accum = '';
+          child.stdout?.on('data', (d) => { accum += d.toString(); });
+          child.stderr?.on('data', (d) => { accum += d.toString(); });
+          child.on('close', (code) => {
+            TerminalService.legacyTasks.set(nodeId, {
+              output: accum || `Exited with code ${code}`,
+              isFinished: true
+            });
+          });
+          child.on('error', (err) => {
+            TerminalService.legacyTasks.set(nodeId, {
+              output: accum + `\nProcess error: ${err.message}`,
+              isFinished: true
+            });
+          });
+        }
+      });
+    }
+
+    return execId;
+  }
+
+  static getPending(execId: string) {
+    const pending = TerminalService.pendingExecutions.get(execId);
+    if (pending) {
+      TerminalService.pendingExecutions.delete(execId);
+    }
+    return pending;
+  }
+
+  static getLegacy(nodeId: string) {
+    return TerminalService.legacyTasks.get(nodeId);
+  }
 }

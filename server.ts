@@ -29,7 +29,7 @@ import { fastifyProxyRouter } from './server/routes/fastifyProxy.ts';
 import { geminiRouter } from './server/routes/gemini.ts';
 import { openrouterRouter } from './server/routes/openrouter.ts';
 import { nvidiaRouter } from './server/routes/nvidia.ts';
-import { terminalRouter } from './server/routes/terminal.ts';
+import { terminalRouter } from './server/features/terminal/terminal.router.ts';
 import { agentsRouter } from './server/features/agents/agents.router.ts';
 import { opencodeRouter } from './server/features/opencode/opencode.router.ts';
 import { nyxRouter } from './server/routes/nyx.ts';

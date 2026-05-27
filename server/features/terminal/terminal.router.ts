@@ -1,34 +1,18 @@
 import { Router } from 'express';
-import crypto from 'crypto';
-import { spawnSandbox } from '../lib/sandbox.ts';
-import { sendSseTokenRotate } from '../lib/sseHelpers.ts';
-import { validate } from '../middleware/validate.ts';
-import { terminalRunSchema, terminalPromptSchema } from '../schemas/index.ts';
+import { TerminalService } from './terminal.service.ts';
+import { sendSseTokenRotate } from '../../lib/sseHelpers.ts';
+import { validate } from '../../middleware/validate.ts';
+import { terminalRunSchema, terminalPromptSchema } from './terminal.schema.ts';
 
 export const terminalRouter = Router();
 
-// Store pending command executions
-interface PendingExec {
-  command: string;
-  cwd?: string;
-}
-const pendingExecutions = new Map<string, PendingExec>();
-
-// Store background task outputs for old poll endpoint compatibility
-const legacyTasks = new Map<string, { output: string; isFinished: boolean }>();
-
-/**
- * POST /api/terminal/run
- * Runs a command inside the sandbox and waits for completion.
- * Backward compatible synchronous endpoint.
- */
 terminalRouter.post('/run', validate(terminalRunSchema), async (req, res) => {
   const { command, cwd } = req.body;
   if (!command) {
     return res.status(400).json({ error: "Command is required" });
   }
 
-  const { child, error } = await spawnSandbox(command, cwd);
+  const { child, error } = await TerminalService.spawn(command, cwd);
   if (error) {
     return res.status(400).json({ error });
   }
@@ -69,10 +53,6 @@ terminalRouter.post('/run', validate(terminalRunSchema), async (req, res) => {
   });
 });
 
-/**
- * POST /api/terminal/prompt
- * Registers a command for background execution. Returns an execId.
- */
 terminalRouter.post('/prompt', validate(terminalPromptSchema), (req, res) => {
   const { nodeId, prompt, cwd } = req.body;
   const command = prompt;
@@ -80,51 +60,17 @@ terminalRouter.post('/prompt', validate(terminalPromptSchema), (req, res) => {
     return res.status(400).json({ error: "Command/prompt is required" });
   }
 
-  const execId = crypto.randomUUID();
-  pendingExecutions.set(execId, { command, cwd });
-
-  // Maintain old legacyTasks map for polling compatibility if nodeId was provided
-  if (nodeId) {
-    legacyTasks.set(nodeId, { output: 'Execution started. Connect to stream or wait.', isFinished: false });
-    
-    // Spawn in background and gather output for the legacy poll route
-    spawnSandbox(command, cwd).then(({ child, error }) => {
-      if (error) {
-        legacyTasks.set(nodeId, { output: `Sandbox Error: ${error}`, isFinished: true });
-      } else if (child) {
-        let accum = '';
-        child.stdout?.on('data', (d) => { accum += d.toString(); });
-        child.stderr?.on('data', (d) => { accum += d.toString(); });
-        child.on('close', (code) => {
-          legacyTasks.set(nodeId, {
-            output: accum || `Exited with code ${code}`,
-            isFinished: true
-          });
-        });
-        child.on('error', (err) => {
-          legacyTasks.set(nodeId, {
-            output: accum + `\nProcess error: ${err.message}`,
-            isFinished: true
-          });
-        });
-      }
-    });
-  }
-
+  const execId = TerminalService.registerPrompt(nodeId, command, cwd);
   res.json({ status: 'started', execId });
 });
 
-/**
- * GET /api/terminal/poll
- * Legacy polling route for nodeId execution status.
- */
 terminalRouter.get('/poll', (req, res) => {
   const nodeId = req.query.nodeId as string;
   if (!nodeId) {
     return res.status(400).json({ error: "nodeId is required" });
   }
 
-  const task = legacyTasks.get(nodeId);
+  const task = TerminalService.getLegacy(nodeId);
   if (!task) {
     return res.status(404).json({ error: "No terminal task found for this nodeId" });
   }
@@ -136,11 +82,6 @@ terminalRouter.get('/poll', (req, res) => {
   }
 });
 
-/**
- * GET /api/terminal/stream
- * Server-Sent Events stream for execution.
- * Can consume a registered execId, or spawn command directly via query params.
- */
 terminalRouter.get('/stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -154,21 +95,20 @@ terminalRouter.get('/stream', async (req, res) => {
   let cwd: string | undefined = undefined;
 
   if (execId) {
-    const pending = pendingExecutions.get(execId);
+    const pending = TerminalService.getPending(execId);
     if (!pending) {
       res.write(`event: error\ndata: ${JSON.stringify({ message: "Execution session not found" })}\n\n`);
       return res.end();
     }
     command = pending.command;
     cwd = pending.cwd;
-    pendingExecutions.delete(execId); // consume
   } else {
     res.write(`event: error\ndata: ${JSON.stringify({ message: "execId parameter is required" })}\n\n`);
     return res.end();
   }
 
   const startTime = Date.now();
-  const { child, error } = await spawnSandbox(command, cwd);
+  const { child, error } = await TerminalService.spawn(command, cwd);
 
   if (error) {
     res.write(`event: error\ndata: ${JSON.stringify({ message: error })}\n\n`);
