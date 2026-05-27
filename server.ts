@@ -16,9 +16,9 @@ import './server/lib/apiAgent.ts'; // 🚀 Init global connection pooling
 // New extracted routes
 import { vaultRouter } from './server/routes/vault.ts';
 import { adminRouter } from './server/routes/admin.ts';
-import { systemRouter } from './server/routes/system.ts';
-import { healthRouter } from './server/routes/health.ts';
-import { metricsRouter } from './server/routes/metrics.ts';
+import { systemRouter } from './server/features/system/system.router.ts';
+import { healthRouter } from './server/features/system/health.router.ts';
+import { metricsRouter } from './server/features/system/metrics.router.ts';
 import { conversationsRouter } from './server/routes/conversations.ts';
 import { cacheRouter } from './server/features/cache/cache.router.ts';
 import { workspaceRouter } from './server/features/workspace/workspace.router.ts';
