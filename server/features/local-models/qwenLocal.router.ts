@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { sendSseTokenRotate } from '../../lib/sseHelpers.ts';
-import { validate } from '../../middleware/validate.js';
+import { validate } from '../../middleware/validate.ts';
 import { qwenLocalStreamSchema } from './localModels.schema.ts';
 import { QwenLocalService } from './qwenLocal.service.ts';
 import logger from '../../lib/logger.ts';

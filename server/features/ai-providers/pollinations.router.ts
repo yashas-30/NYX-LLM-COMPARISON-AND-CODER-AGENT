@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { sendSseTokenRotate } from '../../lib/sseHelpers.ts';
-import { validate } from '../../middleware/validate.js';
+import { validate } from '../../middleware/validate.ts';
 import { pollinationsStreamSchema } from './pollinations.schema.ts';
 import { PollinationsService } from './pollinations.service.ts';
 import logger from '../../lib/logger.ts';

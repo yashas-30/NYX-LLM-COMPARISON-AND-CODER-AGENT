@@ -1,4 +1,4 @@
-import { ModelOption } from '../types';
+import { ModelOption } from '@src/types';
 
 // Anthropic Claude via OpenRouter
 export const CLAUDE_MODELS: ModelOption[] = [

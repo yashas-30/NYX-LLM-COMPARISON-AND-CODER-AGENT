@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseShellCommand } from '../sandbox.ts';
+import { parseShellCommand } from '../terminal.service.ts';
 
 describe('Sandbox Security', () => {
   it('blocks command chaining', () => {

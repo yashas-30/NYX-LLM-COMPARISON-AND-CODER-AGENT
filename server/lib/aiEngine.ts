@@ -3,9 +3,9 @@
  * @description Unified streaming execution engine using the Gateway service.
  */
 
-import { Gateway, Provider, ChatMessage, AISettings, ZEN_FREE_MODELS } from './gateway.js';
+import { Gateway, Provider, ChatMessage, AISettings, ZEN_FREE_MODELS } from './gateway.ts';
 
-export type { Provider, ChatMessage, AISettings } from './gateway.js';
+export type { Provider, ChatMessage, AISettings } from './gateway.ts';
 
 // ── Layer 7: Abstention Training ──────────────────────────────────────────────
 // Injected into all system prompts to reduce hallucinations by encouraging

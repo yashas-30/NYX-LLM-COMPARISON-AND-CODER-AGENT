@@ -4,7 +4,7 @@
 
 import { Cpu, Zap, Bot, Sparkles } from 'lucide-react';
 import { Logo } from '@src/shared/design-system/icons';
-import { ModelProvider } from '../../types';
+import { ModelProvider } from '@src/types';
 
 interface ProviderIconProps {
   provider: ModelProvider | string | undefined;

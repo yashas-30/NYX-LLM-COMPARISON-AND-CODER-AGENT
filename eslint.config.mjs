@@ -14,7 +14,7 @@ export default tseslint.config(
         { type: 'app',            pattern: 'src/app/**' },
         { type: 'pages',          pattern: 'src/pages/**' },
         { type: 'dashboard',      pattern: 'src/features/dashboard/**' },
-        { type: 'feature',        pattern: 'src/features/*/**', capture: ['feature'] },
+        { type: 'feature',        pattern: 'src/features/*/**' },
         { type: 'feature-index',  pattern: 'src/features/*/index.ts' },
         { type: 'shared',         pattern: 'src/shared/**' },
         { type: 'infrastructure', pattern: 'src/infrastructure/**' },

@@ -28,7 +28,6 @@ export default defineConfig(({mode}) => {
         '@server': path.resolve(__dirname, './server'),
         '@shared': path.resolve(__dirname, './src/shared'),
       },
-    },
     build: {
       target: 'esnext',
       chunkSizeWarningLimit: 2000,

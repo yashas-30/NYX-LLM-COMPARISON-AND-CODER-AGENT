@@ -11,6 +11,7 @@ export default defineConfig({
     ],
     include: [
       'server/lib/__tests__/**/*.test.ts',
+      'server/features/**/*.test.ts',
       'src/**/*.test.ts',
       'src/**/*.test.tsx'
     ],
@@ -26,7 +27,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, '.'),
+      '@':       path.resolve(__dirname, '.'),
+      '@src':    path.resolve(__dirname, './src'),
+      '@server': path.resolve(__dirname, './server'),
+      '@shared': path.resolve(__dirname, './src/shared'),
     },
   },
 });

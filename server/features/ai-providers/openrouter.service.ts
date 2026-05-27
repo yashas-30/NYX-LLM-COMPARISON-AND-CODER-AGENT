@@ -1,4 +1,4 @@
-import { Gateway } from '../../lib/gateway.js';
+import { Gateway } from '../../lib/gateway.ts';
 
 export interface OpenRouterStreamParams {
   model: string;

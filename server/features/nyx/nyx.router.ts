@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { validate } from '../../middleware/validate.js';
+import { validate } from '../../middleware/validate.ts';
 import {
   writeFileSchema,
   nyxCriticSchema,

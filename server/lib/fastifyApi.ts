@@ -9,7 +9,7 @@ import fastifyCors from '@fastify/cors';
 import https from 'https';
 import dns from 'node:dns';
 
-import { DNS_CACHE, preWarmDns as resolveHostname } from './apiAgent.js';
+import { DNS_CACHE, preWarmDns as resolveHostname } from './apiAgent.ts';
 import { loadKeys, verifySessionToken } from '../features/vault/vault.service.ts';
 import { UnifiedEngine } from './aiEngine.ts';
 

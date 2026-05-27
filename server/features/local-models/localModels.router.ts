@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { validate } from '../../middleware/validate.js';
+import { validate } from '../../middleware/validate.ts';
 import { sendSseTokenRotate } from '../../lib/sseHelpers.ts';
 import { LocalModelsService } from './localModels.service.ts';
 import {

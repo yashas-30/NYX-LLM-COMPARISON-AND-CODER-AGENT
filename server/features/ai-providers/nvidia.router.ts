@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { sendSseTokenRotate } from '../../lib/sseHelpers.ts';
-import { validate } from '../../middleware/validate.js';
+import { validate } from '../../middleware/validate.ts';
 import { nvidiaStreamSchema } from './nvidia.schema.ts';
 import { NvidiaService } from './nvidia.service.ts';
 import logger from '../../lib/logger.ts';

@@ -3,7 +3,7 @@ import { Search, Check, Info, Bot, RefreshCw, X, Sparkles, Zap, HardDrive, Cpu, 
 import { motion, AnimatePresence } from 'motion/react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { FREE_OPENCODE_MODELS, CLAUDE_MODELS, AVAILABLE_MODELS, POLLINATIONS_MODELS } from '@src/features/model-registry/config/models';
-import { ModelOption } from '../../types';
+import { ModelOption } from '@src/types';
 import { ProviderIcon, getProviderLabel } from '@src/shared/components/ui/ProviderIcon';
 
 interface Props {

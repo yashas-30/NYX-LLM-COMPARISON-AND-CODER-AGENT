@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { sendSseTokenRotate } from '../../lib/sseHelpers.ts';
-import { validate } from '../../middleware/validate.js';
+import { validate } from '../../middleware/validate.ts';
 import { openrouterStreamSchema } from './openrouter.schema.ts';
 import { OpenRouterService } from './openrouter.service.ts';
-import { Gateway } from '../../lib/gateway.js';
+import { Gateway } from '../../lib/gateway.ts';
 
 export const openrouterRouter = Router();
 const service = new OpenRouterService();

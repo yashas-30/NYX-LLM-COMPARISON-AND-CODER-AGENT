@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ModelProvider } from '../types';
+import { ModelProvider } from '@src/types';
 
 export interface ModelSettings {
   temperature: number;

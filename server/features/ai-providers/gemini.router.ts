@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { sendSseTokenRotate } from '../../lib/sseHelpers.ts';
-import { validate } from '../../middleware/validate.js';
+import { validate } from '../../middleware/validate.ts';
 import { geminiStreamSchema } from './gemini.schema.ts';
 import { GeminiService } from './gemini.service.ts';
 import logger from '../../lib/logger.ts';
