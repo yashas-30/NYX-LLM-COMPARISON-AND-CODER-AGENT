@@ -203,9 +203,7 @@ export const cacheGetSchema = z.object({
 // ─────────────────────────────────────────────────────────────────────────────
 // Workspace / System Schemas
 // ─────────────────────────────────────────────────────────────────────────────
-export const workspaceSchema = z.object({
-  path: z.string().min(1).max(1024)
-});
+export { workspaceSchema } from '../features/workspace/workspace.schema.ts';
 
 export const modelQuerySchema = z.object({
   provider: z.string().min(1).max(64)

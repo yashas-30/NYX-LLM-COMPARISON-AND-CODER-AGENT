@@ -21,7 +21,7 @@ import { healthRouter } from './server/routes/health.ts';
 import { metricsRouter } from './server/routes/metrics.ts';
 import { conversationsRouter } from './server/routes/conversations.ts';
 import { cacheRouter } from './server/routes/cache.ts';
-import { workspaceRouter } from './server/routes/workspace.ts';
+import { workspaceRouter } from './server/features/workspace/workspace.router.ts';
 import { modelProxyRouter } from './server/routes/modelProxy.ts';
 import { fastifyProxyRouter } from './server/routes/fastifyProxy.ts';
 
