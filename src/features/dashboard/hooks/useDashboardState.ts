@@ -8,8 +8,8 @@ import { useState, useEffect } from 'react';
 import { useTokenUsage } from '@src/shared/context/TokenUsageContext';
 
 // Modular Hooks
-import { useSecurityState } from './dashboard/useSecurityState';
-import { useProviderStatus } from './dashboard/useProviderStatus';
+import { useSecurityState } from './useSecurityState';
+import { useProviderStatus } from './useProviderStatus';
 
 export const useDashboardState = (onExit?: () => void) => {
   const [activeMode, setActiveMode] = useState<'settings' | 'registry' | 'coder'>('coder');

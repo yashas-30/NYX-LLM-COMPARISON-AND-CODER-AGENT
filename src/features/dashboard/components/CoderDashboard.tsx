@@ -6,10 +6,10 @@
 
 import React, { lazy, Suspense, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useDashboardState } from '@src/hooks/useDashboardState';
+import { useDashboardState } from '../hooks/useDashboardState';
 import { useChatSessions } from '@src/shared/hooks/useChatSessions';
 import { CoderPage } from '@src/features/coder/CoderPage';
-import { SettingsView } from './dashboard/settings/SettingsView';
+import { SettingsView } from '@src/components/dashboard/settings/SettingsView';
 import { useCoderLogic } from '@src/features/coder/hooks/useCoderLogic';
 import { AVAILABLE_MODELS } from '@src/config/models';
 import { useTheme } from '@src/shared/context/ThemeContext';
@@ -23,7 +23,7 @@ import {
 import { toast } from '@src/shared/components/ui/sonner';
 
 const ModelRegistryView = lazy(() =>
-  import('./dashboard/registry/ModelRegistryView').then(m => ({ default: m.ModelRegistryView }))
+  import('@src/components/dashboard/registry/ModelRegistryView').then(m => ({ default: m.ModelRegistryView }))
 );
 
 const LoadingFallback = () => (

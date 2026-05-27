@@ -1,5 +1,5 @@
 import React from 'react';
-import { CoderDashboard } from './components/CoderDashboard';
+import { CoderDashboard } from '@src/features/dashboard';
 import { Toaster } from 'sonner';
 import { useTheme } from '@src/shared/context/ThemeContext';
 import { ErrorBoundary } from '@src/shared/components/ErrorBoundary';
