@@ -35,8 +35,27 @@ openrouterRouter.post('/stream', validate(openrouterStreamSchema), async (req, r
     res.flushHeaders();
     sendSseTokenRotate(res);
 
+    let finalSystemInstruction = systemInstruction || '';
+    try {
+      const { MemoryService } = await import('../nyx/memory.service.ts');
+      const memories = MemoryService.getMemoriesString();
+      if (memories) {
+        finalSystemInstruction = `${finalSystemInstruction}\n\n${memories}`.trim();
+      }
+    } catch (e: any) {
+      console.error('[OpenRouter Router] Failed to load memory keeper context: ' + e.message);
+    }
+
     await service.executeStream(
-      { model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls },
+      {
+        model,
+        prompt,
+        apiKey,
+        settings,
+        systemInstruction: finalSystemInstruction,
+        history,
+        gatewayUrls,
+      },
       controller.signal,
       (chunk) => {
         res.write(`data: ${JSON.stringify({ chunk })}\n\n`);

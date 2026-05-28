@@ -10,40 +10,44 @@ export interface ChatAgentConfig {
   settings: AISettings;
   history: ChatMessage[];
   lightningDirectives?: string[];
+  webSearchEnabled?: boolean;
 }
 
 export class ChatAgent {
   private config: ChatAgentConfig;
-  
+
   constructor(config: ChatAgentConfig) {
     this.config = config;
   }
-  
+
   async *streamResponse(
-    prompt: string, 
+    prompt: string,
     analysis: PromptAnalysis,
     signal: AbortSignal,
     webSearchResults?: string
   ): AsyncGenerator<{ type: 'text' | 'thinking' | 'tool_call'; content: string; metadata?: any }> {
-    
     // Detect language and tone
     const detectedLang = this.detectLanguage(prompt);
     const tone = this.inferTone(prompt, analysis);
 
     // Build optimized prompts
-    let systemPrompt = buildChatSystemPrompt(this.config.modelId, {
+    const systemPrompt = buildChatSystemPrompt(this.config.modelId, {
       conversationTone: tone,
       detectedLanguage: detectedLang,
       previousMessages: this.config.history.length,
       lightningDirectives: this.config.lightningDirectives,
     });
 
-    const contextWindow = buildChatUserPrompt(prompt, {
-      conversationTone: tone,
-      detectedLanguage: detectedLang,
-      previousMessages: this.config.history.length,
-    }, webSearchResults);
-    
+    const contextWindow = buildChatUserPrompt(
+      prompt,
+      {
+        conversationTone: tone,
+        detectedLanguage: detectedLang,
+        previousMessages: this.config.history.length,
+      },
+      webSearchResults
+    );
+
     const chunks: string[] = [];
     let resolveStream: (() => void) | null = null;
     let finished = false;
@@ -67,16 +71,22 @@ export class ChatAgent {
       { ...this.config.settings, temperature: 0.7 }, // Higher temp for creativity
       onStreamCallback,
       signal,
-      { history: this.config.history.slice(-20), agentMode: 'chat' } // Chat keeps more history
-    ).then((result) => {
-      finished = true;
-      if (resolveStream) resolveStream();
-      return result;
-    }).catch((err) => {
-      streamError = err;
-      finished = true;
-      if (resolveStream) resolveStream();
-    });
+      {
+        history: this.config.history.slice(-20),
+        agentMode: 'chat',
+        webSearch: this.config.webSearchEnabled,
+      } // Chat keeps more history
+    )
+      .then((result) => {
+        finished = true;
+        if (resolveStream) resolveStream();
+        return result;
+      })
+      .catch((err) => {
+        streamError = err;
+        finished = true;
+        if (resolveStream) resolveStream();
+      });
 
     while (!finished || chunks.length > 0) {
       if (chunks.length === 0) {
@@ -111,16 +121,25 @@ export class ChatAgent {
     return 'english';
   }
 
-  private inferTone(prompt: string, analysis: PromptAnalysis): 'casual' | 'professional' | 'technical' {
+  private inferTone(
+    prompt: string,
+    analysis: PromptAnalysis
+  ): 'casual' | 'professional' | 'technical' {
     const lower = prompt.toLowerCase();
 
-    if (analysis.detectedLanguages.length > 0 || 
-        (lower.includes('explain') && lower.includes('how does'))) {
+    if (
+      analysis.detectedLanguages.length > 0 ||
+      (lower.includes('explain') && lower.includes('how does'))
+    ) {
       return 'technical';
     }
 
-    if (lower.includes('hey') || lower.includes('hi') || lower.includes('thanks') ||
-        analysis.intent === 'greeting') {
+    if (
+      lower.includes('hey') ||
+      lower.includes('hi') ||
+      lower.includes('thanks') ||
+      analysis.intent === 'greeting'
+    ) {
       return 'casual';
     }
 

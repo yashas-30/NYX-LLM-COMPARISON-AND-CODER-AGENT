@@ -56,7 +56,11 @@ export class AIService {
     return getSessionToken();
   }
 
-  public static async fetchWithAuth(url: string, init?: RequestInit, isStream = false): Promise<Response> {
+  public static async fetchWithAuth(
+    url: string,
+    init?: RequestInit,
+    isStream = false
+  ): Promise<Response> {
     return fetchWithAuth(url, init, isStream);
   }
 
@@ -72,7 +76,13 @@ export class AIService {
     settings?: AISettings,
     onStream?: (text: string) => void,
     signal?: AbortSignal,
-    options?: { history?: ChatMessage[]; nodeId?: string; gatewayUrls?: Record<string, string>; agentMode?: 'chat' | 'coder' }
+    options?: {
+      history?: ChatMessage[];
+      nodeId?: string;
+      gatewayUrls?: Record<string, string>;
+      agentMode?: 'chat' | 'coder';
+      webSearch?: boolean;
+    }
   ): Promise<AIResponse> {
     const dedupeKey = JSON.stringify({
       provider,
@@ -80,7 +90,7 @@ export class AIService {
       prompt,
       systemInstruction,
       history: options?.history || [],
-      settings: settings || {}
+      settings: settings || {},
     });
 
     if (this.inFlightRequests.has(dedupeKey)) {
@@ -127,19 +137,44 @@ export class AIService {
     attempt = 1
   ): Promise<AIResponse> {
     try {
-      return await this._executeRaw(modelId, provider, prompt, apiKey, systemInstruction, settings, onStream, signal, options);
+      return await this._executeRaw(
+        modelId,
+        provider,
+        prompt,
+        apiKey,
+        systemInstruction,
+        settings,
+        onStream,
+        signal,
+        options
+      );
     } catch (error: any) {
       const message = error.message || String(error);
       const isAbort = error.name === 'AbortError' || message.includes('aborted');
       const isCloud = ['gemini', 'openrouter', 'nvidia', 'opencode'].includes(String(provider));
-      const isTransient = /429|503|RESOURCE_EXHAUSTED|UNAVAILABLE|rate_limit|quota|overloaded|high demand/i.test(message) ||
-                          /fetch|network|timeout|econnreset|enotfound/i.test(message);
+      const isTransient =
+        /429|503|RESOURCE_EXHAUSTED|UNAVAILABLE|rate_limit|quota|overloaded|high demand/i.test(
+          message
+        ) || /fetch|network|timeout|econnreset|enotfound/i.test(message);
 
       if (isCloud && isTransient && attempt <= 3 && !isAbort) {
         const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
-        console.warn(`[AIService] Cloud request failed. Retrying in ${delay}ms (Attempt ${attempt}/3). Error: ${message}`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return this.executeWithRetry(modelId, provider, prompt, apiKey, systemInstruction, settings, onStream, signal, options, attempt + 1);
+        console.warn(
+          `[AIService] Cloud request failed. Retrying in ${delay}ms (Attempt ${attempt}/3). Error: ${message}`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return this.executeWithRetry(
+          modelId,
+          provider,
+          prompt,
+          apiKey,
+          systemInstruction,
+          settings,
+          onStream,
+          signal,
+          options,
+          attempt + 1
+        );
       }
       throw error;
     }
@@ -154,15 +189,21 @@ export class AIService {
     settings?: AISettings,
     onStream?: (text: string) => void,
     signal?: AbortSignal,
-    options?: { history?: ChatMessage[]; nodeId?: string; gatewayUrls?: Record<string, string>; agentMode?: 'chat' | 'coder' }
+    options?: {
+      history?: ChatMessage[];
+      nodeId?: string;
+      gatewayUrls?: Record<string, string>;
+      agentMode?: 'chat' | 'coder';
+      webSearch?: boolean;
+    }
   ): Promise<AIResponse> {
     cancelCurrentRequest();
     currentAbortController = new AbortController();
     signal = signal || currentAbortController.signal;
 
     const startTime = Date.now();
-    let resultText = "";
-    
+    let resultText: string;
+
     // Filter history to exclude the final user prompt if it is already at the end of the history.
     // This prevents back-to-back duplicate user messages from confusing local or cloud model chat templates.
     let historyToUse = options?.history;
@@ -177,7 +218,7 @@ export class AIService {
     this.validateApiKey(provider, apiKey);
 
     // ── Cache Server Intercept ──────────────────────────────────────────────
-    let cacheKey = "";
+    let cacheKey = '';
     try {
       const cacheCheckRes = await this.fetchWithAuth('/api/cache/get', {
         method: 'POST',
@@ -188,9 +229,9 @@ export class AIService {
           prompt,
           systemInstruction,
           history: historyToUse || [],
-          settings: settings || {}
+          settings: settings || {},
         }),
-        signal
+        signal,
       });
       if (cacheCheckRes.ok) {
         const cacheCheck = await cacheCheckRes.json();
@@ -208,8 +249,8 @@ export class AIService {
             metrics: {
               latency,
               tokens,
-              tps
-            }
+              tps,
+            },
           };
         }
       }
@@ -218,17 +259,75 @@ export class AIService {
     }
 
     if (provider === 'gemini') {
-      resultText = await this.executeGemini(modelId, prompt, apiKey, settings, systemInstruction, historyToUse, onStream, signal, options?.gatewayUrls);
+      resultText = await this.executeGemini(
+        modelId,
+        prompt,
+        apiKey,
+        settings,
+        systemInstruction,
+        historyToUse,
+        onStream,
+        signal,
+        options?.gatewayUrls
+      );
     } else if (provider === 'openrouter') {
-      resultText = await this.executeOpenRouter(modelId, prompt, apiKey!, settings, systemInstruction, historyToUse, onStream, signal, options?.gatewayUrls);
+      resultText = await this.executeOpenRouter(
+        modelId,
+        prompt,
+        apiKey!,
+        settings,
+        systemInstruction,
+        historyToUse,
+        onStream,
+        signal,
+        options?.gatewayUrls
+      );
     } else if (provider === 'nvidia') {
-      resultText = await this.executeNvidia(modelId, prompt, apiKey!, settings, systemInstruction, historyToUse, onStream, signal, options?.gatewayUrls);
+      resultText = await this.executeNvidia(
+        modelId,
+        prompt,
+        apiKey!,
+        settings,
+        systemInstruction,
+        historyToUse,
+        onStream,
+        signal,
+        options?.gatewayUrls
+      );
     } else if (provider === 'opencode') {
-      resultText = await this.executeOpencode(modelId, prompt, apiKey, settings, systemInstruction, historyToUse, onStream, signal, options?.gatewayUrls);
+      resultText = await this.executeOpencode(
+        modelId,
+        prompt,
+        apiKey,
+        settings,
+        systemInstruction,
+        historyToUse,
+        onStream,
+        signal,
+        options?.gatewayUrls
+      );
     } else if (provider === 'pollinations') {
-      resultText = await this.executePollinations(modelId, prompt, settings, systemInstruction, historyToUse, onStream, signal);
+      resultText = await this.executePollinations(
+        modelId,
+        prompt,
+        settings,
+        systemInstruction,
+        historyToUse,
+        onStream,
+        signal
+      );
     } else if (provider === 'nyx-native') {
-      resultText = await this.executeNyxNative(modelId, prompt, systemInstruction, settings, historyToUse, onStream, signal, options?.agentMode);
+      resultText = await this.executeNyxNative(
+        modelId,
+        prompt,
+        systemInstruction,
+        settings,
+        historyToUse,
+        onStream,
+        signal,
+        options?.agentMode,
+        options?.webSearch
+      );
     } else {
       throw new Error(`Unsupported provider: ${provider}`);
     }
@@ -242,38 +341,52 @@ export class AIService {
           key: cacheKey,
           data: resultText,
           provider,
-          model: modelId
-        })
-      }).catch(err => console.warn('[Cache Server] Write failed:', err));
+          model: modelId,
+        }),
+      }).catch((err) => console.warn('[Cache Server] Write failed:', err));
     }
 
     const endTime = Date.now();
     const latency = endTime - startTime;
     const tokens = Math.floor(resultText.length / 4); // Heuristic: ~4 chars per token
     const tps = latency > 0 ? Math.round(tokens / (latency / 1000)) : 0;
-    
+
     return {
       text: resultText,
       metrics: {
         latency,
         tokens,
-        tps
-      }
+        tps,
+      },
     };
   }
 
   // ── Provider Specific Implementations ────────────────────────────────────
 
   private static async executeGemini(
-    model: string, prompt: string, apiKey?: string, settings?: AISettings, 
-    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal,
+    model: string,
+    prompt: string,
+    apiKey?: string,
+    settings?: AISettings,
+    systemInstruction?: string,
+    history?: ChatMessage[],
+    onStream?: (t: string) => void,
+    signal?: AbortSignal,
     gatewayUrls?: Record<string, string>
   ): Promise<string> {
     try {
       const response = await this.fetchWithAuth('/api/gemini/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
-        body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),
+        headers: { 'Content-Type': 'application/json', Connection: 'keep-alive' },
+        body: JSON.stringify({
+          model,
+          prompt,
+          apiKey,
+          settings,
+          systemInstruction,
+          history,
+          gatewayUrls,
+        }),
         signal,
       });
 
@@ -284,19 +397,27 @@ export class AIService {
     } catch (error: any) {
       const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
       if (!isAbort) {
-        console.warn('[AIService] Gemini stream proxy failed, falling back to direct browser fetch:', error);
+        console.warn(
+          '[AIService] Gemini stream proxy failed, falling back to direct browser fetch:',
+          error
+        );
         const { directFetchGemini } = await import('@src/infrastructure/api/directClient');
-        const text = await directFetchGemini(model, prompt, apiKey || '', settings, systemInstruction, history, signal, gatewayUrls);
+        const text = await directFetchGemini(
+          model,
+          prompt,
+          apiKey || '',
+          settings,
+          systemInstruction,
+          history,
+          signal,
+          gatewayUrls
+        );
         if (onStream) onStream(text);
         return text;
       }
       throw error;
     }
   }
-
-
-
-
 
   private static async executeNyxNative(
     model: string,
@@ -306,7 +427,8 @@ export class AIService {
     history?: ChatMessage[],
     onStream?: (t: string) => void,
     signal?: AbortSignal,
-    agentMode?: 'chat' | 'coder'
+    agentMode?: 'chat' | 'coder',
+    webSearch?: boolean
   ): Promise<string> {
     const messages: any[] = [];
     if (systemInstruction) {
@@ -325,7 +447,8 @@ export class AIService {
         messages,
         temperature: settings?.temperature ?? 0.7,
         max_tokens: settings?.maxTokens ?? 4096,
-        agentMode
+        agentMode,
+        webSearch,
       }),
       signal,
     });
@@ -338,15 +461,29 @@ export class AIService {
   }
 
   private static async executeOpenRouter(
-    model: string, prompt: string, apiKey: string, settings?: AISettings, 
-    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal,
+    model: string,
+    prompt: string,
+    apiKey: string,
+    settings?: AISettings,
+    systemInstruction?: string,
+    history?: ChatMessage[],
+    onStream?: (t: string) => void,
+    signal?: AbortSignal,
     gatewayUrls?: Record<string, string>
   ): Promise<string> {
     try {
       const response = await this.fetchWithAuth('/api/openrouter/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
-        body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),
+        headers: { 'Content-Type': 'application/json', Connection: 'keep-alive' },
+        body: JSON.stringify({
+          model,
+          prompt,
+          apiKey,
+          settings,
+          systemInstruction,
+          history,
+          gatewayUrls,
+        }),
         signal,
       });
 
@@ -357,9 +494,21 @@ export class AIService {
     } catch (error: any) {
       const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
       if (!isAbort) {
-        console.warn('[AIService] OpenRouter stream proxy failed, falling back to direct browser fetch:', error);
+        console.warn(
+          '[AIService] OpenRouter stream proxy failed, falling back to direct browser fetch:',
+          error
+        );
         const { directFetchOpenRouter } = await import('@src/infrastructure/api/directClient');
-        const text = await directFetchOpenRouter(model, prompt, apiKey, settings, systemInstruction, history, signal, gatewayUrls);
+        const text = await directFetchOpenRouter(
+          model,
+          prompt,
+          apiKey,
+          settings,
+          systemInstruction,
+          history,
+          signal,
+          gatewayUrls
+        );
         if (onStream) onStream(text);
         return text;
       }
@@ -368,16 +517,30 @@ export class AIService {
   }
 
   private static async executeNvidia(
-    model: string, prompt: string, apiKey: string, settings?: AISettings, 
-    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal,
+    model: string,
+    prompt: string,
+    apiKey: string,
+    settings?: AISettings,
+    systemInstruction?: string,
+    history?: ChatMessage[],
+    onStream?: (t: string) => void,
+    signal?: AbortSignal,
     gatewayUrls?: Record<string, string>
   ): Promise<string> {
     // NVIDIA NIM models - requires API key
     try {
       const response = await this.fetchWithAuth('/api/nvidia/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
-        body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),
+        headers: { 'Content-Type': 'application/json', Connection: 'keep-alive' },
+        body: JSON.stringify({
+          model,
+          prompt,
+          apiKey,
+          settings,
+          systemInstruction,
+          history,
+          gatewayUrls,
+        }),
         signal,
       });
 
@@ -388,9 +551,21 @@ export class AIService {
     } catch (error: any) {
       const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
       if (!isAbort) {
-        console.warn('[AIService] NVIDIA stream proxy failed, falling back to direct browser fetch:', error);
+        console.warn(
+          '[AIService] NVIDIA stream proxy failed, falling back to direct browser fetch:',
+          error
+        );
         const { directFetchNvidia } = await import('@src/infrastructure/api/directClient');
-        const text = await directFetchNvidia(model, prompt, apiKey, settings, systemInstruction, history, signal, gatewayUrls);
+        const text = await directFetchNvidia(
+          model,
+          prompt,
+          apiKey,
+          settings,
+          systemInstruction,
+          history,
+          signal,
+          gatewayUrls
+        );
         if (onStream) onStream(text);
         return text;
       }
@@ -399,15 +574,29 @@ export class AIService {
   }
 
   private static async executeOpencode(
-    model: string, prompt: string, apiKey?: string, settings?: AISettings, 
-    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal,
+    model: string,
+    prompt: string,
+    apiKey?: string,
+    settings?: AISettings,
+    systemInstruction?: string,
+    history?: ChatMessage[],
+    onStream?: (t: string) => void,
+    signal?: AbortSignal,
     gatewayUrls?: Record<string, string>
   ): Promise<string> {
     try {
       const response = await this.fetchWithAuth('/api/opencode/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
-        body: JSON.stringify({ model, prompt, apiKey, settings, systemInstruction, history, gatewayUrls }),
+        headers: { 'Content-Type': 'application/json', Connection: 'keep-alive' },
+        body: JSON.stringify({
+          model,
+          prompt,
+          apiKey,
+          settings,
+          systemInstruction,
+          history,
+          gatewayUrls,
+        }),
         signal,
       });
 
@@ -418,9 +607,21 @@ export class AIService {
     } catch (error: any) {
       const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
       if (!isAbort) {
-        console.warn('[AIService] OpenCode stream proxy failed, falling back to direct browser fetch:', error);
+        console.warn(
+          '[AIService] OpenCode stream proxy failed, falling back to direct browser fetch:',
+          error
+        );
         const { directFetchOpenCode } = await import('@src/infrastructure/api/directClient');
-        const text = await directFetchOpenCode(model, prompt, apiKey, settings, systemInstruction, history, signal, gatewayUrls);
+        const text = await directFetchOpenCode(
+          model,
+          prompt,
+          apiKey,
+          settings,
+          systemInstruction,
+          history,
+          signal,
+          gatewayUrls
+        );
         if (onStream) onStream(text);
         return text;
       }
@@ -429,13 +630,18 @@ export class AIService {
   }
 
   private static async executePollinations(
-    model: string, prompt: string, settings?: AISettings, 
-    systemInstruction?: string, history?: ChatMessage[], onStream?: (t: string) => void, signal?: AbortSignal
+    model: string,
+    prompt: string,
+    settings?: AISettings,
+    systemInstruction?: string,
+    history?: ChatMessage[],
+    onStream?: (t: string) => void,
+    signal?: AbortSignal
   ): Promise<string> {
     try {
       const response = await this.fetchWithAuth('/api/pollinations/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Connection': 'keep-alive' },
+        headers: { 'Content-Type': 'application/json', Connection: 'keep-alive' },
         body: JSON.stringify({ model, prompt, settings, systemInstruction, history }),
         signal,
       });
@@ -447,8 +653,11 @@ export class AIService {
     } catch (error: any) {
       const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
       if (!isAbort) {
-        console.warn('[AIService] Pollinations stream proxy failed, falling back to direct browser fetch:', error);
-        
+        console.warn(
+          '[AIService] Pollinations stream proxy failed, falling back to direct browser fetch:',
+          error
+        );
+
         const realModel = model.replace('pollinations/', '');
         const messages: any[] = [];
         if (systemInstruction) {
@@ -475,14 +684,18 @@ export class AIService {
 
         if (!directRes.ok) {
           const directErrText = await directRes.text();
-          throw new Error(`Pollinations Direct API Error: ${directErrText}`);
+          throw new Error(`Pollinations Direct API Error: ${directErrText}`, { cause: error });
         }
 
-        let text = '';
+        let text: string;
         const contentType = directRes.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
           const data = await directRes.json();
-          text = data.choices?.[0]?.message?.content || data.choices?.[0]?.delta?.content || data.text || '';
+          text =
+            data.choices?.[0]?.message?.content ||
+            data.choices?.[0]?.delta?.content ||
+            data.text ||
+            '';
         } else {
           text = await directRes.text();
         }
@@ -496,104 +709,112 @@ export class AIService {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  private static async handleNonOkResponse(response: Response, providerName: string): Promise<never> {
-    const err = await response.json().catch(() => ({ error: `${providerName} Error ${response.status}` }));
+  private static async handleNonOkResponse(
+    response: Response,
+    providerName: string
+  ): Promise<never> {
+    const err = await response
+      .json()
+      .catch(() => ({ error: `${providerName} Error ${response.status}` }));
     if (err && err.error === 'SAFETY_GATE_BLOCKED') {
       throw new Error(`SAFETY_GATE_BLOCKED:${JSON.stringify(err)}`);
     }
     throw new Error(err.error || `${providerName} Error ${response.status}`);
   }
 
-  private static async processStream(response: Response, onStream?: (t: string) => void): Promise<string> {
-  if (!response.body) throw new Error("No response body");
-  
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let resultText = "";
-  let buffer = "";
+  private static async processStream(
+    response: Response,
+    onStream?: (t: string) => void
+  ): Promise<string> {
+    if (!response.body) throw new Error('No response body');
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let resultText = '';
+    let buffer = '';
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        
-        // Skip empty lines and comments
-        if (!trimmed || trimmed.startsWith(":")) continue;
-        
-        // Check for "data: " prefix
-        const hasDataPrefix = trimmed.startsWith("data: ");
-        const dataStr = hasDataPrefix ? trimmed.slice(6).trim() : trimmed;
-        
-        // Handle [DONE] sentinel
-        if (dataStr === "[DONE]" || dataStr === "[done]") {
-          return resultText || "[PROTOCOL HALT]";
-        }
-        
-        // Skip empty data
-        if (!dataStr) continue;
-        
-        // Try to parse JSON safely
-        try {
-          const parsed = JSON.parse(dataStr);
-          
-          // Intercept token rotation events
-          if (parsed && parsed.tokenRotate) {
-            AIService.setSessionToken(parsed.tokenRotate);
-            continue;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+
+          // Skip empty lines and comments
+          if (!trimmed || trimmed.startsWith(':')) continue;
+
+          // Check for "data: " prefix
+          const hasDataPrefix = trimmed.startsWith('data: ');
+          const dataStr = hasDataPrefix ? trimmed.slice(6).trim() : trimmed;
+
+          // Handle [DONE] sentinel
+          if (dataStr === '[DONE]' || dataStr === '[done]') {
+            return resultText || '[PROTOCOL HALT]';
           }
 
-          // Check for error
-          if (parsed.error) {
-            const msg = typeof parsed.error === 'object' 
-              ? (parsed.error.message || JSON.stringify(parsed.error))
-              : String(parsed.error);
-            throw new Error(msg);
-          }
-          
-          // Extract content from various formats
-          let chunk: string | null = null;
-          
-          // Unified format: { chunk: "..." }
-          if (typeof parsed.chunk === 'string') {
-            chunk = parsed.chunk;
-          }
-          // OpenAI format: { choices: [{ delta: { content: "..." } }] }
-          else if (parsed.choices?.[0]?.delta?.content) {
-            chunk = parsed.choices[0].delta.content;
-          }
+          // Skip empty data
+          if (!dataStr) continue;
 
-          
-          if (chunk) {
-            resultText += chunk;
-            if (onStream) onStream(resultText);
+          // Try to parse JSON safely
+          try {
+            const parsed = JSON.parse(dataStr);
+
+            // Intercept token rotation events
+            if (parsed && parsed.tokenRotate) {
+              AIService.setSessionToken(parsed.tokenRotate);
+              continue;
+            }
+
+            // Check for error
+            if (parsed.error) {
+              const msg =
+                typeof parsed.error === 'object'
+                  ? parsed.error.message || JSON.stringify(parsed.error)
+                  : String(parsed.error);
+              throw new Error(msg);
+            }
+
+            // Extract content from various formats
+            let chunk: string | null = null;
+
+            // Unified format: { chunk: "..." }
+            if (typeof parsed.chunk === 'string') {
+              chunk = parsed.chunk;
+            }
+            // OpenAI format: { choices: [{ delta: { content: "..." } }] }
+            else if (parsed.choices?.[0]?.delta?.content) {
+              chunk = parsed.choices[0].delta.content;
+            }
+
+            if (chunk) {
+              resultText += chunk;
+              if (onStream) onStream(resultText);
+            }
+          } catch (e: any) {
+            // Skip JSON parse errors silently - partial chunks are common in SSE
+            if (e.message?.includes('JSON') || e.message?.includes('Unexpected token')) {
+              continue;
+            }
+            // Re-throw non-parse errors
+            throw e;
           }
-        } catch (e: any) {
-          // Skip JSON parse errors silently - partial chunks are common in SSE
-          if (e.message?.includes('JSON') || e.message?.includes('Unexpected token')) {
-            continue;
-          }
-          // Re-throw non-parse errors
-          throw e;
         }
       }
+    } finally {
+      try {
+        reader.releaseLock();
+      } catch {
+        // Lock may already be released
+      }
     }
-  } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-      // Lock may already be released
-    }
+
+    return resultText || '[PROTOCOL HALT]';
   }
-  
-  return resultText || "[PROTOCOL HALT]";
-}
 
   private static validateApiKey(provider: Provider | string, key?: string) {
     if (provider === 'pollinations' || provider === 'nyx-native') return;
@@ -602,36 +823,45 @@ export class AIService {
     if (key) {
       const trimmed = key.trim();
       if (!trimmed) return;
-      if (provider === 'openrouter' && !trimmed.startsWith('sk-or-')) throw new Error("Invalid OpenRouter Key");
-      if (provider === 'gemini' && trimmed.length < 30) throw new Error("Invalid Gemini Key");
-      if (provider === 'openai' && !trimmed.startsWith('sk-')) throw new Error("Invalid OpenAI Key");
-      if (provider === 'anthropic' && !trimmed.startsWith('sk-ant-')) throw new Error("Invalid Anthropic Key");
-      if (provider === 'deepseek' && trimmed.length < 20) throw new Error("Invalid DeepSeek Key");
-      if (provider === 'groq' && !trimmed.startsWith('gsk_')) throw new Error("Invalid Groq Key");
-      if (provider === 'mistral' && trimmed.length < 20) throw new Error("Invalid Mistral Key");
-      if (provider === 'together' && !trimmed.startsWith('sk-')) throw new Error("Invalid Together AI Key");
+      if (provider === 'openrouter' && !trimmed.startsWith('sk-or-'))
+        throw new Error('Invalid OpenRouter Key');
+      if (provider === 'gemini' && trimmed.length < 30) throw new Error('Invalid Gemini Key');
+      if (provider === 'openai' && !trimmed.startsWith('sk-'))
+        throw new Error('Invalid OpenAI Key');
+      if (provider === 'anthropic' && !trimmed.startsWith('sk-ant-'))
+        throw new Error('Invalid Anthropic Key');
+      if (provider === 'deepseek' && trimmed.length < 20) throw new Error('Invalid DeepSeek Key');
+      if (provider === 'groq' && !trimmed.startsWith('gsk_')) throw new Error('Invalid Groq Key');
+      if (provider === 'mistral' && trimmed.length < 20) throw new Error('Invalid Mistral Key');
+      if (provider === 'together' && !trimmed.startsWith('sk-'))
+        throw new Error('Invalid Together AI Key');
     }
   }
 
-  private static async handleError(error: any, retryFn: () => Promise<AIResponse>): Promise<AIResponse> {
+  private static async handleError(
+    error: any,
+    _retryFn: () => Promise<AIResponse>
+  ): Promise<AIResponse> {
     const message = error.message || String(error);
     if (message.startsWith('SAFETY_GATE_BLOCKED:')) {
       throw error;
     }
-    const isTransient = /429|503|RESOURCE_EXHAUSTED|UNAVAILABLE|rate_limit|quota|overloaded|high demand/.test(message);
-    
-    // For now, we skip auto-retry logic in this service layer to keep it pure, 
+
+    // For now, we skip auto-retry logic in this service layer to keep it pure,
     // or we could implement a controlled retry here if requested.
-    // Given original logic had retryCount < 2, I'll let the feature hook handle retries 
+    // Given original logic had retryCount < 2, I'll let the feature hook handle retries
     // or wrap it if strictly needed.
-    
+
     throw new Error(message);
   }
 
   /**
    * Returns the connectivity status of a provider.
    */
-  static async checkStatus(provider: Provider | string, apiKey?: string): Promise<'online' | 'offline' | 'no-key'> {
+  static async checkStatus(
+    provider: Provider | string,
+    apiKey?: string
+  ): Promise<'online' | 'offline' | 'no-key'> {
     if (provider === 'pollinations') return 'online';
     if (provider === 'nyx-native') {
       try {
@@ -645,8 +875,6 @@ export class AIService {
         return 'offline';
       }
     }
-
-
 
     // Check cloud provider via server vault configuration status
     try {
@@ -674,20 +902,52 @@ export class AIService {
     const p = prompt.toLowerCase().trim();
     if (prompt.trim().startsWith('CODE: ')) return true;
     const strongKeywords = [
-      'generate code', 'write code', 'write a function', 'write a class',
-      'implement a function', 'implement a class', 'implement an algorithm',
-      'debug this code', 'refactor this', 'fix this code', 'fix the bug',
-      'code snippet', 'python script', 'javascript function', 'typescript',
-      'sql query', 'bash script', 'shell script', 'html template',
-      'css style', 'react component', 'react hook', 'api endpoint',
-      'rest api', 'graphql', 'dockerfile', 'kubernetes', 'terraform',
-      'unit test', 'test case', 'pseudocode', 'time complexity', 'space complexity',
-      'big o', 'recursion', 'data structure', 'linked list', 'binary tree',
-      'sorting algorithm', 'merge sort', 'quick sort'
+      'generate code',
+      'write code',
+      'write a function',
+      'write a class',
+      'implement a function',
+      'implement a class',
+      'implement an algorithm',
+      'debug this code',
+      'refactor this',
+      'fix this code',
+      'fix the bug',
+      'code snippet',
+      'python script',
+      'javascript function',
+      'typescript',
+      'sql query',
+      'bash script',
+      'shell script',
+      'html template',
+      'css style',
+      'react component',
+      'react hook',
+      'api endpoint',
+      'rest api',
+      'graphql',
+      'dockerfile',
+      'kubernetes',
+      'terraform',
+      'unit test',
+      'test case',
+      'pseudocode',
+      'time complexity',
+      'space complexity',
+      'big o',
+      'recursion',
+      'data structure',
+      'linked list',
+      'binary tree',
+      'sorting algorithm',
+      'merge sort',
+      'quick sort',
     ];
-    if (strongKeywords.some(kw => p.includes(kw))) return true;
+    if (strongKeywords.some((kw) => p.includes(kw))) return true;
     if (/```[\w]*\n/.test(prompt)) return true;
-    const langPattern = /\b(python|javascript|typescript|java|c\+\+|c#|rust|golang|ruby|php|swift|kotlin|scala)\b/;
+    const langPattern =
+      /\b(python|javascript|typescript|java|c\+\+|c#|rust|golang|ruby|php|swift|kotlin|scala)\b/;
     const taskPattern = /\b(write|implement|create|build|code|function|class|script|program)\b/;
     if (langPattern.test(p) && taskPattern.test(p)) return true;
     return false;

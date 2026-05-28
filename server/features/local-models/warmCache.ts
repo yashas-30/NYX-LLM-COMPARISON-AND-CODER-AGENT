@@ -30,7 +30,7 @@ export class ModelWarmCache {
       const cached = this.cache.get(modelId)!;
       cached.lastUsedAt = Date.now();
       cached.useCount++;
-      
+
       // If already running with enough context size, just return
       if (LocalModelRunner.getActiveModel() === modelId && LocalModelRunner.isRunning()) {
         const activeContext = LocalModelRunner.getActiveContextSize();
@@ -55,7 +55,7 @@ export class ModelWarmCache {
     }
 
     // Start new model
-    await LocalModelRunner.start(modelId, profile || { contextSize: 4096 });
+    await LocalModelRunner.start(modelId, profile || { contextSize: 8192 });
 
     this.cache.set(modelId, {
       modelId,

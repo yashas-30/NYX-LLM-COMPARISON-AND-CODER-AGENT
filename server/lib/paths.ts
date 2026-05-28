@@ -2,17 +2,20 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 import { spawnSync } from 'child_process';
+import { fileURLToPath } from 'url';
 
 // Check if running in production mode or packaged Electron app
-export const isProd = process.env.NODE_ENV === 'production' || 
-                      process.env.IS_PACKAGED === 'true';
+export const isProd = process.env.NODE_ENV === 'production' || process.env.IS_PACKAGED === 'true';
 
 // Helper to locate the project workspace root in development
 function findProjectRoot(): string {
   if (process.env.NYX_WORKSPACE_ROOT) {
     return path.resolve(process.env.NYX_WORKSPACE_ROOT);
   }
-  let dir = __dirname;
+  let dir =
+    typeof __dirname !== 'undefined'
+      ? __dirname
+      : path.dirname(fileURLToPath(new Function('return import.meta.url')()));
   for (let i = 0; i < 5; i++) {
     if (fs.existsSync(path.join(dir, 'package.json'))) {
       return dir;
@@ -25,9 +28,7 @@ function findProjectRoot(): string {
 }
 
 // Base user data directory for NYX application state
-export const APP_STATE_DIR = isProd
-  ? path.join(os.homedir(), '.nyx')
-  : findProjectRoot();
+export const APP_STATE_DIR = isProd ? path.join(os.homedir(), '.nyx') : findProjectRoot();
 
 // Specific sub-folders for keys, logs, models, and cache
 export const VAULT_DIR = path.join(APP_STATE_DIR, '.nyx-keys');
@@ -67,7 +68,9 @@ export function findPythonPath(): string {
       if (vscodeSettings['python.defaultInterpreterPath']) {
         candidates.unshift(vscodeSettings['python.defaultInterpreterPath']);
       }
-    } catch {}
+    } catch {
+      // Ignore settings parsing errors
+    }
   }
 
   for (const c of candidates) {
@@ -88,7 +91,7 @@ export function findPythonPath(): string {
 
 // Ensure directories exist
 const dirs = [APP_STATE_DIR, VAULT_DIR, LOGS_DIR, MODELS_DIR, CACHE_DIR];
-dirs.forEach(dir => {
+dirs.forEach((dir) => {
   if (!fs.existsSync(dir)) {
     try {
       fs.mkdirSync(dir, { recursive: true });
@@ -127,8 +130,8 @@ export function setWorkspaceRoot(newRoot: string): boolean {
     const resolved = path.resolve(newRoot);
     if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
       workspaceRoot = resolved;
-      const config = fs.existsSync(CONFIG_FILE) 
-        ? JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) 
+      const config = fs.existsSync(CONFIG_FILE)
+        ? JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))
         : {};
       config.workspaceRoot = workspaceRoot;
       fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');

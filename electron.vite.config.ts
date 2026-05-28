@@ -41,8 +41,8 @@ export default defineConfig({
     },
     resolve: {
       alias: {
-        '@':       path.resolve(__dirname, '.'),
-        '@src':    path.resolve(__dirname, './src'),
+        '@': path.resolve(__dirname, '.'),
+        '@src': path.resolve(__dirname, './src'),
         '@server': path.resolve(__dirname, './server'),
         '@shared': path.resolve(__dirname, './src/shared'),
       },
@@ -56,9 +56,11 @@ export default defineConfig({
           '**/nyx.db*',
           '**/scratch/**',
           '**/server.log',
-          '**/server.err'
-        ]
-      }
+          '**/server.err',
+          /[/\\]nyx\.db.*/,
+          /.*nyx\.db.*/,
+        ],
+      },
     },
     build: {
       target: 'esnext',

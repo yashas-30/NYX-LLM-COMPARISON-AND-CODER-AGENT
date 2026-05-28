@@ -22,13 +22,18 @@ export class ModelOptimizer {
     taskType: 'chat' | 'code' | 'analysis',
     priority: 'speed' | 'quality' | 'balanced' = 'balanced'
   ): Promise<OptimizationProfile> {
-
     const gpus = await LocalModelRunner.detectGPUs();
     const totalRam = os.totalmem();
     const cpuCores = os.cpus().length;
 
     // Base calculations from existing code
-    const optimal = await LocalModelRunner.calculateOptimalLayers(modelId, this.getContextSize(taskType, totalRam));
+    const optimal = await LocalModelRunner.calculateOptimalLayers(
+      modelId,
+      this.getContextSize(taskType, totalRam)
+    );
+
+    const backendType =
+      gpus.length > 0 ? ((await LocalModelRunner.detectBackend()) as 'cuda' | 'vulkan') : 'cpu';
 
     // Task-specific adjustments
     const profile: OptimizationProfile = {
@@ -37,17 +42,22 @@ export class ModelOptimizer {
       batchSize: optimal.batchSize,
       threads: Math.max(1, Math.floor(cpuCores * 0.75)),
       quantization: this.getQuantization(priority, taskType),
-      useFlashAttn: gpus.some(g => g.vendor.toLowerCase().includes('nvidia')),
-      kvCacheQuant: priority === 'speed' ? 'q4_0' : 'q8_0',
+      // Flash attention is only supported on CUDA, NOT on Vulkan backend (causes crashes).
+      // Setting this correctly here prevents the runner from accidentally enabling it on Vulkan.
+      useFlashAttn:
+        backendType === 'cuda' && gpus.some((g) => g.vendor.toLowerCase().includes('nvidia')),
+      // Vulkan backend crashes with quantized KV cache (q8_0/q4_0 causes GGML_SCHED_MAX_SPLIT_INPUTS error).
+      // Use f16 KV cache for Vulkan; quantized KV cache is only safe on CUDA.
+      kvCacheQuant: backendType === 'vulkan' ? 'f16' : priority === 'speed' ? 'q4_0' : 'q8_0',
       speculativeDecoding: this.shouldUseSpeculative(modelId, gpus),
-      backend: gpus.length > 0 ? (await LocalModelRunner.detectBackend() as 'cuda' | 'vulkan') : 'cpu',
+      backend: backendType,
       estimatedTokensPerSecond: this.estimateSpeed(optimal.gpuLayers, optimal.totalLayers, gpus),
     };
 
     // Multi-GPU splitting
     if (gpus.length > 1 && profile.gpuLayers > 0) {
       const totalVram = gpus.reduce((sum, g) => sum + g.vramBytes, 0);
-      profile.tensorSplit = gpus.map(g => g.vramBytes / totalVram);
+      profile.tensorSplit = gpus.map((g) => g.vramBytes / totalVram);
     }
 
     // Code generation: force higher quality quant
@@ -65,7 +75,7 @@ export class ModelOptimizer {
   }
 
   private getContextSize(taskType: string, totalRam: number): number {
-    const ramGB = totalRam / (1024**3);
+    const ramGB = totalRam / 1024 ** 3;
 
     switch (taskType) {
       case 'chat':
@@ -79,10 +89,7 @@ export class ModelOptimizer {
     }
   }
 
-  private getQuantization(
-    priority: string, 
-    taskType: string
-  ): OptimizationProfile['quantization'] {
+  private getQuantization(priority: string, taskType: string): OptimizationProfile['quantization'] {
     if (taskType === 'code') {
       return priority === 'speed' ? 'Q4_K_M' : 'Q5_K_M';
     }
@@ -93,14 +100,14 @@ export class ModelOptimizer {
 
   private shouldUseSpeculative(modelId: string, gpus: any[]): boolean {
     // Only use speculative decoding if we have VRAM headroom
-    const hasVramHeadroom = gpus.length > 0 && gpus[0].vramBytes > 6 * 1024**3;
+    const hasVramHeadroom = gpus.length > 0 && gpus[0].vramBytes > 6 * 1024 ** 3;
     const isLargeModel = modelId.includes('70b') || modelId.includes('32b');
     return hasVramHeadroom && !isLargeModel; // Large models don't benefit as much
   }
 
   private estimateSpeed(gpuLayers: number, totalLayers: number, gpus: any[]): number {
     const offloadRatio = gpuLayers / totalLayers;
-    const hasDiscreteGPU = gpus.some(g => {
+    const hasDiscreteGPU = gpus.some((g) => {
       const m = g.model.toLowerCase();
       return m.includes('rtx') || m.includes('geforce') || m.includes('radeon');
     });

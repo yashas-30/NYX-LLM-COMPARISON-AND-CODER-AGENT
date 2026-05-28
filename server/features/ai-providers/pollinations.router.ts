@@ -29,8 +29,19 @@ pollinationsRouter.post('/stream', validate(pollinationsStreamSchema), async (re
     res.flushHeaders();
     sendSseTokenRotate(res);
 
+    let finalSystemInstruction = systemInstruction || '';
+    try {
+      const { MemoryService } = await import('../nyx/memory.service.ts');
+      const memories = MemoryService.getMemoriesString();
+      if (memories) {
+        finalSystemInstruction = `${finalSystemInstruction}\n\n${memories}`.trim();
+      }
+    } catch (e: any) {
+      logger.warn('[Pollinations Router] Failed to load memory keeper context: ' + e.message);
+    }
+
     await service.executeStream(
-      { model, prompt, settings, systemInstruction, history },
+      { model, prompt, settings, systemInstruction: finalSystemInstruction, history },
       controller.signal,
       (chunk) => {
         res.write(`data: ${JSON.stringify({ chunk })}\n\n`);

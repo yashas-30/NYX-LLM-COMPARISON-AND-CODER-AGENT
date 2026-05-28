@@ -28,6 +28,17 @@ geminiRouter.post('/stream', validate(geminiStreamSchema), async (req, res) => {
     isClosed = true;
   });
 
+  let finalSystemInstruction = systemInstruction || '';
+  try {
+    const { MemoryService } = await import('../nyx/memory.service.ts');
+    const memories = MemoryService.getMemoriesString();
+    if (memories) {
+      finalSystemInstruction = `${finalSystemInstruction}\n\n${memories}`.trim();
+    }
+  } catch (e: any) {
+    logger.warn('[Gemini Router] Failed to load memory keeper context: ' + e.message);
+  }
+
   try {
     logger.info({ model }, 'Forwarding request to actual Gemini API');
 
@@ -36,9 +47,9 @@ geminiRouter.post('/stream', validate(geminiStreamSchema), async (req, res) => {
         model,
         prompt,
         settings,
-        systemInstruction,
+        systemInstruction: finalSystemInstruction,
         history,
-        apiKey
+        apiKey,
       },
       (chunk) => {
         if (!isClosed) {

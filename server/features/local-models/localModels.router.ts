@@ -6,7 +6,7 @@ import {
   localModelStartSchema,
   localModelDownloadSchema,
   localModelDeleteSchema,
-  localModelChatSchema
+  localModelChatSchema,
 } from './localModels.schema.ts';
 
 export const localModelsRouter = Router();
@@ -160,13 +160,20 @@ localModelsRouter.get('/status', (_req, res) => {
 // Proxy streaming chat completion to port 12345
 localModelsRouter.post('/chat', validate(localModelChatSchema), async (req, res) => {
   const model = req.body.model;
-  const { messages, temperature, max_tokens, agentMode } = req.body;
+  const { messages, temperature, max_tokens, agentMode, webSearch } = req.body;
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'Invalid or missing messages in request body.' });
   }
 
   try {
-    const response = await service.chat({ model, messages, temperature, max_tokens, agentMode });
+    const response = await service.chat({
+      model,
+      messages,
+      temperature,
+      max_tokens,
+      agentMode,
+      webSearch,
+    });
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -185,6 +192,16 @@ localModelsRouter.post('/chat', validate(localModelChatSchema), async (req, res)
     res.end();
   } catch (e: any) {
     console.error('[Local runner proxy error]:', e.message);
-    res.status(500).json({ error: `Connection to local model runner failed: ${e.message}` });
+    if (res.headersSent) {
+      // Headers already sent (streaming started) — write an SSE error event and close
+      try {
+        res.write(`event: error\ndata: ${JSON.stringify({ error: e.message })}\n\n`);
+        res.end();
+      } catch {
+        /* socket already closed */
+      }
+    } else {
+      res.status(500).json({ error: `Connection to local model runner failed: ${e.message}` });
+    }
   }
 });

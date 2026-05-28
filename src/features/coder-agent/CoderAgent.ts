@@ -1,8 +1,12 @@
 import { AIService } from '@src/features/coder/services/ai.service';
 import { ChatMessage, AISettings, TelemetryMetrics, SubagentTask } from '@src/infrastructure/types';
-import { PromptAnalysis, AgentRoute, NYX_CODER_SYSTEM_PROMPT } from '@src/core/services/promptClassifier';
+import { PromptAnalysis, AgentRoute } from '@src/core/services/promptClassifier';
 import { SubagentOrchestrator } from '@src/features/coder/hooks/useSubagentOrchestrator';
-import { fetchEvolutionaryRules, searchCodebase, searchWeb } from '@src/features/coder/api/coderApi';
+import {
+  fetchEvolutionaryRules,
+  searchCodebase,
+  searchWeb,
+} from '@src/features/coder/api/coderApi';
 import { buildCoderSystemPrompt, buildCoderUserPrompt, CodeContext } from './promptBuilders';
 
 export interface CoderAgentConfig {
@@ -29,27 +33,26 @@ export interface CoderAgentConfig {
 
 export class CoderAgent {
   private config: CoderAgentConfig;
-  
+
   constructor(config: CoderAgentConfig) {
     this.config = config;
   }
-  
+
   async *streamResponse(
     prompt: string,
     analysis: PromptAnalysis,
     route: AgentRoute,
     signal: AbortSignal
-  ): AsyncGenerator<{ 
+  ): AsyncGenerator<{
     type: 'text' | 'thinking' | 'tool_call' | 'tool_result' | 'file_write' | 'error';
     content: string;
     metadata?: any;
   }> {
-    
     // Phase 1: Gather context (parallel where possible)
     yield { type: 'thinking', content: 'Analyzing task and gathering context...' };
-    
+
     const context = await this.gatherContext(prompt, analysis, route.tools, signal);
-    
+
     // Phase 2: Route to appropriate pipeline
     if (route.shouldUseSubagents) {
       yield* this.runSubagentPipeline(prompt, context, analysis, signal);
@@ -57,7 +60,7 @@ export class CoderAgent {
       yield* this.runSingleAgentPipeline(prompt, context, analysis, signal);
     }
   }
-  
+
   private async gatherContext(
     prompt: string,
     analysis: PromptAnalysis,
@@ -65,29 +68,23 @@ export class CoderAgent {
     signal: AbortSignal
   ): Promise<{ codebase?: string; webSearch?: string; rules?: string[] }> {
     const context: any = {};
-    
+
     const promises: Promise<any>[] = [];
-    
+
     if (tools.includes('codebase_search') && this.config.codebaseKnowledgeEnabled) {
-      promises.push(
-        this.searchCodebase(prompt, signal).then(r => context.codebase = r)
-      );
+      promises.push(this.searchCodebase(prompt, signal).then((r) => (context.codebase = r)));
     }
-    
+
     if (tools.includes('web_search') && this.config.webSearchEnabled) {
-      promises.push(
-        this.webSearch(prompt, signal).then(r => context.webSearch = r)
-      );
+      promises.push(this.webSearch(prompt, signal).then((r) => (context.webSearch = r)));
     }
-    
-    promises.push(
-      this.fetchRules().then(r => context.rules = r)
-    );
-    
+
+    promises.push(this.fetchRules().then((r) => (context.rules = r)));
+
     await Promise.all(promises);
     return context;
   }
-  
+
   private async *runSingleAgentPipeline(
     prompt: string,
     context: any,
@@ -100,13 +97,18 @@ export class CoderAgent {
       complexity: analysis.complexity,
       taskType: this.mapIntentToTaskType(analysis.intent),
       existingCode: this.extractExistingCode(prompt),
-      lightningDirectives: this.config.lightningDirectives
+      lightningDirectives: this.config.lightningDirectives,
     };
 
-    let systemPrompt = buildCoderSystemPrompt(this.config.modelId, codeContext);
+    const systemPrompt = buildCoderSystemPrompt(this.config.modelId, codeContext);
 
-    const finalPrompt = buildCoderUserPrompt(prompt, codeContext, context.codebase, context.webSearch);
-    
+    const finalPrompt = buildCoderUserPrompt(
+      prompt,
+      codeContext,
+      context.codebase,
+      context.webSearch
+    );
+
     const chunks: string[] = [];
     let resolveStream: (() => void) | null = null;
     let finished = false;
@@ -130,16 +132,22 @@ export class CoderAgent {
       { ...this.config.settings, temperature: 0.1 }, // Low temp for code accuracy
       onStreamCallback,
       signal,
-      { history: this.config.history.slice(-10), agentMode: 'coder' }
-    ).then((result) => {
-      finished = true;
-      if (resolveStream) resolveStream();
-      return result;
-    }).catch((err) => {
-      streamError = err;
-      finished = true;
-      if (resolveStream) resolveStream();
-    });
+      {
+        history: this.config.history.slice(-10),
+        agentMode: 'coder',
+        webSearch: this.config.webSearchEnabled,
+      }
+    )
+      .then((result) => {
+        finished = true;
+        if (resolveStream) resolveStream();
+        return result;
+      })
+      .catch((err) => {
+        streamError = err;
+        finished = true;
+        if (resolveStream) resolveStream();
+      });
 
     while (!finished || chunks.length > 0) {
       if (chunks.length === 0) {
@@ -168,11 +176,11 @@ export class CoderAgent {
           yield { type: 'file_write', content: file.path, metadata: file };
         }
       }
-      
+
       yield { type: 'text', content: result.text, metadata: result.metrics };
     }
   }
-  
+
   private async *runSubagentPipeline(
     prompt: string,
     _context: any,
@@ -180,12 +188,12 @@ export class CoderAgent {
     signal: AbortSignal
   ): AsyncGenerator<any> {
     yield { type: 'thinking', content: 'Planning implementation and starting subagent swarm...' };
-    
+
     const orchestrator = new SubagentOrchestrator();
     if (this.config.onSubagentTaskUpdate) {
       orchestrator.onTaskUpdate = this.config.onSubagentTaskUpdate;
     }
-    
+
     const results = await orchestrator.execute(prompt, {
       apiKeys: this.config.apiKeys,
       modelSettings: this.config.settings,
@@ -199,20 +207,26 @@ export class CoderAgent {
       codebaseKnowledgeEnabled: this.config.codebaseKnowledgeEnabled,
       signal,
       originalPrompt: this.config.originalPrompt || prompt,
-      triggerBackgroundCritic: this.config.triggerBackgroundCritic
+      triggerBackgroundCritic: this.config.triggerBackgroundCritic,
     });
-    
+
     yield { type: 'tool_result', content: 'Subagent swarm execution complete.', metadata: results };
   }
 
   private mapIntentToTaskType(intent: string): CodeContext['taskType'] {
     switch (intent) {
-      case 'code_generation': return 'generate';
-      case 'code_debug': return 'debug';
-      case 'code_review': return 'review';
-      case 'refactor': return 'refactor';
-      case 'explain_code': return 'explain';
-      default: return 'generate';
+      case 'code_generation':
+        return 'generate';
+      case 'code_debug':
+        return 'debug';
+      case 'code_review':
+        return 'review';
+      case 'refactor':
+        return 'refactor';
+      case 'explain_code':
+        return 'explain';
+      default:
+        return 'generate';
     }
   }
 
@@ -220,7 +234,7 @@ export class CoderAgent {
     const codeBlockMatch = prompt.match(/```[\w]*\n([\s\S]*?)```/);
     return codeBlockMatch ? codeBlockMatch[1] : undefined;
   }
-  
+
   private extractFileBlocks(text: string): Array<{ path: string; content: string }> {
     const files: Array<{ path: string; content: string }> = [];
     const regex = /=== FILE: ([^\n]+) ===\n```[\w]*\n([\s\S]*?)```/g;
@@ -230,14 +244,17 @@ export class CoderAgent {
     }
     return files;
   }
-  
+
   private async searchCodebase(query: string, signal: AbortSignal): Promise<string> {
     try {
       const data = await searchCodebase(query, signal);
       if (data.success) {
         const results = data.results || [];
         const resultsStr = results
-          .map((f: any) => `File: ${f.relativePath || f.path} (Relevance Score: ${f.relevanceScore || f.score})\n\`\`\`\n${f.content}\n\`\`\``)
+          .map(
+            (f: any) =>
+              `File: ${f.relativePath || f.path} (Relevance Score: ${f.relevanceScore || f.score})\n\`\`\`\n${f.content}\n\`\`\``
+          )
           .join('\n\n');
         return `\n\n[LOCAL CODEBASE CONTEXT]\nDIRECTORY STRUCTURE:\n${data.directoryStructure || ''}\n\nRELEVANT SOURCE CODE FILES:\n${resultsStr}\n[END CODEBASE CONTEXT]\n`;
       }
@@ -247,13 +264,16 @@ export class CoderAgent {
       return '';
     }
   }
-  
+
   private async webSearch(query: string, signal: AbortSignal): Promise<string> {
     try {
       const data = await searchWeb(query, signal);
       if (data.success && Array.isArray(data.results)) {
         const resultsStr = data.results
-          .map((r: any, idx: number) => `[Result ${idx + 1}] Title: ${r.title}\nLink: ${r.link}\nSnippet: ${r.snippet}`)
+          .map(
+            (r: any, idx: number) =>
+              `[Result ${idx + 1}] Title: ${r.title}\nLink: ${r.link}\nSnippet: ${r.snippet}`
+          )
           .join('\n\n');
         return `\n\nADDITIONAL WEB SEARCH RESULTS:\n${resultsStr}\n`;
       }
@@ -263,7 +283,7 @@ export class CoderAgent {
       return '';
     }
   }
-  
+
   private async fetchRules(): Promise<string[]> {
     try {
       const rules = await fetchEvolutionaryRules();

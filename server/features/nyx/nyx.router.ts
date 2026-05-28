@@ -4,7 +4,7 @@ import {
   writeFileSchema,
   nyxCriticSchema,
   nyxSearchSchema,
-  codebaseSearchSchema
+  codebaseSearchSchema,
 } from './nyx.schema.ts';
 
 import { AgentService } from './agent.service.ts';
@@ -159,7 +159,11 @@ nyxRouter.post('/write-file', validate(writeFileSchema), async (req, res) => {
 // POST /api/nyx/read-file
 nyxRouter.post('/read-file', async (req, res) => {
   try {
-    const { filePath, startLine, endLine } = req.body as { filePath: string; startLine?: number; endLine?: number };
+    const { filePath, startLine, endLine } = req.body as {
+      filePath: string;
+      startLine?: number;
+      endLine?: number;
+    };
     if (!filePath) {
       return res.status(400).json({ error: 'filePath is required' });
     }
@@ -242,6 +246,46 @@ nyxRouter.post('/validate', async (req, res) => {
     const result = await workspaceService.validateWorkspace();
     res.json(result);
   } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/nyx/memory
+nyxRouter.get('/memory', async (_req, res) => {
+  try {
+    const { MemoryService } = await import('./memory.service.ts');
+    res.json({ success: true, memories: MemoryService.getMemories() });
+  } catch (e: any) {
+    console.error('[Nyx Router] Failed to fetch memories:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/nyx/memory/commit
+nyxRouter.post('/memory/commit', (req, res) => {
+  const { prompt, response, modelId, provider } = req.body;
+  if (!prompt || !response) {
+    return res.status(400).json({ error: 'Missing prompt or response.' });
+  }
+  res.json({ success: true, processing: true });
+  setImmediate(async () => {
+    try {
+      const { MemoryService } = await import('./memory.service.ts');
+      await MemoryService.runBackgroundMemoryKeeper(prompt, response, modelId, provider);
+    } catch (memoryError) {
+      console.error('[Nyx Memory Keeper Layer Error]:', memoryError);
+    }
+  });
+});
+
+// POST /api/nyx/memory/reset
+nyxRouter.post('/memory/reset', async (_req, res) => {
+  try {
+    const { MemoryService } = await import('./memory.service.ts');
+    MemoryService.resetMemories();
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error('[Nyx Router] Failed to reset memories:', e);
     res.status(500).json({ error: e.message });
   }
 });

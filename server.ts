@@ -1,9 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-// @ts-ignore - cors has no default export in CommonJS declaration types
+// @ts-expect-error - cors has no default export in CommonJS declaration types
 import cors from 'cors';
-import { fileURLToPath } from 'url';
 import { isProd, findPythonPath } from './server/lib/paths.ts';
 import path from 'path';
 import http from 'node:http';
@@ -49,7 +48,6 @@ import { migrateOldStore } from './server/features/conversations/conversations.s
 
 // DNS override removed: breaks enterprise VPNs and split-horizon DNS.
 
-const _filename = typeof __filename !== 'undefined' ? __filename : '';
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : '';
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const FASTIFY_PORT = parseInt(process.env.FASTIFY_PORT || '3001', 10);
@@ -71,12 +69,18 @@ async function startServer() {
     const pythonPath = findPythonPath();
     const scraplingScriptPath = path.join(_dirname, 'server', 'python', 'scrapling_server.py');
     const scraplingPort = 3002;
-    console.log(`[Scrapling] Spawning Scrapling search/scraper server on port ${scraplingPort} using ${pythonPath}...`);
-    const scraplingProc = spawn(pythonPath, [scraplingScriptPath, '--port', String(scraplingPort)], {
-      cwd: path.dirname(scraplingScriptPath),
-      detached: false,
-      stdio: ['ignore', 'inherit', 'inherit']
-    });
+    console.log(
+      `[Scrapling] Spawning Scrapling search/scraper server on port ${scraplingPort} using ${pythonPath}...`
+    );
+    const scraplingProc = spawn(
+      pythonPath,
+      [scraplingScriptPath, '--port', String(scraplingPort)],
+      {
+        cwd: path.dirname(scraplingScriptPath),
+        detached: false,
+        stdio: ['ignore', 'inherit', 'inherit'],
+      }
+    );
     registerProcess(scraplingProc);
   } catch (err: any) {
     console.error('[Scrapling] Failed to spawn Scrapling local service:', err.message);
@@ -89,58 +93,83 @@ async function startServer() {
   app.use((req, res, next) => {
     const start = Date.now();
     res.on('finish', () => {
-      logger.info({
-        requestId: req.requestId,
-        method: req.method,
-        path: req.path,
-        statusCode: res.statusCode,
-        latencyMs: Date.now() - start
-      }, `Request finished: ${req.method} ${req.path}`);
+      logger.info(
+        {
+          requestId: req.requestId,
+          method: req.method,
+          path: req.path,
+          statusCode: res.statusCode,
+          latencyMs: Date.now() - start,
+        },
+        `Request finished: ${req.method} ${req.path}`
+      );
     });
     next();
   });
 
   // Compression
-  app.use(compression({
-    filter: (req, res) => {
-      if (
-        req.headers.accept === 'text/event-stream' || 
-        req.path.includes('/stream') || 
-        req.path.includes('/chat') || 
-        req.path.includes('/local-models')
-      ) return false;
-      return compression.filter(req, res);
-    }
-  }));
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (
+          req.headers.accept === 'text/event-stream' ||
+          req.path.includes('/stream') ||
+          req.path.includes('/chat') ||
+          req.path.includes('/local-models')
+        )
+          return false;
+        return compression.filter(req, res);
+      },
+    })
+  );
 
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-eval'", "'unsafe-inline'"],
-        connectSrc: ["'self'", 'http://127.0.0.1:3001', 'http://127.0.0.1:3002', 'https://generativelanguage.googleapis.com', 'https://openrouter.ai', 'https://integrate.api.nvidia.com', 'https://opencode.ai', 'https://text.pollinations.ai', 'ws://localhost:*', 'wss://localhost:*']
-      }
-    },
-    crossOriginEmbedderPolicy: false
-  }));
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-eval'", "'unsafe-inline'"],
+          connectSrc: [
+            "'self'",
+            'http://127.0.0.1:3001',
+            'http://127.0.0.1:3002',
+            'https://generativelanguage.googleapis.com',
+            'https://openrouter.ai',
+            'https://integrate.api.nvidia.com',
+            'https://opencode.ai',
+            'https://text.pollinations.ai',
+            'ws://localhost:*',
+            'wss://localhost:*',
+          ],
+        },
+      },
+      crossOriginEmbedderPolicy: false,
+    })
+  );
 
   app.use(express.json({ limit: '4mb' }));
-  app.use(cors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-NYX-Session-Token'],
-    credentials: false
-  }));
+  app.use(
+    cors({
+      origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-NYX-Session-Token'],
+      credentials: false,
+    })
+  );
 
   // Session middleware
-  const sessionValidationMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const sessionValidationMiddleware = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
     const fullPath = req.originalUrl.split('?')[0].replace(/\/$/, '');
     const isPublic = new Set([
       '/api/health',
       '/api/vault/status',
       '/api/vault/token',
       '/api/auth/session',
-      '/api/admin/logs'
+      '/api/admin/logs',
     ]).has(fullPath);
 
     if (isPublic) return next();
@@ -154,7 +183,12 @@ async function startServer() {
 
   app.use('/api', sessionValidationMiddleware);
 
-  const generalLimiter = rateLimit({ windowMs: 60 * 1000, max: 10000, standardHeaders: true, legacyHeaders: false });
+  const generalLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10000,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
   app.use('/api', generalLimiter);
 
   // Mount routes
@@ -177,24 +211,24 @@ async function startServer() {
   const aiLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 30,
-    message: { error: 'AI request rate limit exceeded.' }
+    message: { error: 'AI request rate limit exceeded.' },
   });
 
   const localModelLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 10000,
     message: { error: 'Local model rate limit exceeded.' },
-    skip: () => true
+    skip: () => true,
   });
 
-  app.use('/api/gemini',       aiLimiter, safetyGateMiddleware, geminiRouter);
-  app.use('/api/openrouter',   aiLimiter, safetyGateMiddleware, openrouterRouter);
-  app.use('/api/nvidia',       aiLimiter, safetyGateMiddleware, nvidiaRouter);
-  app.use('/api/terminal',     sessionValidationMiddleware, terminalRouter);
-  app.use('/api/agents',       agentsRouter);
-  app.use('/api/opencode',     aiLimiter, safetyGateMiddleware, opencodeRouter);
+  app.use('/api/gemini', aiLimiter, safetyGateMiddleware, geminiRouter);
+  app.use('/api/openrouter', aiLimiter, safetyGateMiddleware, openrouterRouter);
+  app.use('/api/nvidia', aiLimiter, safetyGateMiddleware, nvidiaRouter);
+  app.use('/api/terminal', sessionValidationMiddleware, terminalRouter);
+  app.use('/api/agents', agentsRouter);
+  app.use('/api/opencode', aiLimiter, safetyGateMiddleware, opencodeRouter);
   app.use('/api/nyx/local-models', localModelLimiter, localModelsRouter);
-  app.use('/api/nyx',          nyxRouter);
+  app.use('/api/nyx', nyxRouter);
   app.use('/api/pollinations', aiLimiter, safetyGateMiddleware, pollinationsRouter);
 
   if (isProd) {
@@ -210,14 +244,32 @@ async function startServer() {
     });
   } else {
     const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
+    const vite = await createViteServer({
+      server: {
+        middlewareMode: true,
+        watch: {
+          ignored: [
+            '**/.nyx-cache/**',
+            '**/.nyx-models/**',
+            '**/.nyx-logs/**',
+            '**/nyx.db*',
+            '**/scratch/**',
+            '**/server.log',
+            '**/server.err',
+            /[/\\]nyx\.db.*/,
+            /.*nyx\.db.*/,
+          ],
+        },
+      },
+      appType: 'spa',
+    });
     app.use(vite.middlewares);
   }
 
   const server = http.createServer(app);
   server.keepAliveTimeout = 75_000;
-  server.headersTimeout   = 76_000;
-  server.maxConnections   = 512;
+  server.headersTimeout = 76_000;
+  server.maxConnections = 512;
   server.on('connection', (socket) => socket.setNoDelay(true));
 
   server.listen(PORT, '127.0.0.1', () => {
@@ -244,7 +296,7 @@ async function startServer() {
 startServer();
 
 process.on('unhandledRejection', (e) => console.error('[UnhandledRejection]', e));
-process.on('uncaughtException',  (e) => {
+process.on('uncaughtException', (e) => {
   console.error('[UncaughtException]', e);
   cleanupProcesses();
   try {

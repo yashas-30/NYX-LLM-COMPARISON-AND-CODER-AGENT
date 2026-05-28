@@ -17,7 +17,7 @@ export const triggerCritic = async (payload: CriticPayload): Promise<void> => {
   await AIService.fetchWithAuth('/api/nyx/critic', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 };
 
@@ -36,7 +36,7 @@ export const searchCodebase = async (query: string, signal?: AbortSignal): Promi
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query }),
-    signal
+    signal,
   });
   if (!res.ok) throw new Error(`Codebase search failed: ${res.statusText}`);
   return res.json();
@@ -47,7 +47,7 @@ export const searchWeb = async (query: string, signal?: AbortSignal): Promise<an
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query }),
-    signal
+    signal,
   });
   if (!res.ok) throw new Error(`Web search failed: ${res.statusText}`);
   return res.json();
@@ -57,8 +57,23 @@ export const validateWorkspace = async (): Promise<any> => {
   const res = await AIService.fetchWithAuth('/api/nyx/validate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({})
+    body: JSON.stringify({}),
   });
   if (!res.ok) throw new Error(`Validation request failed: ${res.status}`);
   return res.json();
+};
+
+export interface MemoryCommitPayload {
+  prompt: string;
+  response: string;
+  provider: string;
+  modelId: string;
+}
+
+export const triggerMemoryCommit = async (payload: MemoryCommitPayload): Promise<void> => {
+  await AIService.fetchWithAuth('/api/nyx/memory/commit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 };

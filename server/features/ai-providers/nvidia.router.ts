@@ -29,8 +29,19 @@ nvidiaRouter.post('/stream', validate(nvidiaStreamSchema), async (req, res) => {
     res.flushHeaders();
     sendSseTokenRotate(res);
 
+    let finalSystemInstruction = systemInstruction || '';
+    try {
+      const { MemoryService } = await import('../nyx/memory.service.ts');
+      const memories = MemoryService.getMemoriesString();
+      if (memories) {
+        finalSystemInstruction = `${finalSystemInstruction}\n\n${memories}`.trim();
+      }
+    } catch (e: any) {
+      logger.warn('[Nvidia Router] Failed to load memory keeper context: ' + e.message);
+    }
+
     await service.executeStream(
-      { model, prompt, apiKey, settings, systemInstruction, history },
+      { model, prompt, apiKey, settings, systemInstruction: finalSystemInstruction, history },
       controller.signal,
       (chunk) => {
         res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
