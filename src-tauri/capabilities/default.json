@@ -1,0 +1,21 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for NYX",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "dialog:allow-open",
+    "fs:allow-appdata-read",
+    "fs:allow-appdata-write",
+    "fs:allow-resource-read",
+    "http:default",
+    "store:default",
+    "global-shortcut:allow-is-registered",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "process:allow-restart",
+    "notification:default",
+    "opener:default"
+  ]
+}

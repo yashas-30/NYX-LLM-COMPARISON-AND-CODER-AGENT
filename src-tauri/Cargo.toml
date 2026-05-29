@@ -1,0 +1,47 @@
+[package]
+name = "nyx"
+version = "3.0.0"
+description = "NYX - Native Local Intelligence & Cloud Orchestration Platform"
+authors = ["NYX Dev Team"]
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "image-ico"] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-http = "2"
+tauri-plugin-store = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-os = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2"
+
+tokio = { version = "1", features = ["full", "process", "sync", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+thiserror = "1"
+sysinfo = "0.30"
+chrono = "0.4"
+regex = "1"
+base64 = "0.22"
+keyring = "3"
+dirs = "5"
+uuid = { version = "1", features = ["v4"] }
+tokio-tungstenite = "0.24"
+open = "5"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
