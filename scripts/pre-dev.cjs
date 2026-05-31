@@ -15,7 +15,7 @@ const path = require('path');
 try {
   const localAppData = process.env.LOCALAPPDATA;
   if (localAppData) {
-    const cacheDir = path.join(localAppData, 'com.nyx.app', 'EBWebView');
+    const cacheDir = path.join(localAppData, 'com.nyx.desktop', 'EBWebView');
     if (fs.existsSync(cacheDir)) {
       fs.rmSync(cacheDir, { recursive: true, force: true });
       console.log('[pre-dev] Purged Tauri EBWebView cache');

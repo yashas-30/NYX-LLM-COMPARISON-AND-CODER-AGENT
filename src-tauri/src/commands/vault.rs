@@ -1,7 +1,7 @@
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 
-const SERVICE_NAME: &str = "com.nyx.app";
+const SERVICE_NAME: &str = "com.nyx.desktop";
 
 #[derive(Serialize)]
 pub struct VaultResult<T> {

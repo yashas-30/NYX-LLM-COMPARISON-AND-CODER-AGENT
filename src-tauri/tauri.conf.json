@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "NYX",
   "version": "3.0.0",
-  "identifier": "com.nyx.app",
+  "identifier": "com.nyx.desktop",
   "build": {
     "beforeDevCommand": "npm run dev:web",
     "beforeBuildCommand": "npm run build:web && npm run build:server",
