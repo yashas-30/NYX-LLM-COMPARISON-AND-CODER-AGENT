@@ -4,7 +4,7 @@ import fs from 'fs';
 import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
-// Check if running in production mode or packaged Electron app
+// Check if running in production mode or packaged native app
 export const isProd = process.env.NODE_ENV === 'production' || process.env.IS_PACKAGED === 'true';
 
 // Helper to locate the project workspace root in development

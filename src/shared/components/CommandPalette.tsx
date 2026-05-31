@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@src/shared/components/ui/sonner';
 import { useNyxStore } from '@src/shared/store/useNyxStore';
-import { AVAILABLE_MODELS } from '@src/features/model-registry/config/models';
+import { AVAILABLE_MODELS } from '@shared/config/models';
 
 interface CommandPaletteProps {
   activeMode: 'coder' | 'registry' | 'settings' | 'chat';

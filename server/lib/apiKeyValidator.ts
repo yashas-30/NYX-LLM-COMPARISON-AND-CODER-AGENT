@@ -1,6 +1,4 @@
 const KEY_PATTERNS: Record<string, RegExp> = {
-  openrouter: /^sk-or-[a-zA-Z0-9\-_]{20,}$/,
-  nvidia:     /^nvapi-[a-zA-Z0-9\-_]{20,}$/,
   gemini:     /^AIzaSy[a-zA-Z0-9\-_]{33}$/,
 };
 

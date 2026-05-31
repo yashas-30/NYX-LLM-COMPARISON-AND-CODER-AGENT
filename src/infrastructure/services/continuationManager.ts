@@ -117,10 +117,6 @@ export class ContinuationManager {
       return 4096;
     }
 
-    if (provider === 'openrouter' || provider === 'nvidia' || provider === 'opencode') {
-      return 4096;
-    }
-
     return 2048;
   }
 

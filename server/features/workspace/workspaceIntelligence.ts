@@ -73,7 +73,7 @@ export class WorkspaceIntelligence {
     // Excluded folders for the ASCII tree to prevent deep scans or performance bottlenecks
     const EXCLUDE_DIRS = new Set([
       'node_modules', '.git', '.nyx-cache', '.nyx-logs', '.nyx-models', '.stitch', '.agents',
-      'dist', 'dist-electron', 'dist-server', 'dist-desktop', 'build', 'out', 'target',
+      'dist', 'dist-server', 'dist-desktop', 'build', 'out', 'target',
       '.antigravitycli', '.vscode', 'graphify-out', 'scratch'
     ]);
 
@@ -119,7 +119,7 @@ export class WorkspaceIntelligence {
         }
 
         // Key dependencies (extract main frameworks)
-        const keysToExtract = ['react', 'react-dom', 'express', 'fastify', 'vite', 'electron', 'typescript', 'next', 'tailwindcss', 'zod', 'zustand'];
+        const keysToExtract = ['react', 'react-dom', 'express', 'fastify', 'vite', 'typescript', 'next', 'tailwindcss', 'zod', 'zustand'];
         for (const k of keysToExtract) {
           if (deps[k]) {
             keyDependencies[k] = deps[k];

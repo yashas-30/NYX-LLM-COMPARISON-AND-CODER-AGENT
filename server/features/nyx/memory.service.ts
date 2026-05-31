@@ -244,23 +244,6 @@ ${nyxResponse}
           if (!res.ok) throw new Error(`Gemini Critic API error: ${res.statusText}`);
           const data: any = await res.json();
           responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        } else if (provider === 'pollinations') {
-          const realModel = modelId.replace('pollinations/', '');
-          const res = await fetch('https://text.pollinations.ai/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: realModel,
-              messages: [
-                { role: 'system', content: memorySystemPrompt },
-                { role: 'user', content: conversationPayload },
-              ],
-              stream: false,
-              temperature: 0.2,
-            }),
-          });
-          if (!res.ok) throw new Error(`Pollinations Critic error: ${res.statusText}`);
-          responseText = await res.text();
         } else if (provider === 'nyx-native') {
           const res = await fetch('http://127.0.0.1:12345/v1/chat/completions', {
             method: 'POST',
@@ -280,36 +263,7 @@ ${nyxResponse}
           const data: any = await res.json();
           responseText = data.choices?.[0]?.message?.content || '';
         } else {
-          // OpenAI compatible (openrouter, nvidia, opencode)
-          const baseUrl =
-            provider === 'nvidia'
-              ? 'https://integrate.api.nvidia.com/v1'
-              : provider === 'opencode'
-                ? 'https://opencode.ai/zen/v1'
-                : 'https://openrouter.ai/api/v1';
-
-          const res = await fetch(`${baseUrl}/chat/completions`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${activeKey}`,
-              'HTTP-Referer': 'http://localhost:3000',
-              'X-Title': 'NYX Memory Keeper',
-            },
-            body: JSON.stringify({
-              model: provider === 'opencode' ? modelId.replace('opencode/', '') : modelId,
-              messages: [
-                { role: 'system', content: memorySystemPrompt },
-                { role: 'user', content: conversationPayload },
-              ],
-              stream: false,
-              temperature: 0.2,
-              max_tokens: 512,
-            }),
-          });
-          if (!res.ok) throw new Error(`${provider} Critic API error: ${res.statusText}`);
-          const data: any = await res.json();
-          responseText = data.choices?.[0]?.message?.content || '';
+          throw new Error(`Unsupported provider for memory keeper: ${provider}`);
         }
       } catch (err: any) {
         console.warn(

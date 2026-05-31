@@ -3,7 +3,7 @@
  * @description Unified streaming execution engine using the Gateway service.
  */
 
-import { Gateway, Provider, ChatMessage, AISettings, ZEN_FREE_MODELS } from './gateway.ts';
+import { Gateway, Provider, ChatMessage, AISettings } from './gateway.ts';
 
 export type { Provider, ChatMessage, AISettings } from './gateway.ts';
 
@@ -63,42 +63,8 @@ export class UnifiedEngine {
       case 'gemini':
         return this.streamGemini(model, messages, activeKey, settings, writeChunk, onDone);
 
-      case 'openrouter':
-      case 'openai':
-      case 'anthropic':
-      case 'deepseek':
-      case 'groq':
-      case 'mistral':
-      case 'together':
-        return this.streamOpenAICompatible(
-          provider,
-          model,
-          messages,
-          activeKey,
-          settings,
-          writeChunk,
-          onDone
-        );
-
-      case 'nvidia':
-        return this.streamOpenAICompatible(
-          provider,
-          model,
-          messages,
-          activeKey,
-          settings,
-          writeChunk,
-          onDone
-        );
-
-      case 'opencode':
-        return this.streamOpenCodeZen(model, messages, activeKey, settings, writeChunk, onDone);
-
       case 'nyx-native':
         return this.streamNyxNative(model, messages, settings, writeChunk, onDone);
-
-      case 'pollinations':
-        return this.streamPollinations(model, messages, settings, writeChunk, onDone);
 
       default:
         throw new Error(`Unsupported provider: ${provider}`);
@@ -149,141 +115,6 @@ export class UnifiedEngine {
     });
 
     if (!response.ok) throw new Error(`Gemini API Error: ${response.status}`);
-
-    await Gateway.processSSEStream(response, {
-      onChunk: (text) => write({ chunk: text }),
-      onDone: done,
-      onError: (err) => {
-        throw new Error(err);
-      },
-    });
-  }
-
-  /**
-   * Handles OpenAI-compatible APIs (OpenRouter, NVIDIA).
-   * Uses standard /chat/completions endpoint with SSE streaming.
-   * @param provider - The provider ('openrouter' or 'nvidia')
-   * @param model - Model identifier (may include provider prefix like 'anthropic/claude-3.5-sonnet')
-   * @param messages - Array of chat messages
-   * @param apiKey - API key (Bearer token format)
-   * @param settings - Optional generation settings
-   * @param write - Callback for writing chunks to response
-   * @param done - Callback when stream completes
-   */
-  private static async streamOpenAICompatible(
-    provider: Provider,
-    model: string,
-    messages: ChatMessage[],
-    apiKey: string,
-    settings: AISettings | undefined,
-    write: (chunk: any) => void,
-    done: () => void
-  ): Promise<void> {
-    const { url } = Gateway.buildUrl(provider, '/chat/completions');
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: apiKey ? `Bearer ${apiKey}` : '',
-        'HTTP-Referer': 'http://localhost:3000',
-        'X-Title': 'NYX Unified Engine',
-      },
-      body: JSON.stringify({
-        model,
-        messages: injectAbstentionInstruction(messages),
-        stream: true,
-        temperature: settings?.temperature ?? 0.1, // Near-greedy for code quality
-        max_tokens: settings?.maxTokens,
-        top_p: settings?.topP ?? 0.9,
-        top_k: settings?.topK ?? 20,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let msg = `${provider} API Error: ${response.status}`;
-      try {
-        const json = JSON.parse(errorText);
-        msg = json.error?.message || msg;
-      } catch {}
-      throw new Error(msg);
-    }
-
-    await Gateway.processSSEStream(response, {
-      onChunk: (text) => write({ chunk: text }),
-      onDone: done,
-      onError: (err) => {
-        throw new Error(err);
-      },
-    });
-  }
-
-  /**
-   * Streams responses from OpenCode Zen free models.
-   * Uses OpenAI-compatible /chat/completions endpoint.
-   * @param model - OpenCode model identifier (e.g., 'big-pickle')
-   * @param messages - Array of chat messages
-   * @param apiKey - OpenCode API key
-   * @param settings - Optional generation settings
-   * @param write - Callback for writing chunks to response
-   * @param done - Callback when stream completes
-   */
-  private static async streamOpenCodeZen(
-    model: string,
-    messages: ChatMessage[],
-    apiKey: string,
-    settings: AISettings | undefined,
-    write: (chunk: any) => void,
-    done: () => void
-  ): Promise<void> {
-    const modelName = model.replace('opencode/', '');
-
-    // Validate it's a free model
-    if (!ZEN_FREE_MODELS.includes(modelName)) {
-      throw new Error(`${modelName} is not available. Free models: ${ZEN_FREE_MODELS.join(', ')}`);
-    }
-
-    const baseUrl = 'https://opencode.ai/zen/v1';
-
-    console.log('[OpenCode Zen] Request:', {
-      model: modelName,
-      url: baseUrl,
-    });
-
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'http://localhost:3000',
-        'X-Title': 'NYX - OpenCode Zen',
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages,
-        stream: true,
-        temperature: settings?.temperature ?? 0.7,
-        max_tokens: settings?.maxTokens ?? 8192,
-        top_p: settings?.topP ?? 1,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let msg = `OpenCode Zen Error ${response.status}`;
-      try {
-        const json = JSON.parse(errorText);
-        msg = json.error?.message || json.error?.type || json.error || msg;
-      } catch {
-        if (errorText) msg = errorText;
-      }
-      console.error('[OpenCode Zen] Request failed:', {
-        status: response.status,
-        error: errorText,
-      });
-      throw new Error(msg);
-    }
 
     await Gateway.processSSEStream(response, {
       onChunk: (text) => write({ chunk: text }),
@@ -387,42 +218,6 @@ export class UnifiedEngine {
         console.warn('[CoVe] Verification step failed (non-fatal):', verifyErr.message);
       }
     }
-
     done();
-  }
-
-  /**
-   * Streams responses from Pollinations.ai.
-   */
-  private static async streamPollinations(
-    model: string,
-    messages: ChatMessage[],
-    settings: AISettings | undefined,
-    write: (chunk: any) => void,
-    done: () => void
-  ): Promise<void> {
-    const realModel = model.replace('pollinations/', '');
-    const response = await fetch('https://text.pollinations.ai/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: realModel,
-        messages: injectAbstentionInstruction(messages),
-        stream: true,
-        temperature: settings?.temperature ?? 0.7,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Pollinations API Error: ${response.status}`);
-    }
-
-    await Gateway.processSSEStream(response, {
-      onChunk: (text) => write({ chunk: text }),
-      onDone: done,
-      onError: (err) => {
-        throw new Error(err);
-      },
-    });
   }
 }

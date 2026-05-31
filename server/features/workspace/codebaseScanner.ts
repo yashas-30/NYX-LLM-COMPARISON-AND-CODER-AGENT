@@ -18,7 +18,6 @@ const EXCLUDE_DIRS = new Set([
   '.claude',
   '.vscode',
   'dist',
-  'dist-electron',
   'dist-server',
   'dist-desktop',
   'public',
@@ -98,10 +97,10 @@ export class CodebaseScanner {
   private static async getPipeline(): Promise<any> {
     if (!this.pipelineModule) {
       try {
-        const mod = await import('@xenova/transformers');
+        const mod = await import('@huggingface/transformers');
         this.pipelineModule = mod.pipeline;
       } catch (err: any) {
-        console.error('[RAG] Failed to load @xenova/transformers:', err);
+        console.error('[RAG] Failed to load @huggingface/transformers:', err);
         throw err;
       }
     }
@@ -109,7 +108,7 @@ export class CodebaseScanner {
   }
 
   /**
-   * Initializes the Xenova all-MiniLM-L6-v2 model and vector store cache
+   * Initializes the HuggingFace all-MiniLM-L6-v2 model and vector store cache
    */
   public static async init(): Promise<void> {
     const root = getWorkspaceRoot();
@@ -124,7 +123,7 @@ export class CodebaseScanner {
     try {
       console.log('[RAG] Loading neural embedding model (all-MiniLM-L6-v2)...');
       const pipelineFn = await this.getPipeline();
-      this.embedder = await pipelineFn('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+      this.embedder = await pipelineFn('feature-extraction', 'onnx-community/all-MiniLM-L6-v2');
       
       const cacheDir = path.join(root, '.nyx-cache');
       if (!fs.existsSync(cacheDir)) {

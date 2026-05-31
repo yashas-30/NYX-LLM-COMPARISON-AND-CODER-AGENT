@@ -10,10 +10,6 @@ const stores = new Map<string, RateLimitStore>();
 
 const PROVIDER_LIMITS: Record<string, number> = {
   gemini: 60, // 60 RPM
-  openrouter: 200, // 200 RPM
-  nvidia: 40, // 40 RPM
-  opencode: 60, // 60 RPM
-  pollinations: 120, // 120 RPM
 };
 
 /**

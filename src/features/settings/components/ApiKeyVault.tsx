@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Key, ChevronUp, ChevronDown, Network, Trash2 } from 'lucide-react';
-import { AVAILABLE_MODELS } from '@src/features/model-registry/config/models';
+import { AVAILABLE_MODELS } from '@shared/config/models';
 import { useTokenUsage } from '@src/shared/context/TokenUsageContext';
 import { toast } from '@src/shared/components/ui/sonner';
 import { useNyxStore } from '@src/shared/store/useNyxStore';
@@ -16,18 +16,12 @@ interface ProviderConfig {
 
 const PROVIDER_CONFIGS: ProviderConfig[] = [
   { id: 'gemini', name: 'Google Gemini', hasModels: true, modelCount: 0 },
-  { id: 'openrouter', name: 'OpenRouter', hasModels: true, modelCount: 0 },
-  { id: 'nvidia', name: 'NVIDIA NIM', hasModels: true, modelCount: 0 },
-  { id: 'opencode', name: 'OpenCode Zen', hasModels: true, modelCount: 0 },
   { id: 'scrapling', name: 'Scrapling Search & Scraper (Local / Cloud)', hasModels: false, modelCount: 0 },
 ];
 
 const DEFAULT_GATEWAY_URLS: Record<string, string> = {
   gemini: 'https://generativelanguage.googleapis.com/v1beta',
-  openrouter: 'https://openrouter.ai/api/v1',
-  nvidia: 'https://integrate.api.nvidia.com/v1',
-  opencode: 'https://opencode.ai/zen/v1',
-  scrapling: 'http://localhost:3002',
+  scrapling: 'http://localhost:3012',
 };
 
 const getModelCountForProvider = (provider: string): number => {
@@ -113,7 +107,7 @@ export const ApiKeyVault: React.FC<ApiKeyVaultProps> = ({
         const res = await fetchWithAuth('/api/vault/store', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ keys: { gemini: '', openrouter: '', nvidia: '', opencode: '', scrapling: '', scrapling_url: '' } })
+          body: JSON.stringify({ keys: { gemini: '', scrapling: '', scrapling_url: '' } })
         });
         if (res.ok) {
           toast.success('All API keys removed from server vault');
@@ -135,7 +129,7 @@ export const ApiKeyVault: React.FC<ApiKeyVaultProps> = ({
         <div className="flex-1">
           <p className="text-[10px] font-black uppercase tracking-[0.1em] text-foreground/80">Remember Keys on this Device</p>
           <p className="text-[8px] text-muted-foreground/50 mt-0.5 leading-normal">
-            Encrypts and persists keys in local system keychain using Electron safeStorage (DPAPI/TPM). If disabled, keys are kept ephemerally in RAM and wiped on close.
+            Encrypts and persists keys in local system keychain using Native safeStorage (DPAPI/TPM). If disabled, keys are kept ephemerally in RAM and wiped on close.
           </p>
         </div>
         <label className="relative inline-flex items-center cursor-pointer">
@@ -232,7 +226,7 @@ export const ApiKeyVault: React.FC<ApiKeyVaultProps> = ({
                             type="text" 
                             value={keysInput['scrapling_url'] ?? apiKeys['scrapling_url'] ?? ''} 
                             onChange={e => setKeysInput(prev => ({ ...prev, scrapling_url: e.target.value }))} 
-                            placeholder="http://localhost:3002"
+                            placeholder="http://localhost:3012"
                             onKeyDown={e => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();

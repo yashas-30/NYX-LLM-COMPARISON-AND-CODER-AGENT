@@ -26,15 +26,6 @@ export const useProviderStatus = (
 
     const providers: string[] = [
       'gemini',
-      'openrouter',
-      'nvidia',
-      'opencode',
-      'openai',
-      'anthropic',
-      'deepseek',
-      'groq',
-      'mistral',
-      'together',
       'nyx-native',
     ];
     const newStatuses: Record<string, Status> = {};

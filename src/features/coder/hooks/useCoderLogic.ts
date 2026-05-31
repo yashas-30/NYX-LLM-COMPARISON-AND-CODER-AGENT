@@ -5,7 +5,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentState } from './useAgentState';
-import { useMessageHistory } from './useMessageHistory';
+import { useMessageHistory } from '@src/shared/hooks/useMessageHistory';
 import { useAgentPipeline } from './useAgentPipeline';
 import { ChatMessage } from '@src/infrastructure/types';
 import { cancelCurrentRequest } from '@src/core/services/ai.service';

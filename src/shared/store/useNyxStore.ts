@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ModelProvider } from '@src/types';
+import { ModelProvider, ModelInfo } from '@src/types';
 import { fetchWithAuth } from '@src/infrastructure/api/authFetch';
 
 export interface ModelSettings {
@@ -28,6 +28,7 @@ export interface NyxState {
   statuses: Record<string, 'online' | 'offline' | 'no-key'>;
   privacyMode: boolean;
   rememberKeys: boolean;
+  currentModel: ModelInfo;
   
   // Actions
   setActiveMode: (mode: ActiveMode) => void;
@@ -41,6 +42,7 @@ export interface NyxState {
   setPrivacyMode: (enabled: boolean) => void;
   setRememberKeys: (enabled: boolean) => void;
   clearPrivacyData: () => void;
+  setCurrentModel: (model: ModelInfo) => void;
   
   // Lifecycle & Sync actions
   fetchWorkspacePath: () => Promise<void>;
@@ -63,6 +65,17 @@ const DEFAULT_SETTINGS: ModelSettings = {
   mirostat: 0,
 };
 
+const DEFAULT_MODEL: ModelInfo = {
+  id: 'gemini-2.5-flash-preview-05-20',
+  name: 'Gemini 2.5 Flash',
+  provider: 'gemini',
+  tier: 'balanced',
+  contextWindow: 1048576,
+  supportsVision: true,
+  supportsTools: true,
+  description: 'Fast multimodal Gemini model',
+};
+
 export const useNyxStore = create<NyxState>()(
   persist(
     (set, get) => ({
@@ -75,6 +88,7 @@ export const useNyxStore = create<NyxState>()(
       statuses: {},
       privacyMode: false,
       rememberKeys: false,
+      currentModel: DEFAULT_MODEL,
 
       setActiveMode: (mode) => set({ activeMode: mode }),
       setWorkspacePath: (path) => set({ workspacePath: path }),
@@ -86,15 +100,17 @@ export const useNyxStore = create<NyxState>()(
       setModel: (mid) => set({ models: { nyx: mid } }),
       setApiKeys: (keys) => set({ apiKeys: keys }),
       setPrivacyMode: (enabled) => {
-        set({ privacyMode: enabled });
         if (enabled) {
-          get().clearPrivacyData();
+          set({ privacyMode: enabled, apiKeys: {}, statuses: {} });
+        } else {
+          set({ privacyMode: enabled });
         }
       },
       setRememberKeys: (enabled) => set({ rememberKeys: enabled }),
       clearPrivacyData: () => {
         set({ apiKeys: {}, statuses: {} });
       },
+      setCurrentModel: (model) => set({ currentModel: model }),
 
       updateApiKey: async (provider, key) => {
         const { privacyMode, rememberKeys } = get();
@@ -119,7 +135,7 @@ export const useNyxStore = create<NyxState>()(
             console.error(`[Vault Store key failed for ${provider}]:`, err);
           }
         } else {
-          // Fallback if not in Electron main process context
+          // Fallback if not in Native main process context
           set((state) => ({
             apiKeys: { ...state.apiKeys, [provider]: key },
           }));
@@ -173,7 +189,7 @@ export const useNyxStore = create<NyxState>()(
             console.error('[Store] Directory selection failed:', err);
           }
         } else {
-          console.warn('[Store] Select workspace called outside secure Electron context.');
+          console.warn('[Store] Select workspace called outside secure Native context.');
         }
       },
 
@@ -222,7 +238,7 @@ export const useNyxStore = create<NyxState>()(
       },
 
       refreshStatuses: async () => {
-        const providers: ModelProvider[] = ['gemini', 'openrouter', 'nvidia', 'opencode', 'pollinations', 'nyx-native'];
+        const cloudProviders: ModelProvider[] = ['gemini'];
         const newStatuses: Record<string, 'online' | 'offline' | 'no-key'> = {};
         
         try {
@@ -231,28 +247,18 @@ export const useNyxStore = create<NyxState>()(
           const nativeOnline = nativeRes && nativeRes.ok && (await nativeRes.json()).activeModelId;
           newStatuses['nyx-native'] = nativeOnline ? 'online' : 'offline';
 
-          // Pollinations is always online (public API)
-          newStatuses['pollinations'] = 'online';
-
           // Check safeStorage vault configuration for cloud providers
           const vaultRes = await fetch('/api/vault/status').catch(() => null);
           if (vaultRes && vaultRes.ok) {
             const vaultStatus = await vaultRes.json();
-            for (const p of providers) {
-              if (['pollinations', 'nyx-native'].includes(p)) continue;
+            for (const p of cloudProviders) {
               const hasVaultKey = vaultStatus[p];
               const hasMemoryKey = !!get().apiKeys[p];
-              
-              if (hasVaultKey || hasMemoryKey) {
-                newStatuses[p] = 'online';
-              } else {
-                newStatuses[p] = 'no-key';
-              }
+              newStatuses[p] = (hasVaultKey || hasMemoryKey) ? 'online' : 'no-key';
             }
           } else {
             // Fallback: check key memory store
-            for (const p of providers) {
-              if (['pollinations', 'nyx-native'].includes(p)) continue;
+            for (const p of cloudProviders) {
               newStatuses[p] = get().apiKeys[p] ? 'online' : 'no-key';
             }
           }
@@ -271,6 +277,7 @@ export const useNyxStore = create<NyxState>()(
         models: state.models,
         privacyMode: state.privacyMode,
         rememberKeys: state.rememberKeys,
+        currentModel: state.currentModel,
       }),
     }
   )

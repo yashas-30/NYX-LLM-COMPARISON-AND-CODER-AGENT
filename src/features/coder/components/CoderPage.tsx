@@ -6,7 +6,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Folder, Monitor, ChevronDown, PanelLeftOpen, Plus, FileText, UploadCloud, ArrowRight, FolderPlus, HelpCircle } from 'lucide-react';
-import { FREE_OPENCODE_MODELS } from '@src/features/model-registry/config/models';
 import { ModelDefinition, Provider } from '@src/infrastructure/types';
 import { toast } from '@src/shared/components/ui/sonner';
 import { useNyxStore } from '@src/shared/store/useNyxStore';
@@ -15,7 +14,7 @@ import { CoderHeader } from './CoderHeader';
 import { MessageList } from './MessageList';
 import { PromptInput } from './PromptInput';
 import { AgentPlanner } from './AgentPlanner';
-import { getCustomModelIcon } from '../utils/modelIcons';
+import { getCustomModelIcon } from '@src/shared/utils/modelIcons';
 import { useCoderLogic } from '../hooks/useCoderLogic';
 
 interface CoderPageProps {
@@ -98,7 +97,9 @@ export const CoderPage: React.FC<CoderPageProps> = ({
   lightningDirectives = [],
 }) => {
 
-  const { workspacePath, selectWorkspace, createWorkspace } = useNyxStore();
+  const workspacePath = useNyxStore(s => s.workspacePath);
+  const selectWorkspace = useNyxStore(s => s.selectWorkspace);
+  const createWorkspace = useNyxStore(s => s.createWorkspace);
   const [prompt, setPrompt] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [scraplingStatus, setScraplingStatus] = useState<'checking' | 'online' | 'offline'>('checking');
@@ -108,7 +109,7 @@ export const CoderPage: React.FC<CoderPageProps> = ({
     let active = true;
     const checkScrapling = async () => {
       try {
-        const res = await fetch('http://localhost:3002/health');
+        const res = await fetch('http://localhost:3012/health');
         if (!active) return;
         if (res.ok) {
           setScraplingStatus('online');
@@ -138,7 +139,7 @@ export const CoderPage: React.FC<CoderPageProps> = ({
   
   const mergedModels = useMemo(() => {
     const seenIds = new Set();
-    return [...allModels, ...FREE_OPENCODE_MODELS].filter(m => {
+    return allModels.filter(m => {
       if (seenIds.has(m.id)) return false;
       seenIds.add(m.id);
       return true;

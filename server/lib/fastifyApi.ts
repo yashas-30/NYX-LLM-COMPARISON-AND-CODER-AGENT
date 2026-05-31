@@ -49,20 +49,15 @@ const fastify = Fastify({
 
 // Enable CORS for frontend connections
 fastify.register(fastifyCors, {
-  origin: [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-  ],
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-nyx-session-token'],
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-nyx-session-token', 'X-NYX-Session-Token', 'traceparent', 'tracestate', 'Connection', 'Accept'],
   credentials: false,
 });
 
 // Validate session token for all proxy requests on Fastify (Port 3001)
 fastify.addHook('preHandler', async (request, reply) => {
-  if (request.url === '/health' || request.url.endsWith('/health')) {
+  if (request.method === 'OPTIONS' || request.url === '/health' || request.url.endsWith('/health')) {
     return;
   }
 
@@ -113,9 +108,13 @@ fastify.post(
       max_tokens?: number;
     };
 
-    const activeKey = getApiKey(provider) || '';
-    if (!activeKey && provider !== 'nyx-native' && provider !== 'pollinations') {
-      return reply.status(401).send({ error: `${provider} API key required` });
+    if (provider !== 'gemini' && provider !== 'nyx-native') {
+      return reply.status(400).send({ error: `Unsupported provider: ${provider}` });
+    }
+
+    const activeKey = provider === 'gemini' ? (getApiKey('gemini') || '') : '';
+    if (!activeKey && provider === 'gemini') {
+      return reply.status(401).send({ error: 'Gemini API key required' });
     }
 
     const fingerprint = JSON.stringify({
@@ -128,7 +127,11 @@ fastify.post(
       settings: settings || {},
     });
 
+    const headers = reply.getHeaders();
     reply.raw.writeHead(200, {
+      ...headers,
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-nyx-session-token, traceparent, tracestate, Connection, Accept',
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
@@ -240,21 +243,6 @@ const PROVIDER_ENDPOINTS: Record<
     authType: 'apiKey',
     endpoint: '/models/{model}:generateContent',
   },
-  openrouter: {
-    baseUrl: 'https://openrouter.ai/api/v1',
-    authType: 'bearer',
-    endpoint: '/chat/completions',
-  },
-  nvidia: {
-    baseUrl: 'https://integrate.api.nvidia.com/v1',
-    authType: 'bearer',
-    endpoint: '/chat/completions',
-  },
-  opencode: {
-    baseUrl: 'https://opencode.ai/zen/v1',
-    authType: 'bearer',
-    endpoint: '/chat/completions',
-  },
 };
 
 export async function warmupDNS() {
@@ -282,6 +270,8 @@ export function registerApiKey(provider: string, key: string): void {
 }
 
 export function getApiKey(provider: string): string | undefined {
+  if (provider !== 'gemini') return undefined;
+
   // First attempt: check the secure backend KeyVault
   try {
     const keys = loadKeys();
@@ -301,13 +291,10 @@ export function getApiKey(provider: string): string | undefined {
   }
 
   // Third attempt: env fallback
-  const specificKey = process.env[`${provider.toUpperCase()}_API_KEY`]?.trim();
+  const specificKey = process.env.GEMINI_API_KEY?.trim();
   if (specificKey) return specificKey;
 
-  if (provider === 'gemini') {
-    return process.env.LLM_API_KEY;
-  }
-  return undefined;
+  return process.env.LLM_API_KEY;
 }
 
 export function clearApiKey(provider: string): void {
@@ -335,7 +322,11 @@ fastify.post('/gemini/*', { config: { bodyLimit: 1024 * 1024 } }, async (request
   const activeKey = getApiKey('gemini') || '';
   if (!activeKey) return reply.status(401).send({ error: 'Gemini API key required' });
 
+  const headers = reply.getHeaders();
   reply.raw.writeHead(200, {
+    ...headers,
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-nyx-session-token, traceparent, tracestate, Connection, Accept',
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
@@ -391,250 +382,28 @@ fastify.post('/gemini/*', { config: { bodyLimit: 1024 * 1024 } }, async (request
   }
 });
 
-// ── OPENCODE ─────────────────────────────────────────────────────────────────────
-fastify.post('/opencode/*', { config: { bodyLimit: 1024 * 1024 } }, async (request, reply) => {
-  const model = (request.params as any)['*'];
-  const { prompt, settings, systemInstruction, history, messages } = request.body as any;
-
-  const activeKey = getApiKey('opencode') || '';
-  if (!activeKey) return reply.status(401).send({ error: 'OpenCode API key required' });
-
-  reply.raw.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
-
-  const finalMessages: any[] = [];
-  if (messages && Array.isArray(messages)) {
-    finalMessages.push(...messages);
-  } else {
-    if (systemInstruction) {
-      finalMessages.push({ role: 'system', content: systemInstruction });
-    }
-    if (history && Array.isArray(history)) {
-      finalMessages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
-    }
-    if (prompt) {
-      finalMessages.push({ role: 'user', content: prompt });
-    }
-  }
-
-  let isClosed = false;
-  request.raw.on('close', () => {
-    isClosed = true;
-  });
-
-  try {
-    await UnifiedEngine.executeStream(
-      {
-        provider: 'opencode',
-        model,
-        messages: finalMessages,
-        settings,
-        apiKey: activeKey,
-      },
-      (chunk) => {
-        if (!isClosed) {
-          reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`);
-        }
-      },
-      () => {
-        if (!isClosed) {
-          reply.raw.write('data: [DONE]\n\n');
-          reply.raw.end();
-        }
-      }
-    );
-  } catch (err: any) {
-    if (!isClosed) {
-      reply.raw.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-      reply.raw.end();
-    }
-  }
-});
-
-// ── OPENROUTER ──────────────────────────────────────────────────────────────────
-fastify.post('/openrouter/*', { config: { bodyLimit: 1024 * 1024 } }, async (request, reply) => {
-  const model = (request.params as any)['*'];
-  const { prompt, settings, systemInstruction, history, messages } = request.body as any;
-
-  const activeKey = getApiKey('openrouter') || '';
-  if (!activeKey) return reply.status(401).send({ error: 'OpenRouter API key required' });
-
-  reply.raw.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
-
-  const finalMessages: any[] = [];
-  if (messages && Array.isArray(messages)) {
-    finalMessages.push(...messages);
-  } else {
-    if (systemInstruction) {
-      finalMessages.push({ role: 'system', content: systemInstruction });
-    }
-    if (history && Array.isArray(history)) {
-      finalMessages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
-    }
-    if (prompt) {
-      finalMessages.push({ role: 'user', content: prompt });
-    }
-  }
-
-  let isClosed = false;
-  request.raw.on('close', () => {
-    isClosed = true;
-  });
-
-  try {
-    await UnifiedEngine.executeStream(
-      {
-        provider: 'openrouter',
-        model,
-        messages: finalMessages,
-        settings,
-        apiKey: activeKey,
-      },
-      (chunk) => {
-        if (!isClosed) {
-          reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`);
-        }
-      },
-      () => {
-        if (!isClosed) {
-          reply.raw.write('data: [DONE]\n\n');
-          reply.raw.end();
-        }
-      }
-    );
-  } catch (err: any) {
-    if (!isClosed) {
-      reply.raw.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-      reply.raw.end();
-    }
-  }
-});
-
-// ── NVIDIA ───────────────────────────────────────────────────────────────────────
-// NVIDIA NIM models - requires nvapi-* API key
-fastify.post('/nvidia/*', { config: { bodyLimit: 1024 * 1024 } }, async (request, reply) => {
-  const model = (request.params as any)['*'];
-  const { prompt, settings, systemInstruction, history, messages } = request.body as any;
-
-  // Resolve API key: server-side vault only
-  const activeKey = getApiKey('nvidia') || '';
-  if (!activeKey || !activeKey.startsWith('nvapi-')) {
-    return reply
-      .status(401)
-      .send({ error: 'NVIDIA API key is required. Add your nvapi-* key in Settings.' });
-  }
-
-  reply.raw.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
-
-  const finalMessages: any[] = [];
-  if (messages && Array.isArray(messages)) {
-    finalMessages.push(...messages);
-  } else {
-    if (systemInstruction) {
-      finalMessages.push({ role: 'system', content: systemInstruction });
-    }
-    if (history && Array.isArray(history)) {
-      finalMessages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
-    }
-    if (prompt) {
-      finalMessages.push({ role: 'user', content: prompt });
-    }
-  }
-
-  let isClosed = false;
-  request.raw.on('close', () => {
-    isClosed = true;
-  });
-
-  try {
-    await UnifiedEngine.executeStream(
-      {
-        provider: 'nvidia',
-        model,
-        messages: finalMessages,
-        settings,
-        apiKey: activeKey,
-      },
-      (chunk) => {
-        if (!isClosed) {
-          reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`);
-        }
-      },
-      () => {
-        if (!isClosed) {
-          reply.raw.write('data: [DONE]\n\n');
-          reply.raw.end();
-        }
-      }
-    );
-  } catch (err: any) {
-    if (!isClosed) {
-      reply.raw.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-      reply.raw.end();
-    }
-  }
-});
-
 // Model list endpoint
 fastify.post('/models/list', { config: { bodyLimit: 1024 * 1024 } }, async (request, reply) => {
   const { provider } = request.body as { provider: string };
 
-  const activeKey = getApiKey(provider) || '';
+  if (provider !== 'gemini') {
+    return reply.status(400).send({ error: `Model list not supported for provider: ${provider}` });
+  }
 
+  const activeKey = getApiKey('gemini') || '';
   if (!activeKey) {
-    return reply.status(401).send({ error: `API key required for ${provider}` });
+    return reply.status(401).send({ error: 'API key required for gemini' });
   }
 
-  const providerConfig = PROVIDER_ENDPOINTS[provider];
-  if (!providerConfig) {
-    return reply.status(400).send({ error: `Unknown provider: ${provider}` });
-  }
-
-  let url = '';
-  const headers: Record<string, string> = {};
-
-  if (provider === 'gemini') {
-    url = `https://generativelanguage.googleapis.com/v1beta/models?key=${activeKey}`;
-  } else if (provider === 'openrouter') {
-    url = 'https://openrouter.ai/api/v1/models';
-    headers['Authorization'] = `Bearer ${activeKey}`;
-  } else if (provider === 'nvidia') {
-    url = 'https://integrate.api.nvidia.com/v1/models';
-    headers['Authorization'] = `Bearer ${activeKey}`;
-  } else {
-    return reply.status(400).send({ error: `Model list not supported for ${provider}` });
-  }
+  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${activeKey}`;
 
   try {
     const response = await fetch(url, {
-      headers,
       signal: AbortSignal.timeout(120_000),
     });
     const data = await response.json();
 
-    let models: string[] = [];
-    if (provider === 'gemini') {
-      models = data.models?.map((m: any) => m.name.replace('models/', '')) || [];
-    } else if (provider === 'openrouter') {
-      models = data.data?.map((m: any) => m.id) || [];
-    } else if (provider === 'nvidia') {
-      models = data.data?.map((m: any) => m.id) || [];
-    }
-
+    const models = data.models?.map((m: any) => m.name.replace('models/', '')) || [];
     return reply.send({ models });
   } catch (e: any) {
     return reply.status(500).send({ error: e.message });
@@ -645,32 +414,23 @@ fastify.post('/models/list', { config: { bodyLimit: 1024 * 1024 } }, async (requ
 fastify.post('/quota', { config: { bodyLimit: 1024 * 1024 } }, async (request, reply) => {
   const { provider } = request.body as { provider: string };
 
-  const activeKey = getApiKey(provider) || '';
+  if (provider !== 'gemini') {
+    return reply.send({});
+  }
 
+  const activeKey = getApiKey('gemini') || '';
   if (!activeKey) {
-    return reply.status(401).send({ error: `API key required for ${provider}` });
+    return reply.status(401).send({ error: 'API key required for gemini' });
   }
 
   try {
-    if (provider === 'openrouter') {
-      const response = await fetch('https://openrouter.ai/api/v1/credits', {
-        headers: { Authorization: `Bearer ${activeKey}` },
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${activeKey}`,
+      {
         signal: AbortSignal.timeout(120_000),
-      });
-      const data = await response.json();
-      return reply.send(data);
-    }
-
-    if (provider === 'gemini') {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${activeKey}`,
-        {
-          signal: AbortSignal.timeout(120_000),
-        }
-      );
-      if (response.ok) return reply.send({ status: 'ok' });
-    }
-
+      }
+    );
+    if (response.ok) return reply.send({ status: 'ok' });
     return reply.send({});
   } catch (e: any) {
     return reply.status(500).send({ error: e.message });

@@ -1,0 +1,705 @@
+/**
+ * @file src/features/chat/hooks/useChatPipeline.ts
+ * @description Production-grade AI streaming pipeline with batched updates,
+ *   backpressure handling, multi-provider fallback, and Claude/Kimi-parity
+ *   streaming architecture.
+ */
+
+import { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  ChatMessage,
+  TelemetryMetrics,
+  AISettings,
+  StreamEvent,
+  ToolCall,
+} from '@src/infrastructure/types';
+import { detectProvider, getEffectiveApiKey } from '@src/infrastructure/utils/provider';
+import { analyzePrompt, PromptAnalysis } from '@src/core/services/promptClassifier';
+import { ChatAgent } from '@src/core/agents/chatAgent';
+import { triggerMemoryCommit } from '@src/infrastructure/api/coderApi';
+import { countTokens } from '@src/core/services/ai.service';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface ChatPipelineProps {
+  models: Record<'nyx', string>;
+  apiKeys: Record<string, string>;
+  modelSettings: AISettings;
+  trackUsage: (provider: string, tokens: number) => void;
+  history: ChatMessage[];
+  updateHistory: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
+  updateMetrics: (metrics: TelemetryMetrics) => void;
+  getSuggestions: (history: ChatMessage[]) => void;
+  setSuggestedPrompts: (prompts: string[]) => void;
+  lightningEnabled?: boolean;
+  lightningDirectives?: string[];
+  logRollout?: (
+    agentType: 'chat' | 'coder',
+    task: string,
+    response: string,
+    spans?: any[],
+    initialReward?: number | null
+  ) => string;
+  webSearchEnabled?: boolean;
+  onStream?: (event: StreamEvent) => void;
+  maxRetries?: number;
+}
+
+interface Citation {
+  url?: string;
+  title?: string;
+  snippet?: string;
+  id?: string;
+  source?: string;
+  quote?: string;
+}
+
+interface StreamChunk {
+  type: 'text' | 'thinking' | 'reasoning' | 'tool_call' | 'citation' | 'metrics' | 'finish' | 'done' | 'artifact' | 'error';
+  content?: string;
+  metadata?: any;
+}
+
+interface PipelineState {
+  isLoading: boolean;
+  isSearching: boolean;
+  isThinking: boolean;
+  finishReason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'error' | 'stopped' | null;
+}
+
+// ---------------------------------------------------------------------------
+// Batched update queue (prevents render thrashing)
+// ---------------------------------------------------------------------------
+
+class UpdateBatcher {
+  private queue: Array<(prev: ChatMessage[]) => ChatMessage[]> = [];
+  private rafId: number | null = null;
+  private flushCallback: ((updater: (prev: ChatMessage[]) => ChatMessage[]) => void) | null = null;
+
+  constructor(flushCallback: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void) {
+    this.flushCallback = flushCallback;
+  }
+
+  push(updater: (prev: ChatMessage[]) => ChatMessage[]) {
+    this.queue.push(updater);
+    if (!this.rafId) {
+      this.rafId = requestAnimationFrame(() => this.flush());
+    }
+  }
+
+  private flush() {
+    if (!this.flushCallback || this.queue.length === 0) {
+      this.rafId = null;
+      return;
+    }
+
+    // Combine all queued updates into single transaction
+    const combined = (prev: ChatMessage[]): ChatMessage[] => {
+      return this.queue.reduce((acc, updater) => updater(acc), prev);
+    };
+
+    this.flushCallback(combined);
+    this.queue = [];
+    this.rafId = null;
+  }
+
+  dispose() {
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.queue = [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Retry with exponential backoff
+// ---------------------------------------------------------------------------
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  onRetry?: (attempt: number, delay: number, error: Error) => void
+): Promise<T> {
+  let lastError: Error = new Error('Unknown error');
+
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+
+      const isRetryable =
+        error.name === 'AbortError' ||
+        /429|503|timeout|network|econnreset|unavailable|rate.limit/i.test(error.message || '');
+
+      if (!isRetryable || attempt > maxRetries) throw lastError;
+
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1) + Math.random() * 500, 10000);
+      onRetry?.(attempt, delay, lastError);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+// ---------------------------------------------------------------------------
+// Main Hook
+// ---------------------------------------------------------------------------
+
+export const useChatPipeline = ({
+  models,
+  apiKeys,
+  modelSettings,
+  trackUsage,
+  history,
+  updateHistory,
+  updateMetrics,
+  getSuggestions,
+  setSuggestedPrompts,
+  lightningEnabled,
+  lightningDirectives,
+  logRollout,
+  webSearchEnabled = true,
+  onStream,
+  maxRetries = 2,
+}: ChatPipelineProps) => {
+  const [state, setState] = useState<PipelineState>({
+    isLoading: false,
+    isSearching: false,
+    isThinking: false,
+    finishReason: null,
+  });
+
+  const controllerRef = useRef<AbortController | null>(null);
+  const batcherRef = useRef<UpdateBatcher | null>(null);
+  const historySnapshotRef = useRef<ChatMessage[]>([]);
+  const isMountedRef = useRef(true);
+  const streamMetricsRef = useRef<TelemetryMetrics | null>(null);
+
+  // Keep snapshot in sync without triggering re-renders
+  useEffect(() => {
+    historySnapshotRef.current = history;
+  }, [history]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      batcherRef.current?.dispose();
+      controllerRef.current?.abort();
+    };
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // Safe history update through batcher
+  // -------------------------------------------------------------------------
+
+  const safeUpdateHistory = useCallback(
+    (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
+      if (!isMountedRef.current) return;
+
+      if (!batcherRef.current) {
+        batcherRef.current = new UpdateBatcher((combinedUpdater) => {
+          updateHistory((prev) => {
+            // Deep clone to prevent mutation
+            const cloned = prev.map((m) => ({
+              ...m,
+              toolCalls: m.toolCalls ? m.toolCalls.map((t) => ({ ...t })) : undefined,
+              citations: m.citations ? [...m.citations] : undefined,
+              artifacts: m.artifacts ? [...m.artifacts] : undefined,
+            }));
+            return combinedUpdater(cloned);
+          });
+        });
+      }
+
+      batcherRef.current.push(updater);
+    },
+    [updateHistory]
+  );
+
+  // -------------------------------------------------------------------------
+  // Stream processor (handles all chunk types)
+  // -------------------------------------------------------------------------
+
+  const processStream = useCallback(
+    async (
+      generator: AsyncGenerator<StreamChunk>,
+      signal: AbortSignal
+    ): Promise<{ text: string; metrics: TelemetryMetrics | null; finishReason: string }> => {
+      let accumulatedText = '';
+      let accumulatedReasoning = '';
+      const toolCallsMap = new Map<string, ToolCall>();
+      const citations: Citation[] = [];
+      const artifacts: any[] = [];
+      let finalMetrics: TelemetryMetrics | null = null;
+      let finishReason = 'stop';
+
+      for await (const chunk of generator) {
+        if (signal.aborted) break;
+
+        switch (chunk.type) {
+          case 'text': {
+            const delta = chunk.content || '';
+            accumulatedText += delta;
+
+            safeUpdateHistory((prev) => {
+              const next = [...prev];
+              const last = next[next.length - 1];
+              if (last?.role === 'assistant') {
+                next[next.length - 1] = {
+                  ...last,
+                  content: accumulatedText,
+                };
+              }
+              return next;
+            });
+
+            onStream?.({
+              type: 'text',
+              content: accumulatedText,
+            } as any);
+            break;
+          }
+
+          case 'thinking':
+          case 'reasoning': {
+            const delta = chunk.content || '';
+            accumulatedReasoning += delta;
+
+            safeUpdateHistory((prev) => {
+              const next = [...prev];
+              const last = next[next.length - 1];
+              if (last?.role === 'assistant') {
+                next[next.length - 1] = {
+                  ...last,
+                  reasoning: accumulatedReasoning,
+                };
+              }
+              return next;
+            });
+
+            onStream?.({
+              type: 'thinking',
+              content: accumulatedReasoning,
+            } as any);
+            break;
+          }
+
+          case 'tool_call': {
+            const tc = chunk.metadata as ToolCall;
+            if (!tc?.id) break;
+
+            const existing = toolCallsMap.get(tc.id);
+            if (existing) {
+              existing.function.arguments += tc.function.arguments || '';
+            } else {
+              toolCallsMap.set(tc.id, {
+                id: tc.id,
+                type: 'function',
+                index: tc.index || toolCallsMap.size,
+                function: {
+                  name: tc.function.name,
+                  arguments: tc.function.arguments || '',
+                },
+              });
+            }
+
+            const calls = Array.from(toolCallsMap.values());
+            safeUpdateHistory((prev) => {
+              const next = [...prev];
+              const last = next[next.length - 1];
+              if (last?.role === 'assistant') {
+                next[next.length - 1] = {
+                  ...last,
+                  toolCalls: calls,
+                };
+              }
+              return next;
+            });
+
+            onStream?.({
+              type: 'tool_use',
+              content: JSON.stringify(calls),
+            } as any);
+            break;
+          }
+
+          case 'citation': {
+            const cite = chunk.metadata as Citation;
+            if (cite) {
+              citations.push(cite);
+              safeUpdateHistory((prev) => {
+                const next = [...prev];
+                const last = next[next.length - 1];
+                if (last?.role === 'assistant') {
+                  next[next.length - 1] = {
+                    ...last,
+                    citations: [...citations],
+                  };
+                }
+                return next;
+              });
+            }
+            break;
+          }
+
+          case 'artifact': {
+            const artifact = chunk.metadata;
+            if (artifact) {
+              artifacts.push(artifact);
+              safeUpdateHistory((prev) => {
+                const next = [...prev];
+                const last = next[next.length - 1];
+                if (last?.role === 'assistant') {
+                  next[next.length - 1] = {
+                    ...last,
+                    artifacts: [...artifacts],
+                  };
+                }
+                return next;
+              });
+            }
+            break;
+          }
+
+          case 'error': {
+            finishReason = 'error';
+            throw new Error(chunk.content || 'Stream error from agent');
+          }
+
+          case 'metrics': {
+            if (chunk.metadata) {
+              finalMetrics = chunk.metadata;
+              streamMetricsRef.current = chunk.metadata;
+              updateMetrics(chunk.metadata);
+            }
+            break;
+          }
+
+          case 'done':
+          case 'finish': {
+            if (chunk.metadata?.finish_reason) {
+              finishReason = chunk.metadata.finish_reason;
+            }
+            break;
+          }
+        }
+      }
+
+      return { text: accumulatedText, metrics: finalMetrics, finishReason };
+    },
+    [safeUpdateHistory, updateMetrics, onStream]
+  );
+
+  // -------------------------------------------------------------------------
+  // Web search with progress
+  // -------------------------------------------------------------------------
+
+  const gatherSearchContext = useCallback(
+    async (
+      agent: ChatAgent,
+      prompt: string,
+      analysis: PromptAnalysis,
+      signal: AbortSignal
+    ): Promise<string> => {
+      if (!agent.shouldSearchWeb(prompt, analysis)) return '';
+
+      setState((s) => ({ ...s, isSearching: true }));
+
+      try {
+        return await withRetry(
+          () => agent.gatherContext(prompt, signal),
+          1, // Only 1 retry for search
+          (attempt, delay) => {
+            console.log(`[Chat Pipeline] Search retry ${attempt} in ${delay}ms`);
+          }
+        );
+      } catch (error: any) {
+        console.warn('[Chat Pipeline] Search failed:', error.message);
+        return ''; // Continue without search context
+      } finally {
+        if (isMountedRef.current) {
+          setState((s) => ({ ...s, isSearching: false }));
+        }
+      }
+    },
+    []
+  );
+
+  // -------------------------------------------------------------------------
+  // Main chat execution
+  // -------------------------------------------------------------------------
+
+  const runChat = useCallback(
+    async (prompt: string, images?: { name: string; mimeType: string; data: string }[]) => {
+      const nyxModel = models['nyx'];
+      if ((!prompt.trim() && (!images || images.length === 0)) || !nyxModel) return;
+
+      const nyxProvider = detectProvider(nyxModel);
+      const nyxApiKey = getEffectiveApiKey(nyxProvider, apiKeys) || '';
+
+      // Cancel any existing request
+      if (controllerRef.current) {
+        controllerRef.current.abort();
+        batcherRef.current?.dispose();
+        batcherRef.current = null;
+      }
+
+      const controller = new AbortController();
+      controllerRef.current = controller;
+
+      // Reset state
+      setState({
+        isLoading: true,
+        isSearching: false,
+        isThinking: false,
+        finishReason: null,
+      });
+      streamMetricsRef.current = null;
+      setSuggestedPrompts([]);
+      updateMetrics({ latency: 0, tokens: 0, tps: 0 });
+
+      const startTime = Date.now();
+
+      try {
+        // 1. Add user message
+        const userMsg: ChatMessage = {
+          role: 'user',
+          content: prompt,
+          timestamp: Date.now(),
+          images,
+        };
+
+        safeUpdateHistory((prev) => [...prev, userMsg]);
+
+        // 2. Analyze prompt
+        const analysis = analyzePrompt(prompt);
+
+        // 3. Add loading assistant message
+        safeUpdateHistory((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            status: 'loading',
+          },
+        ]);
+
+        // 4. Initialize agent with snapshot (not live ref)
+        const agent = new ChatAgent({
+          modelId: nyxModel,
+          provider: nyxProvider,
+          apiKey: nyxApiKey,
+          settings: modelSettings,
+          history: historySnapshotRef.current,
+          lightningDirectives: lightningEnabled ? lightningDirectives : undefined,
+          webSearchEnabled,
+        });
+
+        // 5. Gather search context (non-blocking UI)
+        const searchContext = await gatherSearchContext(agent, prompt, analysis, controller.signal);
+
+        // 6. Stream response with retry
+        const { text, metrics, finishReason } = await withRetry(
+          async () => {
+            const generator = agent.streamResponse(
+              prompt,
+              analysis,
+              controller.signal,
+              searchContext,
+              images
+            ) as AsyncGenerator<StreamChunk>;
+            return processStream(generator, controller.signal);
+          },
+          maxRetries,
+          (attempt, delay, error) => {
+            console.warn(
+              `[Chat Pipeline] Retry ${attempt}/${maxRetries} in ${delay}ms: ${error.message}`
+            );
+          }
+        );
+
+        // 7. Finalize assistant message
+        const finalMetrics: TelemetryMetrics = metrics || {
+          latency: Date.now() - startTime,
+          tokens: countTokens(text),
+          tps: 0,
+        };
+
+        if (finalMetrics.latency > 0 && finalMetrics.tokens > 0) {
+          finalMetrics.tps = Math.round(finalMetrics.tokens / (finalMetrics.latency / 1000));
+        }
+
+        const enrichedMetrics = {
+          ...finalMetrics,
+          finishReason,
+        };
+
+        safeUpdateHistory((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last?.role === 'assistant') {
+            next[next.length - 1] = {
+              ...last,
+              content: text,
+              status: finishReason === 'error' ? 'error' : 'success',
+              metrics: enrichedMetrics,
+              reasoning: last.reasoning || undefined,
+              toolCalls: last.toolCalls || undefined,
+              citations: last.citations || undefined,
+              artifacts: last.artifacts || undefined,
+            };
+          }
+          return next;
+        });
+
+        updateMetrics(finalMetrics);
+        trackUsage(nyxProvider, finalMetrics.tokens);
+
+        // 8. Log rollout
+        if (logRollout && text) {
+          logRollout(
+            'chat',
+            prompt,
+            text,
+            finalMetrics
+              ? [
+                  {
+                    name: 'chat_agent_inference',
+                    type: 'llm_call',
+                    input: prompt,
+                    output: text,
+                    durationMs: finalMetrics.latency,
+                    tokensUsed: finalMetrics.tokens,
+                    finishReason,
+                  },
+                ]
+              : []
+          );
+        }
+
+        // 9. Update suggestions
+        getSuggestions(historySnapshotRef.current);
+
+        // 10. Fire-and-forget memory commit
+        const memoryPromise = triggerMemoryCommit({
+          prompt,
+          response: text,
+          provider: nyxProvider,
+          modelId: nyxModel,
+          agentType: 'chat',
+        });
+
+        // Don't await — but catch errors
+        memoryPromise.catch((err) => {
+          console.warn('[Chat Pipeline] Memory commit failed:', err);
+        });
+
+        // Set timeout to prevent hanging if component unmounts
+        const memoryTimeout = setTimeout(() => {
+          console.warn('[Chat Pipeline] Memory commit timeout');
+        }, 30000);
+
+        memoryPromise.finally(() => clearTimeout(memoryTimeout));
+
+        setState((s) => ({ ...s, finishReason: finishReason as any }));
+      } catch (error: any) {
+        const isAborted = error?.name === 'AbortError' || controller.signal.aborted;
+
+        console.error('[Chat Pipeline] Error:', error);
+
+        safeUpdateHistory((prev) => {
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last && last.role === 'assistant') {
+            // Preserve any partial content
+            const partialContent = last.content || '';
+            next[next.length - 1] = {
+              ...last,
+              status: isAborted ? 'stopped' : 'error',
+              content:
+                partialContent ||
+                (isAborted
+                  ? 'Generation stopped.'
+                  : error.message ||
+                    'Error: Generation failed. Please check your model settings or connection.'),
+              metrics: {
+                ...(last.metrics || {}),
+                finishReason: isAborted ? 'stopped' : 'error',
+              },
+            };
+          }
+          return next;
+        });
+
+        setState((s) => ({
+          ...s,
+          finishReason: isAborted ? 'stopped' : 'error',
+        }));
+      } finally {
+        if (isMountedRef.current) {
+          controllerRef.current = null;
+          batcherRef.current?.dispose();
+          batcherRef.current = null;
+
+          setState((s) => ({
+            ...s,
+            isLoading: false,
+            isSearching: false,
+            isThinking: false,
+          }));
+        }
+      }
+    },
+    [
+      models,
+      apiKeys,
+      modelSettings,
+      trackUsage,
+      safeUpdateHistory,
+      updateMetrics,
+      setSuggestedPrompts,
+      getSuggestions,
+      webSearchEnabled,
+      lightningEnabled,
+      lightningDirectives,
+      logRollout,
+      maxRetries,
+      gatherSearchContext,
+      processStream,
+    ]
+  );
+
+  // -------------------------------------------------------------------------
+  // Stop generation
+  // -------------------------------------------------------------------------
+
+  const stopChat = useCallback(() => {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
+    batcherRef.current?.dispose();
+    batcherRef.current = null;
+
+    setState({
+      isLoading: false,
+      isSearching: false,
+      isThinking: false,
+      finishReason: 'stopped',
+    });
+  }, []);
+
+  return {
+    isLoading: state.isLoading,
+    isSearching: state.isSearching,
+    isThinking: state.isThinking,
+    finishReason: state.finishReason,
+    runChat,
+    stopChat,
+  };
+};

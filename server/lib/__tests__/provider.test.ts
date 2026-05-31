@@ -9,23 +9,23 @@ import {
 
 describe('AI Provider Utility Functions', () => {
   describe('detectProvider', () => {
-    it('detects OpenCode provider patterns', () => {
-      expect(detectProvider('opencode/qwen-coder')).toBe('opencode');
-      expect(detectProvider('opencode-custom-model')).toBe('opencode');
+    it('detects local GGUF model patterns', () => {
+      expect(detectProvider('nyx-gemma-4-e2b-it')).toBe('nyx-native');
+      expect(detectProvider('my-model.gguf')).toBe('nyx-native');
+      expect(detectProvider('airllm-local-llama')).toBe('nyx-native');
     });
 
-    it('detects Pollinations provider patterns', () => {
-      expect(detectProvider('pollinations/text-model')).toBe('pollinations');
-      expect(detectProvider('pollinations-image-gen')).toBe('pollinations');
+    it('detects custom patterns as nyx-native', () => {
+      expect(detectProvider('custom-my-model')).toBe('nyx-native');
     });
 
-    it('detects OpenRouter patterns for slash-separated unknown models', () => {
-      expect(detectProvider('meta-llama/llama-3-8b')).toBe('openrouter');
-      expect(detectProvider('mistralai/mistral-7b')).toBe('openrouter');
-    });
-
-    it('defaults to Gemini for unknown patterns without slashes', () => {
+    it('defaults to Gemini for unknown patterns', () => {
       expect(detectProvider('my-strange-local-model')).toBe('gemini');
+      expect(detectProvider('')).toBe('gemini');
+    });
+
+    it('defaults to Gemini for gemini model IDs', () => {
+      expect(detectProvider('gemini-2.5-flash-preview-05-20')).toBe('gemini');
     });
   });
 
@@ -36,31 +36,24 @@ describe('AI Provider Utility Functions', () => {
 
     it('returns false for cloud models', () => {
       expect(isLocalModel('gemini-1.5-pro')).toBe(false);
-      expect(isLocalModel('opencode/minimax')).toBe(false);
     });
   });
 
   describe('requiresApiKey', () => {
-    it('returns true for cloud models requiring keys', () => {
+    it('returns true for gemini', () => {
       expect(requiresApiKey('gemini')).toBe(true);
-      expect(requiresApiKey('nvidia')).toBe(true);
-      expect(requiresApiKey('openrouter')).toBe(true);
-      expect(requiresApiKey('opencode')).toBe(true);
     });
 
-    it('returns false for local and free providers', () => {
+    it('returns false for local providers', () => {
       expect(requiresApiKey('nyx-native')).toBe(false);
-      expect(requiresApiKey('qwen-local' as any)).toBe(false);
-      expect(requiresApiKey('pollinations')).toBe(false);
     });
   });
 
   describe('getEffectiveApiKey', () => {
     it('retrieves and trims non-empty keys correctly', () => {
-      const keys = { gemini: '  my-gemini-key  ', openrouter: '' };
+      const keys = { gemini: '  my-gemini-key  ' };
       expect(getEffectiveApiKey('gemini', keys)).toBe('my-gemini-key');
-      expect(getEffectiveApiKey('openrouter', keys)).toBeUndefined();
-      expect(getEffectiveApiKey('nvidia', keys)).toBeUndefined();
+      expect(getEffectiveApiKey('nvidia' as any, keys)).toBeUndefined();
     });
   });
 });

@@ -110,7 +110,7 @@ export const useDashboardState = (onExit?: () => void) => {
       }
     }
 
-    // Load keys from secure safeStorage vault in Electron on mount
+    // Load keys from secure safeStorage vault via Native IPC on mount
     const loadSecureKeys = async () => {
       if (typeof window !== 'undefined' && (window as any).nyxIPC) {
         const ipc = (window as any).nyxIPC;
@@ -189,7 +189,7 @@ export const useDashboardState = (onExit?: () => void) => {
 
   useEffect(() => {
     loadLocalLibraryModels();
-    const interval = setInterval(loadLocalLibraryModels, 5000);
+    const interval = setInterval(loadLocalLibraryModels, 30_000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

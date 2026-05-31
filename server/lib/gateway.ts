@@ -5,21 +5,10 @@
  */
 
 import { loadKeys } from '../features/vault/vault.service.ts';
-import { FREE_OPENCODE_MODELS } from '../../src/features/model-registry/config/models.ts';
 import logger from './logger.ts';
 
 export type Provider =
   | 'gemini'
-  | 'openrouter'
-  | 'nvidia'
-  | 'opencode'
-  | 'openai'
-  | 'anthropic'
-  | 'deepseek'
-  | 'groq'
-  | 'mistral'
-  | 'together'
-  | 'pollinations'
   | 'nyx-native';
 
 export interface ChatMessage {
@@ -77,20 +66,6 @@ const getCloudflareGateway = (provider: Provider): AIGatewayConfig => {
   const gatewayBase = `https://gateway.ai.cloudflare.com/v1/${accountId}/${gatewayName || 'llm-gateway'}`;
 
   switch (provider) {
-    case 'openrouter':
-      return {
-        enabled: true,
-        accountId,
-        gatewayName: gatewayName || 'llm-gateway',
-        baseUrl: `${gatewayBase}/openrouter`,
-      };
-    case 'nvidia':
-      return {
-        enabled: true,
-        accountId,
-        gatewayName: gatewayName || 'llm-gateway',
-        baseUrl: `${gatewayBase}/nvidia`,
-      };
     case 'gemini':
       return {
         enabled: true,
@@ -98,22 +73,6 @@ const getCloudflareGateway = (provider: Provider): AIGatewayConfig => {
         gatewayName: gatewayName || 'llm-gateway',
         baseUrl: `${gatewayBase}/gemini`,
       };
-    case 'openai':
-      return {
-        enabled: true,
-        accountId,
-        gatewayName: gatewayName || 'llm-gateway',
-        baseUrl: `${gatewayBase}/openai`,
-      };
-    case 'opencode':
-    case 'anthropic':
-    case 'deepseek':
-    case 'groq':
-    case 'mistral':
-    case 'together':
-    case 'pollinations':
-    case 'nyx-native':
-      return { enabled: false, baseUrl: '' };
     default:
       return { enabled: false, baseUrl: '' };
   }
@@ -122,34 +81,12 @@ const getCloudflareGateway = (provider: Provider): AIGatewayConfig => {
 // Provider URL configuration
 const PROVIDER_URLS: Record<Provider, string> = {
   gemini: 'https://generativelanguage.googleapis.com/v1beta',
-  openrouter: 'https://openrouter.ai/api/v1',
-  nvidia: 'https://integrate.api.nvidia.com/v1',
-  opencode: 'https://opencode.ai/zen/v1', // OpenCode Zen API
-  openai: 'https://api.openai.com/v1',
-  anthropic: 'https://api.anthropic.com/v1',
-  deepseek: 'https://api.deepseek.com/v1',
-  groq: 'https://api.groq.com/openai/v1',
-  mistral: 'https://api.mistral.ai/v1',
-  together: 'https://api.together.ai/v1',
-  pollinations: 'https://text.pollinations.ai',
   'nyx-native': '',
 };
-
-// Free models on OpenCode Zen (derived from config models)
-export const ZEN_FREE_MODELS = FREE_OPENCODE_MODELS.map((m) => m.id.replace('opencode/', ''));
 
 export class Gateway {
   private static SYSTEM_KEYS: Record<string, string> = {
     gemini: process.env.GEMINI_API_KEY || process.env.LLM_API_KEY || '',
-    openrouter: process.env.OPENROUTER_API_KEY || process.env.LLM_API_KEY || '',
-    nvidia: process.env.NVIDIA_API_KEY || process.env.LLM_API_KEY || '',
-    opencode: process.env.OPENCODE_ZEN_API_KEY || '',
-    openai: process.env.OPENAI_API_KEY || process.env.LLM_API_KEY || '',
-    anthropic: process.env.ANTHROPIC_API_KEY || '',
-    deepseek: process.env.DEEPSEEK_API_KEY || '',
-    groq: process.env.GROQ_API_KEY || '',
-    mistral: process.env.MISTRAL_API_KEY || '',
-    together: process.env.TOGETHER_API_KEY || '',
   };
 
   /**
@@ -192,78 +129,6 @@ export class Gateway {
   }
 
   /**
-   * Gets the OpenCode Zen endpoint and API type for a specific model.
-   * Based on official OpenCode Zen API docs.
-   * @param modelId - The OpenCode model identifier
-   * @returns Object with endpoint path and apiType ('openai' | 'anthropic' | 'google')
-   */
-  static getOpenCodeZenEndpoint(modelId: string): {
-    endpoint: string;
-    apiType: 'openai' | 'anthropic' | 'google';
-  } {
-    const model = modelId.replace('opencode/', '').replace('opencode\\', '');
-
-    // Anthropic /messages endpoint - free models that require this format
-    const anthropicModels = ['minimax-m2.1-free'];
-
-    // OpenAI compatible /chat/completions endpoint
-    const openaiModels = [
-      'big-pickle',
-      'gpt-5-nano',
-      'glm-4.7-free',
-      'kimi-k2.5-free',
-      'glm-4.7',
-      'kimi-k2.5',
-      'kimi-k2',
-      'kimi-k2-thinking',
-      'minimax-m2.1',
-      'qwen3-coder',
-    ];
-
-    // Google /models endpoint
-    const googleModels = ['gemini-3-pro', 'gemini-3-flash'];
-
-    if (anthropicModels.includes(model)) {
-      return { endpoint: '/messages', apiType: 'anthropic' };
-    }
-
-    if (googleModels.includes(model)) {
-      return { endpoint: `/models/${model}`, apiType: 'google' };
-    }
-
-    // Default to OpenAI-compatible /chat/completions
-    return { endpoint: '/chat/completions', apiType: 'openai' };
-  }
-
-  /**
-   * Maps OpenCode model IDs to Zen API format
-   * These map to free models available on OpenCode Zen
-   */
-  static mapOpenCodeModel(modelId: string): string {
-    if (!modelId.startsWith('opencode/')) {
-      return modelId;
-    }
-
-    const realModel = modelId.replace('opencode/', '');
-
-    // Map to OpenCode Zen model IDs (free tier)
-    const modelMap: Record<string, string> = {
-      'big-pickle': 'big-pickle',
-      'deepseek-v4-flash-free': 'deepseek-v4-flash-free',
-      'minimax-m2.5-free': 'minimax-m2.5-free',
-      'ring-2.6-1t-free': 'ring-2.6-1t-free',
-      'nemotron-3-super-free': 'nemotron-3-super-free',
-      'qwen3-30b-a3b-free': 'qwen3-30b-a3b-free',
-      'qwen3-coder-14b-free': 'qwen3-coder-14b-free',
-      'llama-3.3-70b-free': 'llama-3.3-70b-free',
-      'gemma-3-27b-it-free': 'gemma-3-27b-it-free',
-      'deepseek-v3-free': 'deepseek-v3-free',
-    };
-
-    return modelMap[realModel] || realModel;
-  }
-
-  /**
    * Validates that we have proper authentication before making requests.
    * Local providers (nyx-native) don't need keys.
    * @param provider - The AI provider
@@ -276,30 +141,11 @@ export class Gateway {
     modelId: string,
     apiKey?: string
   ): { valid: boolean; error?: string } {
-    // Local providers don't need keys
-    if (['pollinations', 'nyx-native'].includes(provider)) {
+    if (provider === 'nyx-native') {
       return { valid: true };
     }
 
     const activeKey = this.getActiveKey(provider, apiKey);
-    const isFree = this.isFreeModel(modelId);
-
-    // OpenCode Zen always requires API key (free tier has free credits)
-    if (provider === 'opencode') {
-      if (!activeKey) {
-        return {
-          valid: false,
-          error: `AUTHENTICATION FAILED: OpenCode Zen requires an API key. Get one free at opencode.ai/auth`,
-        };
-      }
-      return { valid: true };
-    }
-
-    // Other providers: free models don't need key, paid models do
-    if (isFree) {
-      return { valid: true };
-    }
-
     if (!activeKey) {
       return {
         valid: false,
@@ -465,88 +311,6 @@ export class Gateway {
     }
   }
 
-  /**
-   * Logs SSE events for debugging.
-   * Supports OpenAI, Anthropic, and Google API response formats.
-   * @param response - The fetch Response object with streaming body
-   * @param apiType - The API format type ('openai' | 'anthropic' | 'google')
-   * @param callbacks - Stream callbacks for chunk, done, and error events
-   */
-  static async processOpenCodeZenStream(
-    response: Response,
-    apiType: 'openai' | 'anthropic' | 'google',
-    callbacks: StreamCallbacks
-  ): Promise<void> {
-    if (!response.body) {
-      callbacks.onError('No response body');
-      return;
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const clean = line.trim();
-          if (clean === 'data: [DONE]') {
-            callbacks.onDone();
-            return;
-          }
-          if (!clean.startsWith('data: ')) continue;
-
-          try {
-            const data = JSON.parse(clean.slice(6));
-
-            if (data.error) {
-              const msg = data.error.message || JSON.stringify(data.error);
-              callbacks.onError(msg);
-              return;
-            }
-
-            let chunk = '';
-
-            // Handle different API response formats
-            if (apiType === 'openai') {
-              // OpenAI compatible: data.choices[0].delta.content
-              chunk = data.choices?.[0]?.delta?.content || '';
-            } else if (apiType === 'anthropic') {
-              // Anthropic: data.content[0].text
-              chunk = data.content?.[0]?.text || data.choices?.[0]?.message?.content || '';
-            } else if (apiType === 'google') {
-              // Google: data.candidates[0].content.parts[0].text
-              chunk = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            }
-
-            if (chunk) {
-              callbacks.onChunk(chunk);
-            }
-          } catch {
-            // Silent catch for partial chunks
-          }
-        }
-      }
-      callbacks.onDone();
-    } catch (e: any) {
-      callbacks.onError(e.message || 'Stream processing failed');
-    }
-  }
-
-  /**
-   * Converts messages to provider-specific format.
-   * Gemini uses 'contents' array with 'role' and 'parts' structure.
-   * @param messages - Array of chat messages with role and content
-   * @param provider - The target AI provider
-   * @returns Provider-specific message format
-   */
   static formatMessages(messages: ChatMessage[], provider: Provider): any {
     if (provider === 'gemini') {
       const systemInstruction = messages.find((m) => m.role === 'system')?.content;
@@ -587,28 +351,5 @@ export class Gateway {
       }
       return { role: m.role, content: m.content };
     });
-  }
-
-  /**
-   * Converts messages to Anthropic format for OpenCode Zen API.
-   * @param messages - Array of chat messages with role and content
-   * @returns Object with optional systemPrompt and formatted messages array
-   */
-  static formatMessagesForAnthropic(messages: ChatMessage[]): {
-    systemPrompt?: string;
-    messages: any[];
-  } {
-    const systemMessage = messages.find((m) => m.role === 'system');
-    const chatMessages = messages
-      .filter((m) => m.role !== 'system')
-      .map((m) => ({
-        role: m.role === 'assistant' ? 'assistant' : 'user',
-        content: m.content,
-      }));
-
-    return {
-      systemPrompt: systemMessage?.content,
-      messages: chatMessages,
-    };
   }
 }

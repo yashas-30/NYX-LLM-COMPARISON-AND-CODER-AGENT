@@ -1,47 +1,165 @@
 /**
- * @file src/lib/api/directClient.ts
- * @description Direct browser-to-LLM-provider API clients for client-side execution
- * on static environments (e.g. GitHub Pages) or when the backend server is unavailable.
+ * @file src/infrastructure/api/directClient.ts
+ * @description Production-grade direct browser-to-Gemini API client with
+ *   streaming SSE support, exponential retry logic, and timeouts.
  */
 
 import { AISettings } from './inferenceClient';
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface StreamChunk {
+  type: 'text' | 'reasoning' | 'tool_call' | 'citation' | 'metrics' | 'finish' | 'error';
+  content?: string;
+  metadata?: any;
+}
+
+export interface DirectClientOptions {
+  apiKey: string;
+  settings?: AISettings;
+  systemInstruction?: string;
+  history?: Array<{ role: string; content: string; images?: string[] }>;
+  signal?: AbortSignal;
+  gatewayUrls?: Record<string, string>;
+  onStream?: (chunk: StreamChunk) => void;
+  tools?: Array<{
+    type: 'function';
+    function: { name: string; description: string; parameters: object };
+  }>;
+  responseFormat?: 'text' | 'json' | { type: 'json_schema'; schema: object };
+}
+
+export interface DirectClientResult {
+  text: string;
+  reasoning?: string;
+  toolCalls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+  }>;
+  metrics?: {
+    latency: number;
+    tokens: number;
+    tps: number;
+  };
+  finishReason?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Configuration & State
+// ---------------------------------------------------------------------------
+
+const DEFAULT_TIMEOUT_MS = 120000;
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
+
+// ---------------------------------------------------------------------------
+// Shared utilities
+// ---------------------------------------------------------------------------
+
+function createTimeoutSignal(ms: number): AbortSignal {
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), ms);
+  return ctrl.signal;
+}
+
+function mergeSignals(a?: AbortSignal | null, b?: AbortSignal | null): AbortSignal | undefined {
+  const cleanA = a || undefined;
+  const cleanB = b || undefined;
+  if (!cleanA && !cleanB) return undefined;
+  if (!cleanA) return cleanB;
+  if (!cleanB) return cleanA;
+
+  const ctrl = new AbortController();
+  const abort = () => ctrl.abort();
+  cleanA.addEventListener('abort', abort, { once: true });
+  cleanB.addEventListener('abort', abort, { once: true });
+  return ctrl.signal;
+}
+
+async function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(new Error('Aborted'));
+    }, { once: true });
+  });
+}
+
 async function fetchWithRetry(
   url: string,
-  init: RequestInit,
-  attempt = 1,
-  maxAttempts = 3
+  init: RequestInit & { timeout?: number },
+  attempt = 1
 ): Promise<Response> {
+  const { timeout = DEFAULT_TIMEOUT_MS, signal: userSignal, ...fetchInit } = init;
+  const signal = mergeSignals(userSignal, createTimeoutSignal(timeout));
+
   try {
-    const response = await fetch(url, init);
+    const response = await fetch(url, { ...fetchInit, signal });
+
+    // Retry on rate limit or server error
     if (
       !response.ok &&
-      (response.status === 429 || response.status === 503) &&
-      attempt <= maxAttempts
+      (response.status === 429 || response.status >= 500) &&
+      attempt <= MAX_RETRIES
     ) {
-      const delay = Math.pow(2, attempt - 1) * 1000 + Math.random() * 200;
+      const retryAfter = response.headers.get('Retry-After');
+      const delayMs = retryAfter
+        ? parseInt(retryAfter, 10) * 1000
+        : BASE_DELAY_MS * Math.pow(2, attempt - 1) + Math.random() * 200;
+
       console.warn(
-        `[directClient] Retryable HTTP ${response.status} (attempt ${attempt}/${maxAttempts}). Retrying in ${delay.toFixed(0)}ms.`
+        `[directClient] HTTP ${response.status} (attempt ${attempt}/${MAX_RETRIES}). Retrying in ${delayMs.toFixed(0)}ms.`
       );
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      return fetchWithRetry(url, init, attempt + 1, maxAttempts);
+
+      await delay(delayMs, userSignal || undefined);
+      return fetchWithRetry(url, init, attempt + 1);
     }
+
     return response;
   } catch (error: any) {
-    // If aborted, do not retry
-    if (error?.name === 'AbortError' || init.signal?.aborted) {
+    if (error?.name === 'AbortError' || userSignal?.aborted) {
       throw error;
     }
-    if (attempt <= maxAttempts) {
-      const delay = Math.pow(2, attempt - 1) * 1000 + Math.random() * 200;
+
+    if (attempt <= MAX_RETRIES) {
+      const delayMs = BASE_DELAY_MS * Math.pow(2, attempt - 1) + Math.random() * 200;
       console.warn(
-        `[directClient] Network error (attempt ${attempt}/${maxAttempts}). Retrying in ${delay.toFixed(0)}ms. Error: ${error.message || error}`
+        `[directClient] Network error (attempt ${attempt}/${MAX_RETRIES}). Retrying in ${delayMs.toFixed(0)}ms: ${error.message || error}`
       );
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      return fetchWithRetry(url, init, attempt + 1, maxAttempts);
+
+      await delay(delayMs, userSignal || undefined);
+      return fetchWithRetry(url, init, attempt + 1);
     }
+
     throw error;
   }
+}
+
+async function parseError(response: Response): Promise<Error> {
+  const errorText = await response.text().catch(() => '');
+  let message = `API Error ${response.status}`;
+
+  try {
+    const data = JSON.parse(errorText);
+    message = data.error?.message || data.error?.code || data.message || message;
+    if (data.error?.details) {
+      message += ` | Details: ${JSON.stringify(data.error.details)}`;
+    }
+    if (data.error?.status) {
+      message = `[${data.error.status}] ${message}`;
+    }
+  } catch {
+    message = errorText || message;
+  }
+
+  const error = new Error(message) as any;
+  error.status = response.status;
+  error.headers = Object.fromEntries(response.headers.entries());
+  return error;
 }
 
 // Helper to resolve Gemini models
@@ -61,43 +179,175 @@ function resolveRealGeminiModel(model: string): string {
   return modelMap[model] || model;
 }
 
-// NVIDIA NIM free model mapping
-const NVIDIA_MODELS: Record<string, string> = {
-  'nvidia/llama-3.3-70b-instruct': 'meta/llama-3.3-70b-instruct',
-  'nvidia/deepseek-r1': 'deepseek-ai/deepseek-r1',
-  'nvidia/deepseek-v3': 'deepseek-ai/deepseek-v3',
-  'nvidia/llama-3.1-nemotron-70b-instruct': 'nvidia/llama-3.1-nemotron-70b-instruct',
-  'nvidia/nemotron-4-340b-instruct': 'nvidia/nemotron-4-340b-instruct',
-  'nvidia/gemma-3-27b-it': 'google/gemma-3-27b-it',
-  'nvidia/gemma-2-9b-it': 'google/gemma-2-9b-it',
-  'nvidia/phi-4': 'microsoft/phi-4',
-  'nvidia/ministral-8b': 'mistralai/ministral-8b-instruct-v0.3',
-};
+// ---------------------------------------------------------------------------
+// SSE Stream parser
+// ---------------------------------------------------------------------------
 
-// OpenCode model mapper
-function mapOpenCodeModel(modelId: string): string {
-  if (!modelId.startsWith('opencode/')) {
-    return modelId;
+async function* parseSSEStream(response: Response): AsyncGenerator<StreamChunk> {
+  if (!response.body) return;
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith(':')) continue;
+
+        const dataStr = trimmed.startsWith('data: ') ? trimmed.slice(6).trim() : trimmed;
+
+        try {
+          const parsed = JSON.parse(dataStr);
+          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (text) {
+            yield { type: 'text', content: text };
+          }
+          const finishReason = parsed.candidates?.[0]?.finishReason;
+          if (finishReason) {
+            yield { type: 'finish', metadata: { finish_reason: finishReason } };
+          }
+        } catch {
+          // Ignore parse errors in stream
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
   }
-  const realModel = modelId.replace('opencode/', '');
-  const modelMap: Record<string, string> = {
-    'big-pickle': 'big-pickle',
-    'deepseek-v4-flash-free': 'deepseek-v4-flash-free',
-    'minimax-m2.5-free': 'minimax-m2.5-free',
-    'ring-2.6-1t-free': 'ring-2.6-1t-free',
-    'nemotron-3-super-free': 'nemotron-3-super-free',
-    'qwen3-30b-a3b-free': 'qwen3-30b-a3b-free',
-    'qwen3-coder-14b-free': 'qwen3-coder-14b-free',
-    'llama-3.3-70b-free': 'llama-3.3-70b-free',
-    'gemma-3-27b-it-free': 'gemma-3-27b-it-free',
-    'deepseek-v3-free': 'deepseek-v3-free',
-  };
-  return modelMap[realModel] || realModel;
 }
 
-/**
- * Direct Gemini Browser Fetch
- */
+// ---------------------------------------------------------------------------
+// Main Gemini fetch function
+// ---------------------------------------------------------------------------
+
+export async function directFetch(
+  model: string,
+  prompt: string,
+  options: DirectClientOptions
+): Promise<DirectClientResult> {
+  const activeKey = options.apiKey || (typeof process !== 'undefined' ? (process.env as any).GEMINI_API_KEY : null) || '';
+  if (!activeKey) {
+    throw new Error(
+      'AUTHENTICATION FAILED: Gemini API key is required. Please check your settings.'
+    );
+  }
+
+  const realModel = resolveRealGeminiModel(model);
+  const gatewayBase =
+    options.gatewayUrls?.gemini && options.gatewayUrls.gemini.trim() !== ''
+      ? options.gatewayUrls.gemini.replace(/\/$/, '')
+      : 'https://generativelanguage.googleapis.com/v1beta';
+
+  const isStream = !!options.onStream;
+  const endpoint = isStream ? 'streamGenerateContent' : 'generateContent';
+  const url = `${gatewayBase}/models/${realModel}:${endpoint}?key=${activeKey}${isStream ? '&alt=sse' : ''}`;
+
+  // Formulate contents in Gemini format
+  const contents = [];
+  if (options.history && Array.isArray(options.history)) {
+    contents.push(
+      ...options.history.map((m) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      }))
+    );
+  }
+  contents.push({ role: 'user', parts: [{ text: prompt }] });
+
+  const requestBody: any = { contents };
+
+  if (options.systemInstruction) {
+    requestBody.systemInstruction = { role: 'system', parts: [{ text: options.systemInstruction }] };
+  }
+
+  if (options.settings) {
+    requestBody.generationConfig = {};
+    if (options.settings.temperature !== undefined)
+      requestBody.generationConfig.temperature = options.settings.temperature;
+    if (options.settings.topP !== undefined)
+      requestBody.generationConfig.topP = options.settings.topP;
+    if (options.settings.maxTokens !== undefined)
+      requestBody.generationConfig.maxOutputTokens = options.settings.maxTokens;
+  }
+
+  const startTime = performance.now();
+  const headers = { 'Content-Type': 'application/json' };
+
+  if (isStream) {
+    const response = await fetchWithRetry(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody),
+      signal: options.signal,
+      timeout: DEFAULT_TIMEOUT_MS,
+    });
+
+    if (!response.ok) throw await parseError(response);
+    if (!response.body) throw new Error('No response body for stream');
+
+    let fullText = '';
+    for await (const chunk of parseSSEStream(response)) {
+      if (options.signal?.aborted) break;
+
+      if (chunk.type === 'text' && chunk.content) {
+        fullText += chunk.content;
+        options.onStream?.({ ...chunk, content: fullText });
+      } else if (chunk.type === 'finish') {
+        options.onStream?.(chunk);
+      }
+    }
+
+    const latency = Math.round(performance.now() - startTime);
+    const tokens = Math.ceil(fullText.length / 4);
+
+    return {
+      text: fullText,
+      metrics: { latency, tokens, tps: latency > 0 ? Math.round(tokens / (latency / 1000)) : 0 },
+      finishReason: 'stop',
+    };
+  }
+
+  const response = await fetchWithRetry(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(requestBody),
+    signal: options.signal,
+    timeout: DEFAULT_TIMEOUT_MS,
+  });
+
+  if (!response.ok) throw await parseError(response);
+
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const finishReason = data.candidates?.[0]?.finishReason;
+
+  if (!text) {
+    throw new Error('Gemini API returned no response text.');
+  }
+
+  const latency = Math.round(performance.now() - startTime);
+  const tokens = Math.ceil(text.length / 4);
+
+  return {
+    text,
+    metrics: { latency, tokens, tps: latency > 0 ? Math.round(tokens / (latency / 1000)) : 0 },
+    finishReason,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Backward-compatible Gemini wrappers
+// ---------------------------------------------------------------------------
+
 export async function directFetchGemini(
   model: string,
   prompt: string,
@@ -108,303 +358,37 @@ export async function directFetchGemini(
   signal?: AbortSignal,
   gatewayUrls?: Record<string, string>
 ): Promise<string> {
-  const activeKey = apiKey || (process.env as any).GEMINI_API_KEY || '';
-  if (!activeKey) {
-    throw new Error(
-      'AUTHENTICATION FAILED: Gemini API key is required. Please check your settings.'
-    );
-  }
-
-  const realModel = resolveRealGeminiModel(model);
-  const gatewayBase =
-    gatewayUrls?.gemini && gatewayUrls.gemini.trim() !== ''
-      ? gatewayUrls.gemini.replace(/\/$/, '')
-      : 'https://generativelanguage.googleapis.com/v1beta';
-
-  const url = `${gatewayBase}/models/${realModel}:generateContent?key=${activeKey}`;
-
-  // Formulate contents in Gemini format
-  const contents: any[] = [];
-  if (history && Array.isArray(history)) {
-    contents.push(
-      ...history.map((m: any) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      }))
-    );
-  }
-  contents.push({ role: 'user', parts: [{ text: prompt }] });
-
-  const requestBody: any = { contents };
-
-  if (systemInstruction) {
-    requestBody.systemInstruction = { role: 'system', parts: [{ text: systemInstruction }] };
-  }
-
-  if (
-    settings?.temperature !== undefined ||
-    settings?.maxTokens !== undefined ||
-    settings?.topP !== undefined
-  ) {
-    requestBody.generationConfig = {};
-    if (settings.temperature !== undefined)
-      requestBody.generationConfig.temperature = settings.temperature;
-    if (settings.topP !== undefined) requestBody.generationConfig.topP = settings.topP;
-    if (settings.maxTokens !== undefined)
-      requestBody.generationConfig.maxOutputTokens = settings.maxTokens;
-  }
-
-  const response = await fetchWithRetry(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody),
+  const result = await directFetch(model, prompt, {
+    apiKey,
+    settings,
+    systemInstruction,
+    history,
     signal,
+    gatewayUrls,
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage = `Google AI Studio Error ${response.status}`;
-    try {
-      const errorJson = JSON.parse(errorText);
-      errorMessage = errorJson.error?.message || errorMessage;
-    } catch {
-      errorMessage = errorText || errorMessage;
-    }
-    throw new Error(errorMessage);
-  }
-
-  const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  if (!text) {
-    throw new Error('Gemini API returned no response text.');
-  }
-  return text;
+  return result.text;
 }
 
-/**
- * Direct OpenRouter Browser Fetch
- */
-export async function directFetchOpenRouter(
+export async function directFetchGeminiStream(
   model: string,
   prompt: string,
   apiKey: string,
+  onStream: (chunk: StreamChunk) => void,
   settings?: AISettings,
   systemInstruction?: string,
   history?: any[],
   signal?: AbortSignal,
   gatewayUrls?: Record<string, string>
-): Promise<string> {
-  if (!apiKey) {
-    throw new Error(
-      'AUTHENTICATION FAILED: OpenRouter API key is required. Please check your settings.'
-    );
-  }
-
-  const gatewayBase =
-    gatewayUrls?.openrouter && gatewayUrls.openrouter.trim() !== ''
-      ? gatewayUrls.openrouter.replace(/\/$/, '')
-      : 'https://openrouter.ai/api/v1';
-
-  const url = `${gatewayBase}/chat/completions`;
-
-  const messages: any[] = [];
-  if (systemInstruction) {
-    messages.push({ role: 'system', content: systemInstruction });
-  }
-  if (history && Array.isArray(history)) {
-    messages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
-  }
-  messages.push({ role: 'user', content: prompt });
-
-  const requestBody = {
-    model,
-    messages,
-    stream: false,
-    temperature: settings?.temperature ?? 0.7,
-    max_tokens: settings?.maxTokens ?? 4096,
-    top_p: settings?.topP ?? 1.0,
-  };
-
-  const response = await fetchWithRetry(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': window.location.origin || 'http://localhost:3000',
-      'X-Title': 'LLM Reference Dashboard',
-    },
-    body: JSON.stringify(requestBody),
+): Promise<DirectClientResult> {
+  return directFetch(model, prompt, {
+    apiKey,
+    settings,
+    systemInstruction,
+    history,
     signal,
+    gatewayUrls,
+    onStream,
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage = `OpenRouter Error ${response.status}`;
-    try {
-      const errorJson = JSON.parse(errorText);
-      errorMessage = errorJson.error?.message || errorMessage;
-    } catch {
-      errorMessage = errorText || errorMessage;
-    }
-    throw new Error(errorMessage);
-  }
-
-  const data = await response.json();
-  const text = data.choices?.[0]?.message?.content || '';
-  if (!text) {
-    throw new Error('OpenRouter API returned no response text.');
-  }
-  return text;
 }
 
-/**
- * Direct NVIDIA Browser Fetch
- */
-export async function directFetchNvidia(
-  model: string,
-  prompt: string,
-  apiKey: string,
-  settings?: AISettings,
-  systemInstruction?: string,
-  history?: any[],
-  signal?: AbortSignal,
-  gatewayUrls?: Record<string, string>
-): Promise<string> {
-  if (!apiKey || !apiKey.startsWith('nvapi-')) {
-    throw new Error(
-      'AUTHENTICATION FAILED: NVIDIA API key is required. Add your nvapi-* key in Settings.'
-    );
-  }
 
-  const realModel = NVIDIA_MODELS[model] || model.replace('nvidia/', '');
-  const gatewayBase =
-    gatewayUrls?.nvidia && gatewayUrls.nvidia.trim() !== ''
-      ? gatewayUrls.nvidia.replace(/\/$/, '')
-      : 'https://integrate.api.nvidia.com/v1';
-
-  const url = `${gatewayBase}/chat/completions`;
-
-  const messages: any[] = [];
-  if (systemInstruction) {
-    messages.push({ role: 'system', content: systemInstruction });
-  }
-  if (history && Array.isArray(history)) {
-    messages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
-  }
-  messages.push({ role: 'user', content: prompt });
-
-  const requestBody = {
-    model: realModel,
-    messages,
-    stream: false,
-    max_tokens: settings?.maxTokens ?? 4096,
-    temperature: settings?.temperature ?? 0.7,
-    top_p: settings?.topP ?? 1.0,
-  };
-
-  const response = await fetchWithRetry(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(requestBody),
-    signal,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage = `NVIDIA API Error ${response.status}`;
-    try {
-      const errorJson = JSON.parse(errorText);
-      errorMessage = errorJson.error?.message || errorMessage;
-    } catch {
-      errorMessage = errorText || errorMessage;
-    }
-    throw new Error(errorMessage);
-  }
-
-  const data = await response.json();
-  const text = data.choices?.[0]?.message?.content || '';
-  if (!text) {
-    throw new Error('NVIDIA API returned no response text.');
-  }
-  return text;
-}
-
-/**
- * Direct OpenCode Browser Fetch
- */
-export async function directFetchOpenCode(
-  model: string,
-  prompt: string,
-  apiKey?: string,
-  settings?: AISettings,
-  systemInstruction?: string,
-  history?: any[],
-  signal?: AbortSignal,
-  gatewayUrls?: Record<string, string>
-): Promise<string> {
-  if (!apiKey) {
-    throw new Error(
-      'AUTHENTICATION FAILED: OpenCode Zen requires an API key. Get one free at opencode.ai/auth'
-    );
-  }
-
-  const mappedModel = mapOpenCodeModel(model);
-  const gatewayBase =
-    gatewayUrls?.opencode && gatewayUrls.opencode.trim() !== ''
-      ? gatewayUrls.opencode.replace(/\/$/, '')
-      : 'https://opencode.ai/zen/v1';
-
-  const url = `${gatewayBase}/chat/completions`;
-
-  const messages: any[] = [];
-  if (systemInstruction) {
-    messages.push({ role: 'system', content: systemInstruction });
-  }
-  if (history && Array.isArray(history)) {
-    messages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
-  }
-  messages.push({ role: 'user', content: prompt });
-
-  const requestBody = {
-    model: mappedModel,
-    messages,
-    stream: false,
-    temperature: settings?.temperature ?? 0.7,
-    max_tokens: settings?.maxTokens ?? 4096,
-    top_p: settings?.topP ?? 1.0,
-  };
-
-  const response = await fetchWithRetry(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'HTTP-Referer': window.location.origin || 'http://localhost:3000',
-      'X-Title': 'LLM Reference - OpenCode Zen',
-    },
-    body: JSON.stringify(requestBody),
-    signal,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage = `OpenCode API Error ${response.status}`;
-    try {
-      const errorJson = JSON.parse(errorText);
-      errorMessage = errorJson.error?.message || errorMessage;
-    } catch {
-      errorMessage = errorText || errorMessage;
-    }
-    throw new Error(errorMessage);
-  }
-
-  const data = await response.json();
-  const text = data.choices?.[0]?.message?.content || '';
-  if (!text) {
-    throw new Error('OpenCode API returned no response text.');
-  }
-  return text;
-}

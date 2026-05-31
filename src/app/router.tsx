@@ -3,11 +3,10 @@
  * @description Plain switch statement routing for NYX features.
  */
 
-import React, { lazy, Suspense } from 'react';
-import { CoderPage } from '@src/pages/CoderPage';
-import { ChatPage } from '@src/pages/ChatPage';
-import { SettingsPage } from '@src/pages/SettingsPage';
-import { ModelRegistryPage } from '@src/pages/ModelRegistryPage';
+import { lazy, Suspense } from 'react';
+import { CoderPage } from '@src/features/coder';
+import { ChatPage } from '@src/features/chat';
+import { SettingsPage } from '@src/features/settings';
 
 const ModelRegistryView = lazy(() =>
   import('@src/features/model-registry').then(m => ({ default: m.ModelRegistryView }))

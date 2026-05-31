@@ -1,14 +1,47 @@
 /**
  * @file src/infrastructure/api/authFetch.ts
- * @description Authenticated fetch client that coordinates vault session token retrieval and refresh.
+ * @description Production-grade authenticated fetch client with circuit breaking,
+ *   request deduplication, timeout handling, and Claude/Kimi-parity reliability.
  */
 
-import { context, propagation } from '@opentelemetry/api';
+import { context, propagation, trace } from '@opentelemetry/api';
 import { Mutex } from 'async-mutex';
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
+const DEFAULT_TIMEOUT_MS = 30000;
+const STREAM_TIMEOUT_MS = 120000;
+const TOKEN_REFRESH_BUFFER_MS = 10000;
+const TOKEN_TTL_MS = 5 * 60 * 1000;
+const CIRCUIT_THRESHOLD = 5;
+const CIRCUIT_RESET_MS = 30000;
+const DEDUPE_WINDOW_MS = 100;
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
 
 let sessionToken: string | null = null;
 let tokenExpiresAt: number = 0;
 const tokenMutex = new Mutex();
+
+// Circuit breaker for stream backend
+interface CircuitState {
+  failures: number;
+  lastFailure: number;
+  open: boolean;
+}
+const circuitStates = new Map<string, CircuitState>();
+
+// Request deduplication
+const inflightRequests = new Map<string, Promise<Response>>();
+let dedupeTimer: ReturnType<typeof setTimeout> | null = null;
+
+// ---------------------------------------------------------------------------
+// Token management
+// ---------------------------------------------------------------------------
 
 export function setSessionToken(token: string | null): void {
   sessionToken = token;
@@ -18,80 +51,313 @@ export function getSessionToken(): string | null {
   return sessionToken;
 }
 
-async function getOrFetchSessionToken(isStream = false): Promise<string> {
-  if (isStream) {
-    const res = await fetch('/api/vault/token?stream=true');
-    const data = await res.json();
-    return data.token;
+function isTokenValid(): boolean {
+  return !!sessionToken && Date.now() < tokenExpiresAt - TOKEN_REFRESH_BUFFER_MS;
+}
+
+async function fetchFreshToken(isStream = false): Promise<{ token: string; expiresAt: number }> {
+  const endpoint = isStream ? '/api/vault/token?stream=true' : '/api/vault/token';
+  const res = await fetch(endpoint, {
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => 'Unknown error');
+    throw new Error(`Token refresh failed: ${res.status} ${text}`);
   }
 
+  const data = await res.json();
+  if (!data.token) {
+    throw new Error('Token refresh returned empty token');
+  }
+
+  return {
+    token: data.token,
+    expiresAt: data.expiresAt || Date.now() + TOKEN_TTL_MS,
+  };
+}
+
+async function getOrFetchSessionToken(isStream = false): Promise<string> {
+  // Fast path: valid cached token
+  if (!isStream && isTokenValid()) {
+    return sessionToken!;
+  }
+
+  // Slow path: acquire mutex and refresh
   return tokenMutex.runExclusive(async () => {
-    if (sessionToken && Date.now() < tokenExpiresAt - 10000) {
-      return sessionToken;
+    // Double-check after acquiring lock
+    if (!isStream && isTokenValid()) {
+      return sessionToken!;
     }
-    const res = await fetch('/api/vault/token');
-    const data = await res.json();
-    sessionToken = data.token;
-    tokenExpiresAt = data.expiresAt || Date.now() + 5 * 60 * 1000;
-    return sessionToken || '';
+
+    const fresh = await fetchFreshToken(isStream);
+    sessionToken = fresh.token;
+    tokenExpiresAt = fresh.expiresAt;
+    return fresh.token;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Circuit breaker
+// ---------------------------------------------------------------------------
+
+function isCircuitOpen(url: string): boolean {
+  const state = circuitStates.get(url);
+  if (!state || !state.open) return false;
+
+  if (Date.now() - state.lastFailure > CIRCUIT_RESET_MS) {
+    state.open = false;
+    state.failures = 0;
+    return false;
+  }
+  return true;
+}
+
+function recordSuccess(url: string): void {
+  circuitStates.delete(url);
+}
+
+function recordFailure(url: string): void {
+  const state = circuitStates.get(url) || { failures: 0, lastFailure: 0, open: false };
+  state.failures++;
+  state.lastFailure = Date.now();
+  if (state.failures >= CIRCUIT_THRESHOLD) {
+    state.open = true;
+    console.warn(`[AuthFetch] Circuit breaker OPEN for ${url}`);
+  }
+  circuitStates.set(url, state);
+}
+
+// ---------------------------------------------------------------------------
+// Request deduplication
+// ---------------------------------------------------------------------------
+
+function getDedupeKey(url: string, init?: RequestInit): string {
+  return `${init?.method || 'GET'}:${url}:${JSON.stringify(init?.body || '')}`;
+}
+
+function cleanupDedupe(): void {
+  if (dedupeTimer) clearTimeout(dedupeTimer);
+  dedupeTimer = setTimeout(() => {
+    inflightRequests.clear();
+  }, DEDUPE_WINDOW_MS);
+}
+
+// ---------------------------------------------------------------------------
+// Timeout helper
+// ---------------------------------------------------------------------------
+
+function createTimeoutSignal(ms: number): AbortSignal {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  // Clean up timer if signal is already aborted externally
+  ctrl.signal.addEventListener('abort', () => clearTimeout(timer), { once: true });
+  return ctrl.signal;
+}
+
+function mergeSignals(a: AbortSignal, b: AbortSignal): AbortSignal {
+  const ctrl = new AbortController();
+  const abort = () => ctrl.abort();
+  a.addEventListener('abort', abort, { once: true });
+  b.addEventListener('abort', abort, { once: true });
+  return ctrl.signal;
+}
+
+// ---------------------------------------------------------------------------
+// URL resolution
+// ---------------------------------------------------------------------------
+
+function resolveTargetUrl(url: string): string {
+  const streamMatch = url.match(/^\/api\/(gemini)\/stream(?:\?|$)/);
+  if (!streamMatch) return url;
+
+  // Use environment variable for backend host, fallback to localhost
+  const backendHost = (typeof process !== 'undefined' ? process.env?.NYX_STREAM_BACKEND : null) || 'http://127.0.0.1:3011';
+  return `${backendHost}/api/stream/${streamMatch[1]}`;
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry
+// ---------------------------------------------------------------------------
+
+function injectTracing(headers: Headers): void {
+  const carrier: Record<string, string> = {};
+  propagation.inject(context.active(), carrier);
+  for (const [key, value] of Object.entries(carrier)) {
+    headers.set(key, value);
+  }
+}
+
+function logRequest(
+  method: string,
+  url: string,
+  status: number,
+  latencyMs: number,
+  error?: string
+): void {
+  const span = trace.getActiveSpan();
+  if (span) {
+    span.setAttribute('http.status_code', status);
+    span.setAttribute('http.latency_ms', latencyMs);
+    if (error) span.setAttribute('error.message', error);
+  }
+
+  if (error || status >= 400) {
+    console.error(`[AuthFetch] ${method} ${url} → ${status} (${latencyMs}ms)${error ? ` | ${error}` : ''}`);
+  } else {
+    console.debug(`[AuthFetch] ${method} ${url} → ${status} (${latencyMs}ms)`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main fetch function
+// ---------------------------------------------------------------------------
 
 export async function fetchWithAuth(
   url: string,
   init?: RequestInit,
   isStream = false
 ): Promise<Response> {
+  const targetUrl = resolveTargetUrl(url);
+  const method = init?.method || 'GET';
+
+  // Circuit breaker check for stream endpoints
+  if (isStream && isCircuitOpen(targetUrl)) {
+    throw new Error(`Circuit breaker open for ${targetUrl}. Try again later.`);
+  }
+
+  // Request deduplication for non-mutating requests
+  const dedupeKey = getDedupeKey(targetUrl, init);
+  if (method === 'GET' && inflightRequests.has(dedupeKey)) {
+    return inflightRequests.get(dedupeKey)!;
+  }
+
+  const startTime = performance.now();
+  const timeoutMs = isStream ? STREAM_TIMEOUT_MS : DEFAULT_TIMEOUT_MS;
+
+  // Create timeout signal and merge with user-provided signal
+  const timeoutSignal = createTimeoutSignal(timeoutMs);
+  const signal = init?.signal ? mergeSignals(init.signal, timeoutSignal) : timeoutSignal;
+
+  // Build headers
   const token = await getOrFetchSessionToken(isStream);
   const headers = new Headers(init?.headers);
   headers.set('Authorization', `Bearer ${token}`);
   headers.set('x-nyx-session-token', token);
+  headers.set('Accept', 'application/json');
 
-  // Inject OpenTelemetry context for tracing propagation
-  const carrier: Record<string, string> = {};
-  propagation.inject(context.active(), carrier);
-  for (const [key, value] of Object.entries(carrier)) {
-    headers.set(key, value);
+  // Connection reuse hint
+  if (!headers.has('Connection')) {
+    headers.set('Connection', 'keep-alive');
   }
 
-  // Rewrite streaming requests to target Fastify on port 3001 directly
-  let targetUrl = url;
-  const streamMatch = url.match(
-    /^\/api\/(gemini|openrouter|nvidia|opencode|pollinations)\/stream$/
-  );
-  if (streamMatch) {
-    targetUrl = `http://127.0.0.1:3001/api/stream/${streamMatch[1]}`;
-  }
+  injectTracing(headers);
 
-  const response = await fetch(targetUrl, {
+  const requestPromise = fetch(targetUrl, {
     ...init,
     headers,
-  });
+    signal,
+  }).then(async (response) => {
+    const latency = Math.round(performance.now() - startTime);
 
-  if (response.status === 401) {
-    // Clear cached session token to force a refresh on the next request
-    sessionToken = null;
-    tokenExpiresAt = 0;
+    // Handle 401 with synchronized retry
+    if (response.status === 401) {
+      logRequest(method, targetUrl, 401, latency, 'Token expired');
 
-    // Auto-retry exactly once with a fresh token
-    console.log('[AuthFetch] Session token expired/invalid. Auto-refreshing and retrying once...');
-    const newToken = await getOrFetchSessionToken(isStream);
-    const retryHeaders = new Headers(init?.headers);
-    retryHeaders.set('Authorization', `Bearer ${newToken}`);
-    retryHeaders.set('x-nyx-session-token', newToken);
+      // Only one retry attempt, with fresh token under mutex
+      const retryToken = await tokenMutex.runExclusive(async () => {
+        // Force refresh
+        sessionToken = null;
+        tokenExpiresAt = 0;
+        const fresh = await fetchFreshToken(isStream);
+        sessionToken = fresh.token;
+        tokenExpiresAt = fresh.expiresAt;
+        return fresh.token;
+      });
 
-    // Reinject traces for the retry request
-    const retryCarrier: Record<string, string> = {};
-    propagation.inject(context.active(), retryCarrier);
-    for (const [key, value] of Object.entries(retryCarrier)) {
-      retryHeaders.set(key, value);
+      const retryHeaders = new Headers(init?.headers);
+      retryHeaders.set('Authorization', `Bearer ${retryToken}`);
+      retryHeaders.set('x-nyx-session-token', retryToken);
+      retryHeaders.set('Accept', 'application/json');
+      injectTracing(retryHeaders);
+
+      const retryResponse = await fetch(targetUrl, {
+        ...init,
+        headers: retryHeaders,
+        signal,
+      });
+
+      const retryLatency = Math.round(performance.now() - startTime);
+      logRequest(method, targetUrl, retryResponse.status, retryLatency);
+
+      if (retryResponse.ok) {
+        recordSuccess(targetUrl);
+      } else if (retryResponse.status === 401) {
+        recordFailure(targetUrl);
+        throw new Error('Authentication failed after token refresh. Please log in again.');
+      }
+
+      return retryResponse;
     }
 
-    return fetch(targetUrl, {
-      ...init,
-      headers: retryHeaders,
-    });
+    logRequest(method, targetUrl, response.status, latency);
+
+    if (response.ok) {
+      recordSuccess(targetUrl);
+    } else if (response.status >= 500) {
+      recordFailure(targetUrl);
+    }
+
+    return response;
+  }).catch((error) => {
+    const latency = Math.round(performance.now() - startTime);
+
+    if (error.name === 'AbortError') {
+      if (signal.aborted && !init?.signal?.aborted) {
+        // Our timeout fired, not user abort
+        logRequest(method, targetUrl, 0, latency, `Request timeout after ${timeoutMs}ms`);
+        throw new Error(`Request timeout after ${timeoutMs}ms`);
+      }
+      logRequest(method, targetUrl, 0, latency, 'Aborted by user');
+      throw error;
+    }
+
+    logRequest(method, targetUrl, 0, latency, error.message);
+    recordFailure(targetUrl);
+    throw error;
+  }).finally(() => {
+    inflightRequests.delete(dedupeKey);
+  });
+
+  // Track inflight for deduplication
+  if (method === 'GET') {
+    inflightRequests.set(dedupeKey, requestPromise);
+    cleanupDedupe();
   }
 
-  return response;
+  return requestPromise;
+}
+
+// ---------------------------------------------------------------------------
+// Health check for stream backend
+// ---------------------------------------------------------------------------
+
+export async function checkBackendHealth(url?: string): Promise<boolean> {
+  const target = url || `${(typeof process !== 'undefined' ? process.env?.NYX_STREAM_BACKEND : null) || 'http://127.0.0.1:3011'}/health`;
+  try {
+    const res = await fetch(target, { signal: createTimeoutSignal(5000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cleanup (call on app shutdown)
+// ---------------------------------------------------------------------------
+
+export function cleanupAuthFetch(): void {
+  if (dedupeTimer) clearTimeout(dedupeTimer);
+  inflightRequests.clear();
+  circuitStates.clear();
 }

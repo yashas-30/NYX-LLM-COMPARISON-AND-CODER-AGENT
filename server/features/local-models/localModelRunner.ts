@@ -14,7 +14,25 @@ import { ModelOptimizer, OptimizationProfile } from './modelOptimizer.ts';
 
 import { MODELS_DIR as BASE_DIR, findPythonPath } from '../../lib/paths.ts';
 const BIN_DIR = path.join(BASE_DIR, 'bin');
-const BINARY_PATH = path.join(BIN_DIR, 'llama-server.exe');
+
+const IS_WIN = process.platform === 'win32';
+const BIN_NAME = IS_WIN ? 'llama-server.exe' : 'llama-server';
+const BINARY_PATH = path.join(BIN_DIR, BIN_NAME);
+
+export function findLlamaServerPath(): string {
+  if (fs.existsSync(BINARY_PATH)) return BINARY_PATH;
+
+  const fallbackPaths = [
+    path.join(BASE_DIR, BIN_NAME),
+    path.join(BASE_DIR, '..', BIN_NAME),
+  ];
+
+  for (const p of fallbackPaths) {
+    if (fs.existsSync(p)) return p;
+  }
+  
+  return BINARY_PATH; // Default to downloading to BIN_DIR
+}
 
 // Ensure binary directory exists
 if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
@@ -273,9 +291,10 @@ export const LocalModelRunner = {
 
   getOptimalVulkanDevice(): Promise<{ name: string; index: number; type: string } | null> {
     return new Promise((resolve) => {
+      const resolvedBinaryPath = findLlamaServerPath();
       exec(
-        `"${BINARY_PATH}" --list-devices`,
-        { cwd: BIN_DIR },
+        `"${resolvedBinaryPath}" --list-devices`,
+        { cwd: path.dirname(resolvedBinaryPath) },
         (error: any, stdout: string, stderr: string) => {
           const output = (stdout || '') + '\n' + (stderr || '');
           if (!output.trim()) {
@@ -650,8 +669,9 @@ export const LocalModelRunner = {
     }
 
     // Check if the server executable, correct backend DLLs, and version exist.
+    const resolvedBinaryPath = findLlamaServerPath();
     let binaryReady =
-      fs.existsSync(BINARY_PATH) &&
+      fs.existsSync(resolvedBinaryPath) &&
       (installedVersion === expectedVersion ||
         (backend === 'vulkan' && installedVersion === CURRENT_VERSION));
     if (binaryReady) {
@@ -665,7 +685,7 @@ export const LocalModelRunner = {
     // Smart Fallback: If CUDA is preferred but not ready, check if Vulkan is already installed and ready.
     if (!binaryReady && backend === 'cuda' && !forceBackend) {
       const vulkanReady =
-        fs.existsSync(BINARY_PATH) &&
+        fs.existsSync(resolvedBinaryPath) &&
         fs.existsSync(vulkanDllPath) &&
         (installedVersion === `${CURRENT_VERSION}-vulkan` || installedVersion === CURRENT_VERSION);
       if (vulkanReady) {
@@ -689,7 +709,7 @@ export const LocalModelRunner = {
 
     // Clean up old files to avoid mismatched DLL issues
     const filesToClean = [
-      BINARY_PATH,
+      resolvedBinaryPath,
       vulkanDllPath,
       cudaDllPath,
       path.join(BIN_DIR, 'ggml-cuda.dll'),
@@ -1501,8 +1521,9 @@ export const LocalModelRunner = {
         }
       }
 
-      activeProcess = spawn(BINARY_PATH, args, {
-        cwd: BIN_DIR,
+      const resolvedBinaryPath = findLlamaServerPath();
+      activeProcess = spawn(resolvedBinaryPath, args, {
+        cwd: path.dirname(resolvedBinaryPath),
         detached: false,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: spawnEnv,

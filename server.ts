@@ -37,13 +37,9 @@ import { fastifyProxyRouter } from './server/features/model-proxy/fastifyProxy.r
 
 // Existing routes
 import { geminiRouter } from './server/features/ai-providers/gemini.router.ts';
-import { openrouterRouter } from './server/features/ai-providers/openrouter.router.ts';
-import { nvidiaRouter } from './server/features/ai-providers/nvidia.router.ts';
 import { terminalRouter } from './server/features/terminal/terminal.router.ts';
 import { agentsRouter } from './server/features/agents/agents.router.ts';
-import { opencodeRouter } from './server/features/opencode/opencode.router.ts';
 import { nyxRouter } from './server/features/nyx/nyx.router.ts';
-import { pollinationsRouter } from './server/features/ai-providers/pollinations.router.ts';
 import { localModelsRouter } from './server/features/local-models/localModels.router.ts';
 
 import { warmupDNS, startFastifyServer } from './server/lib/fastifyApi.ts';
@@ -248,15 +244,12 @@ async function startServer() {
           scriptSrc: ["'self'", "'unsafe-eval'", "'unsafe-inline'"],
           connectSrc: [
             "'self'",
-            'http://127.0.0.1:3001',
-            'http://127.0.0.1:3002',
+            'http://127.0.0.1:*',
+            'http://localhost:*',
             'https://generativelanguage.googleapis.com',
-            'https://openrouter.ai',
-            'https://integrate.api.nvidia.com',
-            'https://opencode.ai',
-            'https://text.pollinations.ai',
             'ws://localhost:*',
             'wss://localhost:*',
+            'tauri://localhost',
           ],
         },
       },
@@ -267,16 +260,9 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
   app.use(
     cors({
-      origin: process.env.FRONTEND_ORIGIN
-        ? process.env.FRONTEND_ORIGIN.split(',').map((o) => o.trim())
-        : [
-            'http://localhost:3000',
-            'http://127.0.0.1:3000',
-            'http://localhost:5173',
-            'http://127.0.0.1:5173',
-          ],
-      methods: ['GET', 'POST', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-NYX-Session-Token'],
+      origin: '*',
+      methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-NYX-Session-Token', 'x-nyx-session-token', 'traceparent', 'tracestate', 'Connection', 'Accept'],
       credentials: false,
     })
   );
@@ -342,24 +328,10 @@ async function startServer() {
   });
 
   app.use('/api/gemini', providerRateLimiter('gemini'), safetyGateMiddleware, geminiRouter);
-  app.use(
-    '/api/openrouter',
-    providerRateLimiter('openrouter'),
-    safetyGateMiddleware,
-    openrouterRouter
-  );
-  app.use('/api/nvidia', providerRateLimiter('nvidia'), safetyGateMiddleware, nvidiaRouter);
   app.use('/api/terminal', sessionValidationMiddleware, terminalRouter);
   app.use('/api/agents', agentsRouter);
-  app.use('/api/opencode', providerRateLimiter('opencode'), safetyGateMiddleware, opencodeRouter);
   app.use('/api/nyx/local-models', localModelLimiter, localModelsRouter);
   app.use('/api/nyx', nyxRouter);
-  app.use(
-    '/api/pollinations',
-    providerRateLimiter('pollinations'),
-    safetyGateMiddleware,
-    pollinationsRouter
-  );
 
   if (isProd) {
     let distPath = path.join(_dirname, 'dist');
@@ -375,6 +347,7 @@ async function startServer() {
   } else {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
+      root: path.join(_dirname, '..'),
       server: {
         middlewareMode: true,
         watch: {

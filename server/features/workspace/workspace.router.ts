@@ -25,7 +25,7 @@ workspaceRouter.post('/select', async (req, res) => {
     const result = await service.selectWorkspace();
     return res.json(result);
   } catch (e: any) {
-    return res.status(500).json({ error: `Electron dialog error: ${e.message}` });
+    return res.status(500).json({ error: `Native dialog error: ${e.message}` });
   }
 });
 

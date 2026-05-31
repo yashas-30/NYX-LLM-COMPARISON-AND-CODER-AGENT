@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Gateway } from '../gateway.ts';
 import { loadKeys } from '../../features/vault/vault.service.ts';
 
@@ -30,44 +30,26 @@ describe('Gateway Auth & Router', () => {
     it('falls back to environment keys if both user and vault keys are absent', () => {
       vi.mocked(loadKeys).mockReturnValue({});
       const result = Gateway.getActiveKey('gemini', undefined);
-      // Fallback is either empty or matches env keys
       expect(typeof result).toBe('string');
     });
   });
 
-  describe('isFreeModel', () => {
-    it('correctly detects free suffix and pattern matches', () => {
-      expect(Gateway.isFreeModel('gemini-1.5-flash-free')).toBe(true);
-      expect(Gateway.isFreeModel('openrouter/free-model:free')).toBe(true);
-      expect(Gateway.isFreeModel('paid-provider/free')).toBe(true);
-      expect(Gateway.isFreeModel('gemini-1.5-pro')).toBe(false);
-    });
-  });
-
   describe('validateAuth', () => {
-    it('always permits local or free-tier providers without keys', () => {
+    it('always permits local GGUF runner without keys', () => {
       expect(Gateway.validateAuth('nyx-native', 'some-local-model').valid).toBe(true);
-      expect(Gateway.validateAuth('pollinations', 'some-art-model').valid).toBe(true);
     });
 
-    it('demands API key for OpenCode even for free models', () => {
-      vi.mocked(loadKeys).mockReturnValue({});
-      const auth = Gateway.validateAuth('opencode', 'opencode/minimax-m2.5-free', undefined);
-      expect(auth.valid).toBe(false);
-      expect(auth.error).toContain('OpenCode Zen requires an API key');
-    });
-
-    it('permits other providers free models without keys', () => {
-      vi.mocked(loadKeys).mockReturnValue({});
-      const auth = Gateway.validateAuth('gemini', 'gemini-1.5-flash-free', undefined);
-      expect(auth.valid).toBe(true);
-    });
-
-    it('demands keys for paid models of other providers', () => {
+    it('demands keys for gemini when not configured', () => {
       vi.mocked(loadKeys).mockReturnValue({});
       const auth = Gateway.validateAuth('gemini', 'gemini-1.5-pro', undefined);
       expect(auth.valid).toBe(false);
       expect(auth.error).toContain('No API key detected for gemini');
+    });
+
+    it('permits gemini when key is configured', () => {
+      vi.mocked(loadKeys).mockReturnValue({ gemini: 'some-key' });
+      const auth = Gateway.validateAuth('gemini', 'gemini-1.5-pro', undefined);
+      expect(auth.valid).toBe(true);
     });
   });
 

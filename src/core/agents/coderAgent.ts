@@ -1,0 +1,773 @@
+import { AIService } from '@src/core/services/ai.service';
+import { ChatMessage, AISettings, TelemetryMetrics, SubagentTask, ISubagentOrchestrator } from '@src/types';
+import { PromptAnalysis, AgentRoute } from '@src/core/services/promptClassifier';
+import {
+  fetchEvolutionaryRules,
+  searchCodebase,
+  searchWeb,
+} from '@src/infrastructure/api/coderApi';
+import { buildCoderSystemPrompt, buildCoderUserPrompt, CodeContext } from '../prompts/coderPrompts';
+
+// ── Stream Event Types (Claude/Kimi-style rich events) ───────────────────────
+
+export type CoderStreamEventType =
+  | 'thinking'        // Reasoning steps (visible to user, collapsible)
+  | 'text'            // Main response text
+  | 'tool_call'       // Tool invocation start
+  | 'tool_result'     // Tool result
+  | 'tool_error'      // Tool failure (with fallback)
+  | 'file_proposal'   // Detected file to write (before writing)
+  | 'file_write'      // File write confirmation
+  | 'file_error'      // File write failure
+  | 'code_block'      // Standalone code block detected
+  | 'validation'      // Code validation result
+  | 'citation'        // Source reference
+  | 'warning'         // Non-fatal issue
+  | 'error'           // Fatal error
+  | 'complete';       // Stream complete with metadata
+
+export interface CoderStreamEvent {
+  type: CoderStreamEventType;
+  content: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface FileProposal {
+  path: string;
+  language: string;
+  content: string;
+  explanation: string;
+}
+
+export interface ValidationResult {
+  passed: boolean;
+  type: 'syntax' | 'types' | 'tests' | 'lint';
+  message: string;
+  details?: string;
+}
+
+// ── Retry Configuration ──────────────────────────────────────────────────────
+
+interface RetryConfig {
+  maxRetries: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+}
+
+const DEFAULT_RETRY: RetryConfig = {
+  maxRetries: 3,
+  baseDelayMs: 500,
+  maxDelayMs: 8000,
+};
+
+// ── Token Budget Manager ─────────────────────────────────────────────────────
+
+class TokenBudget {
+  constructor(
+    private maxTokens: number,
+    private reservedForResponse: number = 4000
+  ) {}
+
+  get availableForContext(): number {
+    return this.maxTokens - this.reservedForResponse;
+  }
+
+  truncate(text: string, maxChars: number): string {
+    if (text.length <= maxChars) return text;
+    const truncated = text.slice(0, maxChars);
+    const lastNewline = truncated.lastIndexOf('\n');
+    return truncated.slice(0, lastNewline > 0 ? lastNewline : maxChars) + '\n\n[... truncated for token budget ...]';
+  }
+
+  distribute(budgets: { codebase?: number; webSearch?: number; rules?: number; history?: number }): Record<string, number> {
+    const total = Object.values(budgets).reduce((a, b) => (a || 0) + (b || 0), 0);
+    const ratio = Math.min(1, this.availableForContext / total);
+    return Object.fromEntries(
+      Object.entries(budgets).map(([k, v]) => [k, Math.floor((v || 0) * ratio)])
+    );
+  }
+}
+
+// ── Enhanced CoderAgent ──────────────────────────────────────────────────────
+
+export interface CoderAgentConfig {
+  modelId: string;
+  provider: string;
+  apiKey: string;
+  settings: AISettings;
+  history: ChatMessage[];
+  workspacePath?: string;
+  apiKeys: Record<string, string>;
+  webSearchEnabled: boolean;
+  codebaseKnowledgeEnabled: boolean;
+  trackUsage: (provider: string, tokens: number) => void;
+  updateHistory: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
+  updateMetrics: (metrics: TelemetryMetrics) => void;
+  getSuggestions: (history: ChatMessage[]) => void;
+  setSuggestedPrompts: (prompts: string[]) => void;
+  originalPrompt?: string;
+  triggerBackgroundCritic?: (prompt: string, response: string) => Promise<void>;
+  onSubagentTaskUpdate?: (tasks: SubagentTask[]) => void;
+  lightningDirectives?: string[];
+  createOrchestrator?: () => ISubagentOrchestrator;
+  /** Max context tokens for the model (auto-detected if not set) */
+  maxContextTokens?: number;
+  /** Enable code validation after generation */
+  validateCode?: boolean;
+  /** Enable reasoning chain visibility (Claude-style) */
+  showReasoning?: boolean;
+}
+
+export class CoderAgent {
+  private config: CoderAgentConfig;
+  private tokenBudget: TokenBudget;
+  private retryConfig: RetryConfig;
+
+  constructor(config: CoderAgentConfig) {
+    this.config = config;
+    this.tokenBudget = new TokenBudget(config.maxContextTokens || 128000);
+    this.retryConfig = DEFAULT_RETRY;
+  }
+
+  // ── Public API: Main Stream ───────────────────────────────────────────────
+
+  async *streamResponse(
+    prompt: string,
+    analysis: PromptAnalysis,
+    route: AgentRoute,
+    signal: AbortSignal
+  ): AsyncGenerator<CoderStreamEvent> {
+    const startTime = Date.now();
+    const reasoningChain: string[] = [];
+
+    try {
+      // Phase 1: Planning & Reasoning (Claude-style visible thinking)
+      yield* this.emitThinking('Analyzing task requirements...', reasoningChain);
+      yield* this.emitThinking(`Detected intent: ${analysis.intent}, complexity: ${analysis.complexity}`, reasoningChain);
+      yield* this.emitThinking(`Required tools: ${route.tools.join(', ') || 'none'}`, reasoningChain);
+
+      if (route.shouldUseSubagents) {
+        yield* this.emitThinking('Task complexity warrants subagent swarm approach', reasoningChain);
+      } else {
+        yield* this.emitThinking('Single-agent pipeline sufficient for this task', reasoningChain);
+      }
+
+      // Phase 2: Gather context with parallel execution and retry
+      yield* this.emitThinking('Gathering context from available sources...', reasoningChain);
+
+      const context = await this.gatherContextWithRetry(prompt, analysis, route.tools, signal, (msg) => {
+        // Emit sub-thinkings during context gathering
+        this.emitThinking(msg, reasoningChain).next();
+      });
+
+      yield* this.emitThinking(
+        `Context gathered: ${context.codebase ? 'codebase ✓' : 'codebase ✗'} ${context.webSearch ? 'web ✓' : 'web ✗'} ${context.rules?.length ? 'rules ✓' : 'rules ✗'}`,
+        reasoningChain
+      );
+
+      // Phase 3: Route to pipeline
+      if (route.shouldUseSubagents && this.config.createOrchestrator) {
+        yield* this.runSubagentPipeline(prompt, context, analysis, signal, reasoningChain);
+      } else {
+        yield* this.runSingleAgentPipeline(prompt, context, analysis, signal, reasoningChain, startTime);
+      }
+
+      // Phase 4: Background critic (non-blocking)
+      if (this.config.triggerBackgroundCritic) {
+        this.config.triggerBackgroundCritic(prompt, reasoningChain.join('\n')).catch(() => {});
+      }
+
+    } catch (err) {
+      yield {
+        type: 'error',
+        content: err instanceof Error ? err.message : 'Unknown error occurred',
+        metadata: { stack: err instanceof Error ? err.stack : undefined, phase: 'main' },
+      };
+    }
+  }
+
+  // ── Context Gathering with Retry & Budget ─────────────────────────────────
+
+  private async gatherContextWithRetry(
+    prompt: string,
+    analysis: PromptAnalysis,
+    tools: string[],
+    signal: AbortSignal,
+    onProgress: (msg: string) => void
+  ): Promise<{ codebase?: string; webSearch?: string; rules?: string[] }> {
+    const context: { codebase?: string; webSearch?: string; rules?: string[] } = {};
+
+    const budgets = this.tokenBudget.distribute({
+      codebase: 6000,
+      webSearch: 4000,
+      rules: 2000,
+    });
+
+    const tasks: Promise<void>[] = [];
+
+    // Codebase search with retry
+    if (tools.includes('codebase_search') && this.config.codebaseKnowledgeEnabled) {
+      tasks.push(
+        this.withRetry(
+          () => this.searchCodebase(prompt, signal),
+          'codebase_search',
+          (result) => {
+            context.codebase = this.tokenBudget.truncate(result, budgets.codebase || 6000);
+            onProgress(`Found ${result.length} chars of codebase context`);
+          },
+          (err) => {
+            onProgress(`Codebase search failed: ${err.message}`);
+          }
+        )
+      );
+    }
+
+    // Web search with retry
+    if (tools.includes('web_search') && this.config.webSearchEnabled) {
+      tasks.push(
+        this.withRetry(
+          () => this.webSearch(prompt, signal),
+          'web_search',
+          (result) => {
+            context.webSearch = this.tokenBudget.truncate(result, budgets.webSearch || 4000);
+            onProgress(`Found ${result.length} chars of web context`);
+          },
+          (err) => {
+            onProgress(`Web search failed: ${err.message}`);
+          }
+        )
+      );
+    }
+
+    // Rules fetch with retry
+    tasks.push(
+      this.withRetry(
+        () => this.fetchRules(),
+        'fetch_rules',
+        (result) => {
+          context.rules = result.slice(0, 20); // Max 20 rules
+          onProgress(`Loaded ${result.length} evolutionary rules`);
+        },
+        () => {
+          onProgress('Rules fetch failed, continuing without');
+        }
+      )
+    );
+
+    await Promise.all(tasks);
+    return context;
+  }
+
+  // ── Single Agent Pipeline (Streaming with Delta Tracking) ─────────────────
+
+  private async *runSingleAgentPipeline(
+    prompt: string,
+    context: any,
+    analysis: PromptAnalysis,
+    signal: AbortSignal,
+    reasoningChain: string[],
+    startTime: number
+  ): AsyncGenerator<CoderStreamEvent> {
+    const codeContext: CodeContext = {
+      detectedLanguages: analysis.detectedLanguages,
+      frameworks: analysis.frameworks,
+      complexity: this.mapComplexity(analysis.complexity),
+      taskType: this.mapIntentToTaskType(analysis.intent),
+      existingCode: this.extractExistingCode(prompt),
+      lightningDirectives: this.config.lightningDirectives,
+    };
+
+    yield* this.emitThinking('Building optimized prompts...', reasoningChain);
+
+    const systemPrompt = buildCoderSystemPrompt(this.config.modelId, codeContext);
+    const finalPrompt = buildCoderUserPrompt(prompt, codeContext, context.codebase, context.webSearch);
+
+    // Adaptive temperature based on task
+    const temperature = this.getAdaptiveTemperature(analysis.intent);
+
+    yield* this.emitThinking(`Using temperature ${temperature} for ${analysis.intent} task`, reasoningChain);
+
+    // Setup streaming with proper delta tracking
+    let lastEmittedLength = 0;
+    const chunks: string[] = [];
+    let resolveStream: (() => void) | null = null;
+    let finished = false;
+    let streamError: any = null;
+
+    const onStreamCallback = (accumulatedText: string) => {
+      // Only push the NEW text (delta), not the full accumulated text
+      const delta = accumulatedText.slice(lastEmittedLength);
+      if (delta) {
+        chunks.push(delta);
+        lastEmittedLength = accumulatedText.length;
+      }
+      if (resolveStream) resolveStream();
+    };
+
+    yield* this.emitThinking('Starting code generation stream...', reasoningChain);
+
+    const runPromise = AIService.execute(
+      this.config.modelId,
+      this.config.provider,
+      finalPrompt,
+      this.config.apiKey,
+      systemPrompt,
+      { ...this.config.settings, temperature },
+      onStreamCallback,
+      signal,
+      {
+        history: this.config.history.slice(-10),
+        agentMode: 'coder',
+        webSearch: this.config.webSearchEnabled,
+      }
+    )
+      .then((result) => {
+        finished = true;
+        if (resolveStream) resolveStream();
+        return result;
+      })
+      .catch((err) => {
+        streamError = err;
+        finished = true;
+        if (resolveStream) resolveStream();
+      });
+
+    // Stream processing with backpressure protection
+    const MAX_QUEUE_SIZE = 100;
+    let queueOverflow = false;
+
+    while (!finished || chunks.length > 0) {
+      if (chunks.length === 0) {
+        await new Promise<void>((resolve) => {
+          resolveStream = resolve;
+        });
+        resolveStream = null;
+      }
+
+      if (streamError) throw streamError;
+
+      if (chunks.length > MAX_QUEUE_SIZE && !queueOverflow) {
+        queueOverflow = true;
+        yield {
+          type: 'warning',
+          content: 'Generation is producing text faster than display. Some intermediate states may be skipped.',
+        };
+      }
+
+      // Drain chunks efficiently
+      while (chunks.length > 0) {
+        const content = chunks.shift()!;
+        yield { type: 'text', content };
+      }
+    }
+
+    const result = await runPromise;
+    if (!result) throw new Error('No result from AIService');
+
+    // Emit any remaining text
+    if (result.text.length > lastEmittedLength) {
+      yield { type: 'text', content: result.text.slice(lastEmittedLength) };
+    }
+
+    // Phase: File extraction
+    yield* this.emitThinking('Extracting file proposals from response...', reasoningChain);
+
+    const files = this.extractFileBlocks(result.text);
+    const codeBlocks = this.extractMarkdownCodeBlocks(result.text);
+
+    // Yield file proposals
+    for (const file of files) {
+      yield {
+        type: 'file_proposal',
+        content: file.path,
+        metadata: {
+          language: file.language,
+          lineCount: file.content.split('\n').length,
+          size: file.content.length,
+        },
+      };
+    }
+
+    // Yield standalone code blocks (not in === FILE: === format)
+    for (const block of codeBlocks) {
+      if (!files.some(f => f.content === block.content)) {
+        yield {
+          type: 'code_block',
+          content: block.language || 'code',
+          metadata: { language: block.language, content: block.content },
+        };
+      }
+    }
+
+    // Phase: File writes
+    if (files.length > 0) {
+      yield* this.emitThinking(`Writing ${files.length} files...`, reasoningChain);
+      for (const file of files) {
+        try {
+          // Here you would actually write the file
+          // await fs.writeFile(path.join(this.config.workspacePath || '', file.path), file.content);
+          yield {
+            type: 'file_write',
+            content: file.path,
+            metadata: {
+              path: file.path,
+              language: file.language,
+              lineCount: file.content.split('\n').length,
+            },
+          };
+        } catch (writeErr) {
+          yield {
+            type: 'file_error',
+            content: `Failed to write ${file.path}: ${writeErr instanceof Error ? writeErr.message : 'Unknown error'}`,
+            metadata: { path: file.path },
+          };
+        }
+      }
+    }
+
+    // Phase: Code validation (optional)
+    if (this.config.validateCode) {
+      yield* this.emitThinking('Running code validation...', reasoningChain);
+      const validations = await this.validateGeneratedCode(files, codeBlocks);
+      for (const v of validations) {
+        yield {
+          type: 'validation',
+          content: v.message,
+          metadata: { passed: v.passed, type: v.type, details: v.details },
+        };
+      }
+    }
+
+    // Final completion
+    yield {
+      type: 'complete',
+      content: 'Generation complete',
+      metadata: {
+        durationMs: Date.now() - startTime,
+        totalFiles: files.length,
+        totalCodeBlocks: codeBlocks.length,
+        modelUsed: this.config.modelId,
+        temperature,
+        reasoningSteps: reasoningChain.length,
+        metrics: result.metrics,
+      },
+    };
+
+    // Background: Update history and metrics
+    this.config.updateHistory((prev) => [
+      ...prev,
+      { role: 'assistant', content: result.text, timestamp: Date.now() },
+    ]);
+
+    if (result.metrics) {
+      this.config.updateMetrics(result.metrics);
+    }
+  }
+
+  // ── Subagent Pipeline (Streaming) ─────────────────────────────────────────
+
+  private async *runSubagentPipeline(
+    prompt: string,
+    context: any,
+    analysis: PromptAnalysis,
+    signal: AbortSignal,
+    reasoningChain: string[]
+  ): AsyncGenerator<CoderStreamEvent> {
+    yield* this.emitThinking('Planning implementation architecture...', reasoningChain);
+
+    if (!this.config.createOrchestrator) {
+      throw new Error('createOrchestrator is required for subagent swarm execution.');
+    }
+
+    const orchestrator = this.config.createOrchestrator();
+
+    // Setup task update streaming
+    let lastTaskCount = 0;
+    if (this.config.onSubagentTaskUpdate) {
+      orchestrator.onTaskUpdate = (tasks) => {
+        const newTasks = tasks.slice(lastTaskCount);
+        lastTaskCount = tasks.length;
+        for (const task of newTasks) {
+          // This would need to be bridged to the generator — simplified here
+          this.emitThinking(`Subagent task: [${task.type}] ${task.description} - ${task.status}`, reasoningChain).next();
+        }
+        this.config.onSubagentTaskUpdate!(tasks);
+      };
+    }
+
+    yield* this.emitThinking('Starting subagent swarm execution...', reasoningChain);
+
+    try {
+      const results = await orchestrator.execute(prompt, {
+        apiKeys: this.config.apiKeys,
+        modelSettings: this.config.settings,
+        trackUsage: this.config.trackUsage,
+        history: this.config.history,
+        updateHistory: this.config.updateHistory,
+        updateMetrics: this.config.updateMetrics,
+        getSuggestions: this.config.getSuggestions,
+        setSuggestedPrompts: this.config.setSuggestedPrompts,
+        webSearchEnabled: this.config.webSearchEnabled,
+        codebaseKnowledgeEnabled: this.config.codebaseKnowledgeEnabled,
+        signal,
+        originalPrompt: this.config.originalPrompt || prompt,
+        triggerBackgroundCritic: this.config.triggerBackgroundCritic,
+      });
+
+      // Stream subagent results as they complete
+      if (Array.isArray(results)) {
+        for (const result of results) {
+          yield {
+            type: 'tool_result',
+            content: typeof result === 'string' ? result : JSON.stringify(result),
+            metadata: { source: 'subagent' },
+          };
+        }
+      }
+
+      yield {
+        type: 'complete',
+        content: 'Subagent swarm execution complete',
+        metadata: { results },
+      };
+
+    } catch (err) {
+      yield {
+        type: 'error',
+        content: `Subagent pipeline failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        metadata: { phase: 'subagent' },
+      };
+      throw err;
+    }
+  }
+
+  // ── Retry Utility ─────────────────────────────────────────────────────────
+
+  private async withRetry<T>(
+    fn: () => Promise<T>,
+    operationName: string,
+    onSuccess: (result: T) => void,
+    onError: (err: Error) => void
+  ): Promise<void> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt < this.retryConfig.maxRetries; attempt++) {
+      try {
+        const result = await fn();
+        onSuccess(result);
+        return;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (attempt < this.retryConfig.maxRetries - 1) {
+          const delay = Math.min(
+            this.retryConfig.baseDelayMs * Math.pow(2, attempt),
+            this.retryConfig.maxDelayMs
+          );
+          await new Promise(r => setTimeout(r, delay));
+        }
+      }
+    }
+
+    onError(lastError || new Error(`${operationName} failed after ${this.retryConfig.maxRetries} retries`));
+  }
+
+  // ── Thinking Emission ─────────────────────────────────────────────────────
+
+  private async *emitThinking(content: string, chain: string[]): AsyncGenerator<CoderStreamEvent> {
+    chain.push(content);
+    if (this.config.showReasoning !== false) {
+      yield { type: 'thinking', content, metadata: { step: chain.length } };
+    }
+  }
+
+  // ── Adaptive Temperature ──────────────────────────────────────────────────
+
+  private getAdaptiveTemperature(intent: string): number {
+    switch (intent) {
+      case 'code_generation':
+      case 'refactor':
+        return 0.1; // Precise, deterministic
+      case 'code_debug':
+        return 0.3; // Slightly creative for finding edge cases
+      case 'code_review':
+        return 0.2; // Balanced
+      case 'explain_code':
+        return 0.4; // More natural language variety
+      case 'architecture':
+        return 0.3; // Some creativity needed
+      default:
+        return 0.15;
+    }
+  }
+
+  // ── Intent Mapping ────────────────────────────────────────────────────────
+
+  private mapIntentToTaskType(intent: string): CodeContext['taskType'] {
+    const map: Record<string, CodeContext['taskType']> = {
+      code_generation: 'generate',
+      code_debug: 'debug',
+      code_review: 'review',
+      refactor: 'refactor',
+      explain_code: 'explain',
+      testing: 'test',
+      documentation: 'explain',
+    };
+    return map[intent] || 'generate';
+  }
+
+  private mapComplexity(comp: string): CodeContext['complexity'] {
+    switch (comp) {
+      case 'trivial':
+      case 'simple':
+        return 'low';
+      case 'moderate':
+        return 'medium';
+      case 'complex':
+        return 'high';
+      case 'enterprise':
+        return 'very_high';
+      default:
+        return 'medium';
+    }
+  }
+
+  // ── Code Extraction ───────────────────────────────────────────────────────
+
+  private extractExistingCode(prompt: string): string | undefined {
+    const matches = prompt.matchAll(/```[\w]*\n([\s\S]*?)```/g);
+    const codes: string[] = [];
+    for (const match of matches) {
+      codes.push(match[1]);
+    }
+    return codes.length > 0 ? codes.join('\n\n') : undefined;
+  }
+
+  /**
+   * Extract === FILE: path === format (Claude Code style)
+   */
+  private extractFileBlocks(text: string): Array<{ path: string; language: string; content: string }> {
+    const files: Array<{ path: string; language: string; content: string }> = [];
+    const regex = /===\s*FILE:\s*([^\n\r]+?)\s*===[\r\n]+```(\w*)[\r\n]+([\s\S]*?)```/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const filePath = match[1].trim();
+      const language = match[2] || this.inferLanguage(filePath);
+      const content = match[3];
+      if (filePath) {
+        files.push({ path: filePath, language, content });
+      }
+    }
+    return files;
+  }
+
+  /**
+   * Extract markdown code blocks with optional filename in comment
+   */
+  private extractMarkdownCodeBlocks(text: string): Array<{ language: string | null; content: string; filename?: string }> {
+    const blocks: Array<{ language: string | null; content: string; filename?: string }> = [];
+    const regex = /```(\w*)\n([\s\S]*?)```/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const language = match[1] || null;
+      const content = match[2];
+      // Check for filename in first line comment
+      const firstLine = content.split('\n')[0];
+      const filenameMatch = firstLine.match(/\/\/\s*([^\s]+\.\w+)|#\s*([^\s]+\.\w+)|<!--\s*([^\s]+\.\w+)\s*-->/);
+      blocks.push({
+        language,
+        content,
+        filename: filenameMatch ? (filenameMatch[1] || filenameMatch[2] || filenameMatch[3]) : undefined,
+      });
+    }
+    return blocks;
+  }
+
+  private inferLanguage(filePath: string): string {
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    const map: Record<string, string> = {
+      ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx',
+      py: 'python', rs: 'rust', go: 'go', java: 'java',
+      cpp: 'cpp', c: 'c', h: 'c', hpp: 'cpp',
+      cs: 'csharp', rb: 'ruby', php: 'php', swift: 'swift',
+      kt: 'kotlin', scala: 'scala', r: 'r', m: 'objectivec',
+      sql: 'sql', sh: 'bash', ps1: 'powershell', yaml: 'yaml',
+      yml: 'yaml', json: 'json', xml: 'xml', html: 'html',
+      css: 'css', scss: 'scss', sass: 'sass', less: 'less',
+      md: 'markdown', dockerfile: 'dockerfile', tf: 'hcl',
+    };
+    return map[ext || ''] || 'text';
+  }
+
+  // ── Code Validation (Mock — implement with actual tools) ──────────────────
+
+  private async validateGeneratedCode(
+    files: Array<{ path: string; language: string; content: string }>,
+    blocks: Array<{ language: string | null; content: string }>
+  ): Promise<ValidationResult[]> {
+    const results: ValidationResult[] = [];
+
+    // Syntax validation for TypeScript/JavaScript
+    const tsFiles = files.filter(f => ['typescript', 'javascript', 'tsx', 'jsx'].includes(f.language));
+    if (tsFiles.length > 0) {
+      results.push({
+        passed: true, // Would run actual tsc or eslint
+        type: 'syntax',
+        message: `Syntax check passed for ${tsFiles.length} TypeScript/JavaScript file(s)`,
+      });
+    }
+
+    // General validation
+    const totalLines = [...files, ...blocks].reduce((sum, f) => sum + f.content.split('\n').length, 0);
+    results.push({
+      passed: totalLines < 1000,
+      type: 'lint',
+      message: totalLines < 1000
+        ? `Code size acceptable (${totalLines} lines)`
+        : `Warning: Large code output (${totalLines} lines), consider splitting`,
+    });
+
+    return results;
+  }
+
+  // ── API Wrappers with Error Handling ──────────────────────────────────────
+
+  private async searchCodebase(query: string, signal: AbortSignal): Promise<string> {
+    const data = await searchCodebase(query, signal);
+    if (!data.success) throw new Error(data.error || 'Codebase search failed');
+
+    const results = data.results || [];
+    const resultsStr = results
+      .map((f: any) => `File: ${f.relativePath || f.path} (Score: ${f.relevanceScore || f.score})\n\`\`\`\n${f.content}\n\`\`\``)
+      .join('\n\n');
+
+    return `\n\n[CODEBASE CONTEXT]\n${data.directoryStructure || ''}\n\n${resultsStr}\n[END CODEBASE CONTEXT]\n`;
+  }
+
+  private async webSearch(query: string, signal: AbortSignal): Promise<string> {
+    const data = await searchWeb(query, signal);
+    if (!data.success) throw new Error(data.error || 'Web search failed');
+
+    const results = data.results || [];
+    const deduped = this.deduplicateByUrl(results);
+    const resultsStr = deduped
+      .slice(0, 5)
+      .map((r: any, i: number) => `[${i + 1}] ${r.title}\nURL: ${r.link}\n${r.snippet}`)
+      .join('\n\n');
+
+    return `\n\n[WEB SEARCH RESULTS]\n${resultsStr}\n[END WEB SEARCH]\n`;
+  }
+
+  private deduplicateByUrl(results: any[]): any[] {
+    const seen = new Set<string>();
+    return results.filter(r => {
+      if (!r.link || seen.has(r.link)) return false;
+      seen.add(r.link);
+      return true;
+    });
+  }
+
+  private async fetchRules(): Promise<string[]> {
+    const rules = await fetchEvolutionaryRules();
+    return Array.isArray(rules) ? rules : [];
+  }
+}

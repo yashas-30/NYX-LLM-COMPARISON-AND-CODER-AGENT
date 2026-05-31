@@ -93,40 +93,6 @@ vaultRouter.post('/validate', vaultLimiter, async (req, res) => {
       }
     } 
     
-    if (provider === 'openrouter') {
-      const response = await fetch('https://openrouter.ai/api/v1/auth/key', {
-        headers: { 'Authorization': `Bearer ${key}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        return res.json({ valid: true, data });
-      } else {
-        return res.status(400).json({ valid: false, error: 'Invalid API Key' });
-      }
-    }
-
-    if (provider === 'nvidia') {
-      const response = await fetch('https://integrate.api.nvidia.com/v1/models', {
-        headers: { 'Authorization': `Bearer ${key}` }
-      });
-      if (response.ok) {
-        return res.json({ valid: true });
-      } else {
-        return res.status(400).json({ valid: false, error: 'Invalid API Key' });
-      }
-    }
-
-    if (provider === 'opencode') {
-      const response = await fetch('https://opencode.ai/zen/v1/models', {
-        headers: { 'Authorization': `Bearer ${key}` }
-      });
-      if (response.ok) {
-        return res.json({ valid: true });
-      } else {
-        return res.status(400).json({ valid: false, error: 'Invalid API Key' });
-      }
-    }
-
     if (provider === 'scrapling') {
       const url = (req.body.scraplingUrl || 'http://localhost:3002').trim();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };

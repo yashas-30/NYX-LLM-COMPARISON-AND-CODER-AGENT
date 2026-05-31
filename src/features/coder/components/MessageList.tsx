@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Logo, NyxLoader } from '@src/shared/design-system/icons';
+import { Logo, NyxLoader } from '@src/assets/icons/icons';
 import { toast } from '@src/shared/components/ui/sonner';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { fetchWithAuth } from '@src/infrastructure/api/authFetch';

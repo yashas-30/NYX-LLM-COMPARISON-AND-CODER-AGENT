@@ -19,7 +19,10 @@ export default tseslint.config(
       '.nyx-models/**',
       '.nyx-logs/**',
       '.nyx-keys/**',
-      '.vscode/**'
+      '.vscode/**',
+      'release/**',
+      'src-tauri/**',
+      'scripts/**'
     ]
   },
   js.configs.recommended,
@@ -41,12 +44,14 @@ export default tseslint.config(
     settings: {
       'boundaries/elements': [
         { type: 'app',            pattern: 'src/app/**' },
-        { type: 'pages',          pattern: 'src/pages/**' },
+        { type: 'core',           pattern: 'src/core/**' },
+        { type: 'assets',         pattern: 'src/assets/**' },
         { type: 'dashboard',      pattern: 'src/features/dashboard/**' },
-        { type: 'feature',        pattern: 'src/features/*/**' },
-        { type: 'feature-index',  pattern: 'src/features/*/index.ts' },
+        { type: 'feature',        pattern: 'src/features/*/**', capture: ['featureName'] },
+        { type: 'feature-index',  pattern: 'src/features/*/index.ts', capture: ['featureName'] },
         { type: 'shared',         pattern: 'src/shared/**' },
         { type: 'infrastructure', pattern: 'src/infrastructure/**' },
+        { type: 'types',          pattern: 'src/types/**' },
       ],
     },
     rules: {
@@ -60,7 +65,46 @@ export default tseslint.config(
       '@typescript-eslint/ban-ts-comment': 'off',
       'preserve-caught-error': 'off',
       'no-console': 'off',
-      'boundaries/element-types': 'off'
+      'boundaries/dependencies': [
+        'error',
+        {
+          default: 'disallow',
+          rules: [
+            {
+              from: { type: 'core' },
+              allow: { to: { type: ['shared', 'infrastructure', 'types'] } }
+            },
+            {
+              from: { type: 'infrastructure' },
+              allow: { to: { type: ['shared', 'types'] } }
+            },
+            {
+              from: { type: 'shared' },
+              allow: { to: { type: ['types', 'assets'] } }
+            },
+            {
+              from: { type: 'feature' },
+              allow: { to: { type: ['shared', 'infrastructure', 'types', 'core', 'feature-index'] } }
+            },
+            {
+              from: { type: 'feature' },
+              allow: { to: { type: 'feature', captured: { featureName: '{{from.captured.featureName}}' } } }
+            },
+            {
+              from: { type: 'feature-index' },
+              allow: { to: { type: ['shared', 'infrastructure', 'types', 'core'] } }
+            },
+            {
+              from: { type: 'feature-index' },
+              allow: { to: { type: 'feature', captured: { featureName: '{{from.captured.featureName}}' } } }
+            },
+            {
+              from: { type: 'app' },
+              allow: { to: { type: ['feature-index', 'dashboard', 'shared', 'infrastructure', 'types', 'core', 'assets'] } }
+            }
+          ]
+        }
+      ]
     }
   }
 );

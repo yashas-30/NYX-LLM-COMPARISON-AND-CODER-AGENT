@@ -26,14 +26,17 @@
       "@src/*": ["./src/*"],
       "@server/*": ["./server/*"],
       "@shared/*": ["./src/shared/*"],
+      "@features/*": ["./src/features/*"],
+      "@core/*": ["./src/core/*"],
+      "@assets/*": ["./src/assets/*"],
       "electron-vite": [
         "./node_modules/electron-vite/dist/index.d.ts"
       ],
       "electron-updater": [
         "./node_modules/electron-updater/out/main.d.ts"
       ],
-      "@xenova/transformers": [
-        "./node_modules/@xenova/transformers/types/transformers.d.ts"
+      "@huggingface/transformers": [
+        "./node_modules/@huggingface/transformers/types/transformers.d.ts"
       ],
       "electron-window-state": [
         "./node_modules/electron-window-state/index.d.ts"

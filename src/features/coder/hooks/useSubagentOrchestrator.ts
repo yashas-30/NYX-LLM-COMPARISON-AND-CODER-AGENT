@@ -12,7 +12,7 @@ import { HybridModelRouter } from '@src/infrastructure/services/hybridRouter';
 import { WorkspaceIntelligence } from '@src/infrastructure/services/workspaceIntelligence';
 import { TOOL_REGISTRY, ToolExecutor } from '@src/infrastructure/services/toolSystem';
 import { SUBAGENT_PERSONAS } from '@src/features/coder/config/agents';
-import { validateWorkspace, searchCodebase, searchWeb } from '../api/coderApi';
+import { validateWorkspace, searchCodebase, searchWeb } from '@src/infrastructure/api/coderApi';
 import {
   SubagentTask,
   SubagentResult,
@@ -23,11 +23,11 @@ import {
 } from '@src/infrastructure/types';
 
 const FALLBACK_ROUTING_DECISION = {
-  modelId: 'pollinations/openai-fast',
-  provider: 'pollinations' as const,
+  modelId: 'gemini-2.5-flash-preview-05-20',
+  provider: 'gemini' as const,
   reasoning: 'Failed before routing',
   estimatedLatency: 0,
-  estimatedCost: 'free' as const,
+  estimatedCost: 'low' as const,
 };
 
 export class SubagentOrchestrator {
@@ -409,11 +409,17 @@ ${data.error}
 
 Please identify the compile/syntax/import issue, generate the corrected complete file content, and invoke the edit_file tool to fix it.`;
 
+          // Route correction through the hybrid router to use available gemini/native model
+          const correctionDecision = await HybridModelRouter.selectPlannerModel(
+            apiKeys,
+            AIService.checkStatus.bind(AIService)
+          );
+
           const response = await AIService.execute(
-            'openrouter/meta-llama/llama-3.3-70b-instruct:free',
-            'openrouter',
+            correctionDecision.modelId,
+            correctionDecision.provider,
             prompt,
-            apiKeys['openrouter'] || '',
+            apiKeys[correctionDecision.provider] || '',
             'You are NYX Coder. Correct compile errors and write clean production-ready code. Output edit_file tool block.',
             { temperature: 0.1, maxTokens: 4009 }
           );

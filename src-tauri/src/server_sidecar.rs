@@ -44,7 +44,7 @@ impl ServerManager {
             self.express_port, self.fastify_port, self.scrapling_port);
 
         self.spawn().await?;
-        wait_for_port(self.express_port, "127.0.0.1", 30000).await?;
+        wait_for_port(self.express_port, "127.0.0.1", 90000).await?;
 
         Ok(ServerPorts {
             express_port: self.express_port,
@@ -63,9 +63,14 @@ impl ServerManager {
         }
         let server_path = std::path::PathBuf::from(server_path_str);
         
-        info!("Spawning Node.js server from: {}", server_path.display());
+        let node_exe = get_local_node_path();
+        info!("Spawning Node.js server using: {} from: {}", node_exe.display(), server_path.display());
 
-        let mut cmd = Command::new("node");
+        let mut cmd = Command::new(node_exe);
+        if let Some(parent) = server_path.parent() {
+            cmd.current_dir(parent);
+        }
+        
         cmd.arg(&server_path)
             .env("PORT", self.express_port.to_string())
             .env("FASTIFY_PORT", self.fastify_port.to_string())
@@ -150,7 +155,7 @@ async fn wait_for_port(port: u16, host: &str, timeout_ms: u64) -> anyhow::Result
             Err(_) => sleep(Duration::from_millis(100)).await,
         }
     }
-    anyhow::bail!("Timeout waiting for port {}", port)
+    anyhow::bail!("Timeout waiting for port {} after 90 seconds", port)
 }
 
 fn get_server_path(app_handle: &AppHandle) -> anyhow::Result<std::path::PathBuf> {
@@ -179,4 +184,21 @@ async fn cleanup_llama_server() {
     { let _ = Command::new("taskkill").args(&["/f", "/im", "llama-server.exe"]).output().await; }
     #[cfg(not(windows))]
     { let _ = Command::new("killall").args(&["-9", "llama-server"]).output().await; }
+}
+
+fn get_local_node_path() -> std::path::PathBuf {
+    if let Ok(mut dir) = std::env::current_dir() {
+        if dir.ends_with("src-tauri") {
+            dir.pop();
+        }
+        #[cfg(windows)]
+        let node_bin = dir.join("node_modules").join("node").join("bin").join("node.exe");
+        #[cfg(not(windows))]
+        let node_bin = dir.join("node_modules").join("node").join("bin").join("node");
+
+        if node_bin.exists() {
+            return node_bin;
+        }
+    }
+    std::path::PathBuf::from("node")
 }

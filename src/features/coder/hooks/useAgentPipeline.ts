@@ -15,10 +15,11 @@ import {
 import { detectProvider, getEffectiveApiKey } from '@src/infrastructure/utils/provider';
 import { isMissingDebugDetails, MISSING_DEBUG_DETAILS_RESPONSE } from '@/shared/promptAnalyzer';
 import { toast } from '@src/shared/components/ui/sonner';
-import { triggerCritic, triggerMemoryCommit, writeFile } from '../api/coderApi';
+import { triggerCritic, triggerMemoryCommit, writeFile } from '@src/infrastructure/api/coderApi';
 import { analyzePrompt, routeToAgent } from '@src/core/services/promptClassifier';
-import { CoderAgent } from '@src/features/coder-agent/CoderAgent';
+import { CoderAgent } from '@src/core/agents/coderAgent';
 import { fetchWithAuth } from '@src/infrastructure/api/authFetch';
+import { SubagentOrchestrator } from './useSubagentOrchestrator';
 
 interface PipelineProps {
   models: Record<'nyx', string>;
@@ -184,6 +185,7 @@ export const useAgentPipeline = ({
             setSubagentTasks(tasks);
           },
           lightningDirectives: lightningEnabled ? lightningDirectives : undefined,
+          createOrchestrator: () => new SubagentOrchestrator(),
         });
 
         let finalMetrics: any = null;
@@ -211,28 +213,41 @@ export const useAgentPipeline = ({
                 return h;
               });
               break;
-            case 'file_write':
+             case 'file_write':
               try {
-                await writeFile(chunk.content, chunk.metadata.content);
-                console.log(`[File Writer] Successfully wrote file: ${chunk.content}`);
+                if (chunk.content && chunk.metadata && typeof chunk.metadata === 'object' && 'content' in chunk.metadata) {
+                  const fileContent = (chunk.metadata as Record<string, any>).content;
+                  if (typeof fileContent === 'string') {
+                    await writeFile(chunk.content, fileContent);
+                    console.log(`[File Writer] Successfully wrote file: ${chunk.content}`);
+                  }
+                }
               } catch (writeErr) {
                 console.error('Failed to write file:', writeErr);
               }
               break;
             case 'text':
-              lastStreamText = chunk.content;
+              lastStreamText = chunk.content || '';
               if (chunk.metadata) finalMetrics = chunk.metadata;
 
               updateHistory((prev) => {
                 const h = [...prev];
                 const last = h[h.length - 1];
                 if (last?.role === 'assistant') {
-                  last.content = chunk.content;
+                  last.content = chunk.content || '';
                   if (chunk.metadata) last.metrics = chunk.metadata;
                 }
                 return h;
               });
-              if (chunk.metadata) updateMetrics(chunk.metadata);
+              if (chunk.metadata) {
+                const meta = chunk.metadata;
+                updateMetrics({
+                  latency: typeof meta.latency === 'number' ? meta.latency : 0,
+                  tokens: typeof meta.tokens === 'number' ? meta.tokens : 0,
+                  tps: typeof meta.tps === 'number' ? meta.tps : 0,
+                  ttft: typeof meta.ttft === 'number' ? meta.ttft : undefined,
+                });
+              }
               break;
             case 'tool_result':
               break;
@@ -281,7 +296,7 @@ export const useAgentPipeline = ({
             provider: nyxProvider,
             modelId: nyxModel,
             agentType: 'code',
-          }).catch((err) => {
+          }).catch((err: any) => {
             console.warn('[Coder Pipeline] Memory keeper commit failed:', err);
           });
         }

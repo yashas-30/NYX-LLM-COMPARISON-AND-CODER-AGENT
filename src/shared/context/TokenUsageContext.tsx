@@ -19,12 +19,6 @@ interface TokenUsageContextType {
 
 const DEFAULT_QUOTAS: Record<string, number> = {
   gemini: 5000000,
-  openrouter: 1000000,
-  nvidia: 1000000,
-  openai: 1000000,
-  claude: 1000000,
-  deepseek: 1000000,
-  opencode: 1000000,
 };
 
 const TokenUsageContext = createContext<TokenUsageContextType | undefined>(undefined);

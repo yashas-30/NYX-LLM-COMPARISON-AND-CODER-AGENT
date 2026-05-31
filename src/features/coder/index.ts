@@ -6,6 +6,6 @@
 export { CoderPage } from './components/CoderPage';
 export { useAgentPipeline } from './hooks/useAgentPipeline';
 export { useCoderLogic } from './hooks/useCoderLogic';
-export { useMessageHistory } from './hooks/useMessageHistory';
+export { useMessageHistory } from '@src/shared/hooks/useMessageHistory';
 export { useSubagentOrchestrator } from './hooks/useSubagentOrchestrator';
 export { useAgentState } from './hooks/useAgentState';

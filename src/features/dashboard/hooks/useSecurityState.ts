@@ -2,19 +2,10 @@ import { useState, useCallback } from 'react';
 import { 
   updateApiKey as updateApiKeyHelper,
   clearApiKeys as clearApiKeysHelper,
-} from '@src/shared/state/apiKeyHelpers';
+} from '@src/shared/store/apiKeyHelpers';
 
 const DEFAULT_GATEWAY_URLS: Record<string, string> = {
   gemini: 'https://generativelanguage.googleapis.com/v1beta',
-  openrouter: 'https://openrouter.ai/api/v1',
-  nvidia: 'https://integrate.api.nvidia.com/v1',
-  opencode: 'https://opencode.ai/zen/v1',
-  openai: 'https://api.openai.com/v1',
-  anthropic: 'https://api.anthropic.com',
-  deepseek: 'https://api.deepseek.com/v1',
-  groq: 'https://api.groq.com/openai/v1',
-  mistral: 'https://api.mistral.ai/v1',
-  together: 'https://api.together.ai/v1',
 };
 
 export const useSecurityState = (
@@ -25,12 +16,19 @@ export const useSecurityState = (
   const [gatewayUrls, setGatewayUrls] = useState<Record<string, string>>({});
 
   const updateApiKey = useCallback((provider: string, key: string) => {
-    updateApiKeyHelper(setApiKeys, provider, key);
-    if (onKeyUpdate) onKeyUpdate(provider, key);
+    updateApiKeyHelper(setApiKeys, provider, key).then((success) => {
+      if (success && onKeyUpdate) {
+        onKeyUpdate(provider, key);
+      }
+    }).catch((err) => {
+      console.error('[Vault] Failed to update API key:', err);
+    });
   }, [onKeyUpdate]);
 
   const clearApiKeys = useCallback(() => {
-    clearApiKeysHelper(setApiKeys);
+    clearApiKeysHelper(setApiKeys).catch((err) => {
+      console.error('[Vault] Failed to clear API keys:', err);
+    });
   }, []);
 
   const updateGatewayUrl = useCallback((provider: string, url: string) => {
@@ -51,4 +49,5 @@ export const useSecurityState = (
     clearApiKeys,
   };
 };
+
 

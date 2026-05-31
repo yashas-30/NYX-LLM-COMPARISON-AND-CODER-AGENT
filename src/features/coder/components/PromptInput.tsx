@@ -14,7 +14,7 @@ import {
   Mic, SlidersHorizontal, MemoryStick, Cpu, Thermometer,
   Layers, RotateCcw
 } from 'lucide-react';
-import { ModelSelector } from '@src/features/model-registry/components/ModelSelector';
+import { ModelSelector } from '@src/shared/components/ModelSelector';
 import { ModelDefinition } from '@src/infrastructure/types';
 import { toast } from '@src/shared/components/ui/sonner';
 import { analyzePrompt, optimizePromptText } from '@/shared/promptAnalyzer';

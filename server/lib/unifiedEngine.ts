@@ -30,10 +30,6 @@ export class UnifiedEngine {
     switch (provider) {
       case 'gemini':
         return this.streamGemini(model, messages, apiKey || '', settings, onChunk, onComplete);
-      case 'openrouter':
-        return this.streamOpenRouter(model, messages, apiKey || '', settings, onChunk, onComplete);
-      case 'nvidia':
-        return this.streamNvidia(model, messages, apiKey || '', settings, onChunk, onComplete);
       case 'nyx-native':
         return this.streamLocal(model, messages, settings, onChunk, onComplete);
       default:
@@ -89,30 +85,6 @@ export class UnifiedEngine {
         }
       }
     }
-    onComplete();
-  }
-
-  private static async streamOpenRouter(
-    model: string,
-    messages: any[],
-    apiKey: string,
-    settings: any,
-    onChunk: (chunk: StreamChunk) => void,
-    onComplete: () => void
-  ) {
-    // OpenRouter implementation stub - requires SSE parsing similar to Gemini
-    onComplete();
-  }
-
-  private static async streamNvidia(
-    model: string,
-    messages: any[],
-    apiKey: string,
-    settings: any,
-    onChunk: (chunk: StreamChunk) => void,
-    onComplete: () => void
-  ) {
-    // Nvidia implementation stub - requires SSE parsing similar to Gemini
     onComplete();
   }
 

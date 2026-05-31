@@ -21,11 +21,6 @@ export interface CriticRule {
 /** Simple per-provider cost estimates in USD per 1M tokens (output) */
 const COST_PER_MILLION_OUTPUT: Record<string, number> = {
   gemini: 0.375,
-  openrouter: 0.5,
-  nvidia: 0.4,
-  openai: 15,
-  anthropic: 15,
-  pollinations: 0,
   'nyx-native': 0,
   'qwen-local': 0,
 };

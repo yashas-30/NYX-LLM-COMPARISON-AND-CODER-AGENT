@@ -4,30 +4,17 @@
  */
 
 import { Provider, ModelDefinition } from '../types';
-import { AVAILABLE_MODELS } from '../../features/model-registry/config/models';
+import { AVAILABLE_MODELS } from '@shared/config/models';
 
-const NVIDIA_MODEL_IDS = new Set(AVAILABLE_MODELS.filter(m => m.provider === 'nvidia').map(m => m.id));
-
-const PROVIDER_PRIORITY = [
-  { check: (id: string) => NVIDIA_MODEL_IDS.has(id), provider: 'nvidia' as Provider },
-  { check: (id: string) => id.startsWith('opencode/') || id.startsWith('opencode-'), provider: 'opencode' as Provider },
-  { check: (id: string) => id.startsWith('pollinations/') || id.startsWith('pollinations-'), provider: 'pollinations' as Provider },
-  { check: (id: string) => id.includes('/') && !NVIDIA_MODEL_IDS.has(id), provider: 'openrouter' as Provider },
-];
-
-export const PROVIDER_LABELS: Record<Provider, string> = {
+export const PROVIDER_LABELS: Record<string, string> = {
   gemini: 'Gemini',
-  nvidia: 'NVIDIA NIM',
-  openrouter: 'OpenRouter',
   terminal: 'Terminal',
-  opencode: 'Open Code',
-  pollinations: 'Pollinations (Free)',
   'nyx-native': 'NYX Native',
 };
 
-export const CLOUD_PROVIDERS: Provider[] = ['gemini', 'nvidia', 'openrouter', 'opencode'];
+export const CLOUD_PROVIDERS: string[] = ['gemini'];
 
-export const LOCAL_PROVIDERS: Provider[] = ['nyx-native'];
+export const LOCAL_PROVIDERS: string[] = ['nyx-native'];
 
 const LOCAL_MODEL_IDS = new Set([
   'nyx-gemma-4-e2b-it',
@@ -89,11 +76,6 @@ export const detectProvider = (
     return 'nyx-native';
   }
 
-  // 4. Fall back to priority checks
-  for (const { check, provider } of PROVIDER_PRIORITY) {
-    if (check(modelId)) return provider;
-  }
-
   return 'gemini';
 };
 
@@ -101,8 +83,6 @@ export const detectProvider = (
  * Gets provider from model ID with proper fallback to AVAILABLE_MODELS.
  */
 export const getProviderForModel = (modelId: string): Provider => {
-  if (NVIDIA_MODEL_IDS.has(modelId)) return 'nvidia';
-
   // 1. Check in local GGUF/AirLLM model presets first
   if (LOCAL_MODEL_IDS.has(modelId) || modelId.startsWith('airllm-')) {
     return 'nyx-native';
@@ -120,10 +100,6 @@ export const getProviderForModel = (modelId: string): Provider => {
     return 'nyx-native';
   }
 
-  for (const { check, provider } of PROVIDER_PRIORITY) {
-    if (check(modelId)) return provider;
-  }
-
   return 'gemini';
 };
 
@@ -139,7 +115,6 @@ export const isLocalModel = (modelId: string): boolean => {
  * Checks if a provider requires an API key.
  */
 export const requiresApiKey = (provider: Provider): boolean => {
-  if (provider === 'pollinations') return false;
   return CLOUD_PROVIDERS.includes(provider);
 };
 

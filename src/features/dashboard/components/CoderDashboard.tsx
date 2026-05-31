@@ -9,9 +9,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useDashboardState } from '../hooks/useDashboardState';
 import { useChatSessions } from '@src/shared/hooks/useChatSessions';
 import { useCoderLogic } from '@src/features/coder';
-import { useChatLogic } from '@src/features/chat-agent';
+import { useChatLogic } from '@src/features/chat';
 import { AppRouter } from '@src/app/router';
-import { AVAILABLE_MODELS } from '@src/features/model-registry/config/models';
+import { AVAILABLE_MODELS } from '@shared/config/models';
 import { useTheme } from '@src/shared/context/ThemeContext';
 import { ErrorBoundary } from '@src/shared/components/ErrorBoundary';
 import {

@@ -67,12 +67,8 @@ setGlobalDispatcher(globalAgent);
 
 console.log('[ConnectionPool] Global undici dispatcher initialized with keep-alive & 0ms DNS lookup.');
 
-// Warmup the critical LLM providers instantly
 const criticalHosts = [
   'generativelanguage.googleapis.com',
-  'openrouter.ai',
-  'integrate.api.nvidia.com',
-  'opencode.ai'
 ];
 
 criticalHosts.forEach(host => {

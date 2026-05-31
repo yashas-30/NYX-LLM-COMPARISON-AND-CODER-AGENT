@@ -47,6 +47,13 @@ pub fn run() {
             tauri::async_runtime::block_on(async move {
                 setup_app(&handle).await;
             });
+
+            // Open DevTools in debug builds to see console errors
+            #[cfg(debug_assertions)]
+            if let Some(window) = app.get_webview_window("main") {
+                window.open_devtools();
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -76,7 +83,27 @@ async fn setup_app(handle: &tauri::AppHandle) {
     tracing::info!("🚀 NYX Tauri boot sequence starting...");
 
     let mut server_manager = ServerManager::new(handle.clone()).await;
-    let ports = server_manager.start().await.expect("Failed to start server");
+    let ports = match server_manager.start().await {
+        Ok(p) => {
+            tracing::info!("✅ Backend server started on port {}", p.express_port);
+            p
+        }
+        Err(e) => {
+            tracing::error!("❌ Failed to start server: {}", e);
+            // Show error dialog but keep the app open so user can see what happened
+            let _ = tauri_plugin_dialog::DialogExt::dialog(handle)
+                .message(format!("NYX backend server failed to start:\n\n{}\n\nThe app will open but AI features may not work. Try restarting the app.", e))
+                .kind(tauri_plugin_dialog::MessageDialogKind::Error)
+                .title("Backend Server Error")
+                .blocking_show();
+            // Use fallback default ports so the window still opens
+            server_sidecar::ServerPorts {
+                express_port: 3010,
+                fastify_port: 3011,
+                scrapling_port: 3012,
+            }
+        }
+    };
 
     {
         let state = handle.state::<AppState>();

@@ -3,11 +3,7 @@
 
 export type ModelProvider =
   | 'gemini'
-  | 'openrouter'
-  | 'nvidia'
   | 'terminal'
-  | 'opencode'
-  | 'pollinations'
   | 'nyx-native';
 
 export interface ModelSpecs {
@@ -26,3 +22,17 @@ export interface ModelOption {
   isLocal?: boolean;
   specs?: ModelSpecs;
 }
+
+export type Provider = ModelProvider;
+
+export interface ModelInfo {
+  id: string;
+  name: string;
+  provider: string;
+  tier: 'fast' | 'balanced' | 'powerful';
+  contextWindow: number;
+  supportsVision: boolean;
+  supportsTools: boolean;
+  description: string;
+}
+

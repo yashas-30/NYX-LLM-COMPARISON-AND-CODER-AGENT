@@ -116,7 +116,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   }, []);
 
   useEffect(() => {
-    ['gemini', 'openrouter', 'nvidia', 'opencode'].forEach(provider => {
+    ['gemini'].forEach(provider => {
       if (vaultStatus[provider]) {
         refreshProviderQuota(provider);
       }
@@ -240,7 +240,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         <h4 className="text-[11px] font-bold uppercase tracking-wide text-foreground">1. Pipeline</h4>
                       </div>
                       <p className="text-[10px] text-muted-foreground/80 leading-relaxed">
-                        Vite frontend connects to the local Express gateway (Port 3000). Streaming requests proxy directly to a Fastify stream engine (Port 3001).
+                        Vite frontend connects to the local Express gateway (Port 3010). Streaming requests proxy directly to a Fastify stream engine (Port 3011).
                       </p>
                     </div>
 
@@ -326,88 +326,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       )}
                     </div>
 
-                    {/* OpenRouter Key */}
-                    <div className="border border-white/10 rounded-xl overflow-hidden bg-white/[0.01] hover:bg-white/[0.03] transition-all">
-                      <button
-                        onClick={() => setExpandedGuideProvider(expandedGuideProvider === 'openrouter' ? null : 'openrouter')}
-                        className="w-full px-3 py-2 flex items-center justify-between text-left cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded-full bg-[#22D3EE]/10 text-[#22D3EE] flex items-center justify-center text-[10px] font-black">O</div>
-                          <span className="text-[10px] font-bold text-foreground">OpenRouter API</span>
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/20">Free Models</span>
-                        </div>
-                        {expandedGuideProvider === 'openrouter' ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                      </button>
-                      
-                      {expandedGuideProvider === 'openrouter' && (
-                        <div className="px-3 pb-3 pt-1 border-t border-white/10 text-[11px] text-muted-foreground/90 space-y-2 leading-relaxed">
-                          <p>OpenRouter is an aggregator offering low-latency API access. Creating an account gives you instant access to multiple entirely free LLMs.</p>
-                          <ol className="list-decimal pl-4 space-y-1">
-                            <li>Visit the <a href="https://openrouter.ai/" target="_blank" rel="noopener noreferrer" className="text-[#22D3EE] hover:underline font-bold inline-flex items-center gap-0.5">OpenRouter Website <ExternalLink size={8} /></a>.</li>
-                            <li>Register or log in via GitHub, Google, or MetaMask.</li>
-                            <li>Go to <strong>Settings ➔ Keys</strong> in the dashboard or sidebar.</li>
-                            <li>Click <strong>"Create Key"</strong>, name it, and copy the new key (starts with <code>sk-or-...</code>).</li>
-                            <li>Paste the key into the <strong>OpenRouter</strong> key field. OpenRouter free models like <code>meta-llama/llama-3-8b-instruct:free</code> will run instantly at zero cost!</li>
-                          </ol>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* NVIDIA NIM Key */}
-                    <div className="border border-white/10 rounded-xl overflow-hidden bg-white/[0.01] hover:bg-white/[0.03] transition-all">
-                      <button
-                        onClick={() => setExpandedGuideProvider(expandedGuideProvider === 'nvidia' ? null : 'nvidia')}
-                        className="w-full px-3 py-2 flex items-center justify-between text-left cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded-full bg-[#22D3EE]/10 text-[#22D3EE] flex items-center justify-center text-[10px] font-black">N</div>
-                          <span className="text-[10px] font-bold text-foreground">NVIDIA NIM API</span>
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/20">Free Credits</span>
-                        </div>
-                        {expandedGuideProvider === 'nvidia' ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                      </button>
-                      
-                      {expandedGuideProvider === 'nvidia' && (
-                        <div className="px-3 pb-3 pt-1 border-t border-white/10 text-[11px] text-muted-foreground/90 space-y-2 leading-relaxed">
-                          <p>NVIDIA Developer Program equips developers with 1,000 free inference credits to benchmark state-of-the-art hosted models.</p>
-                          <ol className="list-decimal pl-4 space-y-1">
-                            <li>Navigate to the <a href="https://build.nvidia.com/" target="_blank" rel="noopener noreferrer" className="text-[#22D3EE] hover:underline font-bold inline-flex items-center gap-0.5">NVIDIA NGC Catalog <ExternalLink size={8} /></a>.</li>
-                            <li>Sign up for a free NVIDIA developer account.</li>
-                            <li>Once registered, select any model (e.g. Llama 3.3 Nemotron) and click on <strong>"Get API Key"</strong>.</li>
-                            <li>Generate and copy your developer key (starts with <code>nvapi-</code>).</li>
-                            <li>Paste the key into the <strong>NVIDIA NIM</strong> key field to consume your free credits.</li>
-                          </ol>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* OpenCode Key */}
-                    <div className="border border-white/10 rounded-xl overflow-hidden bg-white/[0.01] hover:bg-white/[0.03] transition-all">
-                      <button
-                        onClick={() => setExpandedGuideProvider(expandedGuideProvider === 'opencode' ? null : 'opencode')}
-                        className="w-full px-3 py-2 flex items-center justify-between text-left cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded-full bg-[#22D3EE]/10 text-[#22D3EE] flex items-center justify-center text-[10px] font-black">C</div>
-                          <span className="text-[10px] font-bold text-foreground">OpenCode Zen</span>
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/20">Free Sandbox</span>
-                        </div>
-                        {expandedGuideProvider === 'opencode' ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                      </button>
-                      
-                      {expandedGuideProvider === 'opencode' && (
-                        <div className="px-3 pb-3 pt-1 border-t border-white/10 text-[11px] text-muted-foreground/90 space-y-2 leading-relaxed">
-                          <p>OpenCode Zen provides optimized developer sandbox keys to connect with code-specialized AI reasoning models.</p>
-                          <ol className="list-decimal pl-4 space-y-1">
-                            <li>Visit the <a href="https://opencode.ai/" target="_blank" rel="noopener noreferrer" className="text-[#22D3EE] hover:underline font-bold inline-flex items-center gap-0.5">OpenCode Portal <ExternalLink size={8} /></a>.</li>
-                            <li>Click **Register** to create a developer account.</li>
-                            <li>Navigate to the API Tokens section in your account dashboard.</li>
-                            <li>Click **Generate Token**, name it, copy it, and paste it into the **OpenCode Zen** key field on this settings page.</li>
-                          </ol>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </div>
               )}

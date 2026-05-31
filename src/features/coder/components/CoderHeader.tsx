@@ -70,7 +70,7 @@ export const CoderHeader: React.FC<CoderHeaderProps> = ({
       }
     };
     checkScrapling();
-    const interval = setInterval(checkScrapling, 10000);
+    const interval = setInterval(checkScrapling, 30_000);
     return () => {
       active = false;
       clearInterval(interval);

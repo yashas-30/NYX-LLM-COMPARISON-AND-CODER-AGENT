@@ -1,29 +1,61 @@
 /**
  * @file src/core/services/ai.service.ts
- * @description CONSOLIDATED unified service for interacting with local and remote AI models.
- * This is the single source of truth for all AI inference. The duplicate at
- * src/features/coder/services/ai.service.ts has been removed in favour of this file.
- *
- * Fixes applied:
- *  - BAD-1 : Merged duplicate AIService classes
- *  - BAD-4 : Replaced text.length/4 heuristic with tiktoken-based token counting (cl100k_base)
- *  - UGLY-6: Removed unused isCodePrompt dead-code method
- *  - UGLY-4: Fixed handleError stub — it now invokes retryFn with exponential backoff
- *  - WRONG-1: Re-added qwen-local provider support
+ * @description Enterprise-grade unified AI inference service with streaming,
+ *   retry logic, circuit breaking, structured output, and tool use.
+ *   Targets parity with Kimi/Claude-level reliability and UX.
  */
 
-import { AISettings, AIResponse, ChatMessage, Provider } from '@src/infrastructure/types';
+import {
+  AISettings,
+  AIResponse,
+  ChatMessage,
+  Provider,
+} from '@src/infrastructure/types';
 import { ContinuationManager } from '@src/infrastructure/services/continuationManager';
-import { fetchWithAuth, getSessionToken, setSessionToken } from '@src/infrastructure/api/authFetch';
+import {
+  fetchWithAuth,
+  getSessionToken,
+  setSessionToken,
+} from '@src/infrastructure/api/authFetch';
+
+export interface ReasoningStep {
+  type: 'thinking' | 'planning' | 'reflection';
+  content: string;
+}
+
+export interface AIServiceToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: object;
+  };
+}
+
+export interface ToolCall {
+  index: number;
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+export interface AIServiceStreamEvent {
+  type: 'text' | 'reasoning' | 'tool_calls' | 'error';
+  content: string | ToolCall[];
+  final: boolean;
+}
 
 // ---------------------------------------------------------------------------
-// Token counting — use tiktoken when available, fall back to heuristic
+// Token counting with tiktoken (cl100k_base)
 // ---------------------------------------------------------------------------
 let _countTokens: ((text: string) => number) | null = null;
-async function initTokenizer() {
+
+async function initTokenizer(): Promise<void> {
   if (_countTokens) return;
   try {
-    // Dynamically import so bundle size is not impacted when not needed
     const { encoding_for_model } = await import(/* @vite-ignore */ 'tiktoken');
     const enc = encoding_for_model('gpt-4o');
     _countTokens = (text: string) => {
@@ -34,40 +66,114 @@ async function initTokenizer() {
       }
     };
   } catch {
-    // tiktoken not installed — use heuristic (still better than nothing)
     _countTokens = (text: string) => Math.ceil(text.length / 4);
   }
 }
-// Pre-warm tokenizer at module load time (fire-and-forget)
 initTokenizer().catch(() => {});
 
 export function countTokens(text: string): number {
-  if (_countTokens) return _countTokens(text);
-  return Math.ceil(text.length / 4); // interim heuristic until async init completes
+  return _countTokens ? _countTokens(text) : Math.ceil(text.length / 4);
 }
 
 // ---------------------------------------------------------------------------
-// Abort controller singleton
+// Per-request abort controllers (not global singleton)
 // ---------------------------------------------------------------------------
-let currentAbortController: AbortController | null = null;
+const activeControllers = new Map<string, AbortController>();
 
-export function cancelCurrentRequest(): void {
-  if (currentAbortController) {
-    currentAbortController.abort();
-    currentAbortController = null;
+export function cancelRequest(requestId: string): void {
+  const ctrl = activeControllers.get(requestId);
+  if (ctrl) {
+    ctrl.abort();
+    activeControllers.delete(requestId);
   }
 }
 
+export function cancelAllRequests(): void {
+  activeControllers.forEach((ctrl) => ctrl.abort());
+  activeControllers.clear();
+}
+
+/**
+ * Backward compatibility alias for cancelAllRequests
+ */
+export function cancelCurrentRequest(): void {
+  cancelAllRequests();
+}
+
 // ---------------------------------------------------------------------------
-// AIService class
+// Circuit breaker for cloud providers
+// ---------------------------------------------------------------------------
+interface CircuitState {
+  failures: number;
+  lastFailure: number;
+  open: boolean;
+}
+
+const circuits = new Map<string, CircuitState>();
+const CIRCUIT_THRESHOLD = 5;
+const CIRCUIT_TIMEOUT_MS = 30000;
+
+function isCircuitOpen(provider: string): boolean {
+  const state = circuits.get(provider);
+  if (!state || !state.open) return false;
+  if (Date.now() - state.lastFailure > CIRCUIT_TIMEOUT_MS) {
+    state.open = false;
+    state.failures = 0;
+    return false;
+  }
+  return true;
+}
+
+function recordSuccess(provider: string): void {
+  circuits.delete(provider);
+}
+
+function recordFailure(provider: string): void {
+  const state = circuits.get(provider) || { failures: 0, lastFailure: 0, open: false };
+  state.failures++;
+  state.lastFailure = Date.now();
+  if (state.failures >= CIRCUIT_THRESHOLD) state.open = true;
+  circuits.set(provider, state);
+}
+
+// ---------------------------------------------------------------------------
+// Types for enhanced features
+// ---------------------------------------------------------------------------
+export interface ExecuteOptions {
+  history?: ChatMessage[];
+  nodeId?: string;
+  gatewayUrls?: Record<string, string>;
+  agentMode?: 'chat' | 'coder';
+  webSearch?: boolean;
+  images?: ChatMessage['images'];
+  tools?: AIServiceToolDefinition[];
+  responseFormat?: 'text' | 'json' | { type: 'json_schema'; schema: object };
+  reasoning?: boolean; // Extract thinking/reasoning content separately
+  streamEvents?: boolean; // If true, onStream yields AIServiceStreamEvent. Otherwise, yields accumulated text (string)
+}
+
+export interface EnhancedAIResponse extends AIResponse {
+  reasoning?: ReasoningStep[];
+  toolCalls?: ToolCall[];
+  finishReason?: 'stop' | 'length' | 'tool_calls' | 'content_filter';
+  model: string;
+  provider: string;
+}
+
+// ---------------------------------------------------------------------------
+// AIService
 // ---------------------------------------------------------------------------
 export class AIService {
-  private static inFlightRequests = new Map<string, Promise<AIResponse>>();
+  private static inFlightRequests = new Map<string, Promise<EnhancedAIResponse>>();
+  private static readonly DEDUPE_TTL_MS = 30000;
   private static cachedVaultStatus: any = null;
-  private static cachedVaultStatusTime: number = 0;
+  private static cachedVaultStatusTime = 0;
   private static pendingVaultStatusPromise: Promise<any> | null = null;
 
-  private static async getVaultStatus() {
+  // -------------------------------------------------------------------------
+  // Vault status with stale-while-revalidate
+  // -------------------------------------------------------------------------
+  private static async getVaultStatus(): Promise<any> {
     if (this.cachedVaultStatus && Date.now() - this.cachedVaultStatusTime < 2000) {
       return this.cachedVaultStatus;
     }
@@ -76,15 +182,15 @@ export class AIService {
     }
     this.pendingVaultStatusPromise = (async () => {
       try {
-        const response = await fetch('/api/vault/status');
+        const response = await fetchWithAuth('/api/vault/status');
         if (response.ok) {
           const data = await response.json();
           this.cachedVaultStatus = data;
           this.cachedVaultStatusTime = Date.now();
           return data;
         }
-      } catch (e) {
-        // silently ignore — vault status is optional
+      } catch {
+        // vault status is optional
       } finally {
         this.pendingVaultStatusPromise = null;
       }
@@ -101,7 +207,7 @@ export class AIService {
     return getSessionToken();
   }
 
-  public static async fetchWithAuth(
+  static async fetchWithAuth(
     url: string,
     init?: RequestInit,
     isStream = false
@@ -109,9 +215,9 @@ export class AIService {
     return fetchWithAuth(url, init, isStream);
   }
 
-  /**
-   * Main entry point for executing AI requests with streaming support and deduplication.
-   */
+  // -------------------------------------------------------------------------
+  // Main execution entry point
+  // -------------------------------------------------------------------------
   static async execute(
     modelId: string,
     provider: Provider | string,
@@ -119,37 +225,47 @@ export class AIService {
     apiKey?: string,
     systemInstruction?: string,
     settings?: AISettings,
-    onStream?: (text: string) => void,
+    onStream?: (event: any) => void,
     signal?: AbortSignal,
-    options?: {
-      history?: ChatMessage[];
-      nodeId?: string;
-      gatewayUrls?: Record<string, string>;
-      agentMode?: 'chat' | 'coder';
-      webSearch?: boolean;
-      images?: ChatMessage['images'];
+    options: ExecuteOptions = {}
+  ): Promise<EnhancedAIResponse> {
+    const requestId = `${provider}:${modelId}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    
+    // Circuit breaker check
+    if (isCircuitOpen(String(provider))) {
+      throw new Error(`Circuit breaker open for provider: ${provider}`);
     }
-  ): Promise<AIResponse> {
+
     const dedupeKey = JSON.stringify({
       provider,
       model: modelId,
       prompt,
       systemInstruction,
-      history: options?.history || [],
+      history: options.history || [],
       settings: settings || {},
+      tools: options.tools || [],
+      responseFormat: options.responseFormat,
     });
 
+    // Deduplication
     if (this.inFlightRequests.has(dedupeKey)) {
-      const existingPromise = this.inFlightRequests.get(dedupeKey)!;
+      const existing = this.inFlightRequests.get(dedupeKey)!;
       if (onStream) {
-        const res = await existingPromise;
-        onStream(res.text);
+        const res = await existing;
+        if (res.text) {
+          if (options.streamEvents) {
+            onStream({ type: 'text', content: res.text, final: true });
+          } else {
+            onStream(res.text);
+          }
+        }
         return res;
       }
-      return existingPromise;
+      return existing;
     }
 
     const promise = this.executeWithRetry(
+      requestId,
       modelId,
       provider,
       prompt,
@@ -159,30 +275,38 @@ export class AIService {
       onStream,
       signal,
       options
-    );
+    ).finally(() => {
+      this.inFlightRequests.delete(dedupeKey);
+      activeControllers.delete(requestId);
+    });
 
     this.inFlightRequests.set(dedupeKey, promise);
-    try {
-      return await promise;
-    } finally {
-      this.inFlightRequests.delete(dedupeKey);
-    }
+    
+    // Auto-cleanup dedupe map after TTL to prevent memory leaks
+    setTimeout(() => this.inFlightRequests.delete(dedupeKey), this.DEDUPE_TTL_MS);
+
+    return promise;
   }
 
+  // -------------------------------------------------------------------------
+  // Retry with exponential backoff + jitter
+  // -------------------------------------------------------------------------
   private static async executeWithRetry(
+    requestId: string,
     modelId: string,
     provider: Provider | string,
     prompt: string,
     apiKey?: string,
     systemInstruction?: string,
     settings?: AISettings,
-    onStream?: (text: string) => void,
+    onStream?: (event: any) => void,
     signal?: AbortSignal,
-    options?: any,
+    options?: ExecuteOptions,
     attempt = 1
-  ): Promise<AIResponse> {
+  ): Promise<EnhancedAIResponse> {
     try {
-      return await this._executeRaw(
+      const result = await this._executeRaw(
+        requestId,
         modelId,
         provider,
         prompt,
@@ -193,22 +317,23 @@ export class AIService {
         signal,
         options
       );
+      recordSuccess(String(provider));
+      return result;
     } catch (error: any) {
       const message = error.message || String(error);
       const isAbort = error.name === 'AbortError' || message.includes('aborted');
-      const isCloud = ['gemini', 'openrouter', 'nvidia', 'opencode'].includes(String(provider));
+      const isCloud = String(provider) === 'gemini';
       const isTransient =
-        /429|503|RESOURCE_EXHAUSTED|UNAVAILABLE|rate_limit|quota|overloaded|high demand/i.test(
-          message
-        ) || /fetch|network|timeout|econnreset|enotfound/i.test(message);
+        /429|503|RESOURCE_EXHAUSTED|UNAVAILABLE|rate_limit|quota|overloaded|high demand|timeout|network|econnreset|enotfound/i.test(message);
 
       if (isCloud && isTransient && attempt <= 3 && !isAbort) {
-        const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+        const delay = Math.pow(2, attempt - 1) * 1000 + Math.random() * 1000;
         console.warn(
-          `[AIService] Cloud request failed. Retrying in ${delay}ms (Attempt ${attempt}/3). Error: ${message}`
+          `[AIService] Retry ${attempt}/3 for ${provider} in ${delay.toFixed(0)}ms: ${message}`
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
         return this.executeWithRetry(
+          requestId,
           modelId,
           provider,
           prompt,
@@ -221,51 +346,55 @@ export class AIService {
           attempt + 1
         );
       }
+
+      if (isCloud && !isAbort) {
+        recordFailure(String(provider));
+      }
       throw error;
     }
   }
 
+  // -------------------------------------------------------------------------
+  // Core execution
+  // -------------------------------------------------------------------------
   private static async _executeRaw(
+    requestId: string,
     modelId: string,
     provider: Provider | string,
     prompt: string,
     apiKey?: string,
     systemInstruction?: string,
     settings?: AISettings,
-    onStream?: (text: string) => void,
-    signal?: AbortSignal,
-    options?: {
-      history?: ChatMessage[];
-      nodeId?: string;
-      gatewayUrls?: Record<string, string>;
-      agentMode?: 'chat' | 'coder';
-      webSearch?: boolean;
-      images?: ChatMessage['images'];
+    onStream?: (event: any) => void,
+    externalSignal?: AbortSignal,
+    options: ExecuteOptions = {}
+  ): Promise<EnhancedAIResponse> {
+    const controller = new AbortController();
+    activeControllers.set(requestId, controller);
+
+    // Link external signal
+    if (externalSignal) {
+      externalSignal.addEventListener('abort', () => controller.abort());
     }
-  ): Promise<AIResponse> {
-    cancelCurrentRequest();
-    currentAbortController = new AbortController();
-    signal = signal || currentAbortController.signal;
 
+    const signal = controller.signal;
     const startTime = Date.now();
-    let resultText: string;
 
-    // Filter history to exclude the final user prompt if it already sits at the end
-    let historyToUse = options?.history;
-    if (historyToUse && Array.isArray(historyToUse) && historyToUse.length > 0) {
-      const lastMsg = historyToUse[historyToUse.length - 1];
-      if (lastMsg.role === 'user') {
+    // Filter history: remove trailing user message if it matches current prompt
+    let historyToUse = options.history ? [...options.history] : undefined;
+    if (historyToUse?.length) {
+      const last = historyToUse[historyToUse.length - 1];
+      if (last.role === 'user' && last.content === prompt) {
         historyToUse = historyToUse.slice(0, -1);
       }
     }
 
-    // Validation
     this.validateApiKey(provider, apiKey);
 
-    // Cache intercept
+    // Cache check
     let cacheKey = '';
     try {
-      const cacheCheckRes = await this.fetchWithAuth('/api/cache/get', {
+      const cacheRes = await this.fetchWithAuth('/api/cache/get', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -275,151 +404,107 @@ export class AIService {
           systemInstruction,
           history: historyToUse || [],
           settings: settings || {},
+          tools: options.tools || [],
         }),
         signal,
       });
-      if (cacheCheckRes.ok) {
-        const cacheCheck = await cacheCheckRes.json();
-        cacheKey = cacheCheck.key;
-        if (cacheCheck.hit) {
-          const text = cacheCheck.text;
-          const endTime = Date.now();
-          const latency = endTime - startTime;
+      if (cacheRes.ok) {
+        const cache = await cacheRes.json();
+        cacheKey = cache.key;
+        if (cache.hit) {
+          const text = cache.text;
+          const latency = Date.now() - startTime;
           const tokens = countTokens(text);
           const tps = latency > 0 ? Math.round(tokens / (latency / 1000)) : tokens;
-          if (onStream) onStream(text);
-          return { text, metrics: { latency, tokens, tps } };
+          if (onStream) {
+            if (options.streamEvents) {
+              onStream({ type: 'text', content: text, final: true });
+            } else {
+              onStream(text);
+            }
+          }
+          return {
+            text,
+            model: modelId,
+            provider: String(provider),
+            metrics: { latency, tokens, tps },
+            finishReason: 'stop',
+          };
         }
       }
     } catch {
-      // Cache miss or error — fall through to provider
+      // Cache miss — proceed
     }
 
     // Route to provider
-    if (provider === 'gemini') {
-      resultText = await this.executeGemini(
-        modelId,
-        prompt,
-        apiKey,
-        settings,
-        systemInstruction,
-        historyToUse,
-        onStream,
-        signal,
-        options?.gatewayUrls,
-        options?.images
-      );
-    } else if (provider === 'openrouter') {
-      resultText = await this.executeOpenRouter(
-        modelId,
-        prompt,
-        apiKey!,
-        settings,
-        systemInstruction,
-        historyToUse,
-        onStream,
-        signal,
-        options?.gatewayUrls,
-        options?.images
-      );
-    } else if (provider === 'nvidia') {
-      resultText = await this.executeNvidia(
-        modelId,
-        prompt,
-        apiKey!,
-        settings,
-        systemInstruction,
-        historyToUse,
-        onStream,
-        signal,
-        options?.gatewayUrls
-      );
-    } else if (provider === 'opencode') {
-      resultText = await this.executeOpencode(
-        modelId,
-        prompt,
-        apiKey,
-        settings,
-        systemInstruction,
-        historyToUse,
-        onStream,
-        signal,
-        options?.gatewayUrls
-      );
-    } else if (provider === 'pollinations') {
-      resultText = await this.executePollinations(
-        modelId,
-        prompt,
-        settings,
-        systemInstruction,
-        historyToUse,
-        onStream,
-        signal
-      );
-    } else if (provider === 'nyx-native') {
-      resultText = await this.executeNyxNative(
-        modelId,
-        prompt,
-        systemInstruction,
-        settings,
-        historyToUse,
-        onStream,
-        signal,
-        options?.agentMode,
-        options?.webSearch
-      );
-    } else if (provider === 'qwen-local') {
-      // WRONG-1 fix: qwen-local re-added to provider routing
-      resultText = await this.executeQwenLocal(
-        modelId,
-        prompt,
-        systemInstruction,
-        settings,
-        historyToUse,
-        onStream,
-        signal
-      );
-    } else {
-      throw new Error(`Unsupported provider: ${provider}`);
+    const providerConfig = {
+      modelId,
+      prompt,
+      apiKey,
+      settings,
+      systemInstruction,
+      history: historyToUse,
+      onStream,
+      signal,
+      gatewayUrls: options.gatewayUrls,
+      images: options.images,
+      tools: options.tools,
+      responseFormat: options.responseFormat,
+      reasoning: options.reasoning,
+      agentMode: options.agentMode,
+      webSearch: options.webSearch,
+      streamEvents: options.streamEvents,
+    };
+
+    let result: EnhancedAIResponse;
+
+    switch (provider) {
+      case 'gemini':
+        result = await this.executeGemini(providerConfig);
+        break;
+      case 'nyx-native':
+        result = await this.executeNyxNative(providerConfig);
+        break;
+      case 'qwen-local':
+        result = await this.executeQwenLocal(providerConfig);
+        break;
+      default:
+        throw new Error(`Unsupported provider: ${provider}`);
     }
 
-    // Write-back to cache asynchronously (fire-and-forget with error logging)
-    if (cacheKey && resultText) {
+    // Async cache write
+    if (cacheKey && result.text) {
       this.fetchWithAuth('/api/cache/set', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: cacheKey, data: resultText, provider, model: modelId }),
-      }).catch((err) => console.warn('[Cache Server] Write failed:', err));
+        body: JSON.stringify({
+          key: cacheKey,
+          data: result.text,
+          provider,
+          model: modelId,
+        }),
+      }).catch((err) => console.warn('[Cache] Write failed:', err));
     }
 
-    const endTime = Date.now();
-    const latency = endTime - startTime;
-    const tokens = countTokens(resultText);
-    const tps = latency > 0 ? Math.round(tokens / (latency / 1000)) : 0;
-
-    return { text: resultText, metrics: { latency, tokens, tps } };
+    return result;
   }
 
-  // ── Provider Implementations ─────────────────────────────────────────────
+  // -------------------------------------------------------------------------
+  // Provider implementations
+  // -------------------------------------------------------------------------
 
-  private static async executeGemini(
-    model: string,
-    prompt: string,
-    apiKey?: string,
-    settings?: AISettings,
-    systemInstruction?: string,
-    history?: ChatMessage[],
-    onStream?: (t: string) => void,
-    signal?: AbortSignal,
-    gatewayUrls?: Record<string, string>,
-    images?: ChatMessage['images']
-  ): Promise<string> {
+  private static async executeGemini(config: ProviderConfig): Promise<EnhancedAIResponse> {
+    const {
+      modelId, prompt, apiKey, settings, systemInstruction,
+      history, onStream, signal, gatewayUrls, images, tools, responseFormat, reasoning, streamEvents
+    } = config;
+
     try {
       const response = await this.fetchWithAuth('/api/gemini/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Connection: 'keep-alive' },
         body: JSON.stringify({
-          model,
+          model: modelId,
           prompt,
           apiKey,
           settings,
@@ -427,55 +512,50 @@ export class AIService {
           history,
           gatewayUrls,
           images,
+          tools,
+          responseFormat,
+          reasoning,
         }),
         signal,
       });
       if (!response.ok) await this.handleNonOkResponse(response, 'Gemini');
-      return this.processStream(response, onStream);
+      return this.processStream(response, modelId, 'gemini', onStream, streamEvents);
     } catch (error: any) {
-      const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
-      if (!isAbort) {
-        const { directFetchGemini } = await import('@src/infrastructure/api/directClient');
-        const text = await directFetchGemini(
-          model,
-          prompt,
-          apiKey || '',
-          settings,
-          systemInstruction,
-          history,
-          signal,
-          gatewayUrls
-        );
-        if (onStream) onStream(text);
-        return text;
+      if (error.name === 'AbortError' || error.message?.includes('aborted')) throw error;
+      const { directFetchGemini } = await import('@src/infrastructure/api/directClient');
+      const text = await directFetchGemini(
+        modelId, prompt, apiKey || '', settings, systemInstruction, history, signal, gatewayUrls
+      );
+      if (onStream) {
+        if (streamEvents) {
+          onStream({ type: 'text', content: text, final: true });
+        } else {
+          onStream(text);
+        }
       }
-      throw error;
+      return {
+        text,
+        model: modelId,
+        provider: 'gemini',
+        metrics: this.computeMetrics(text, Date.now()),
+        finishReason: 'stop',
+      };
     }
   }
 
-  private static async executeNyxNative(
-    model: string,
-    prompt: string,
-    systemInstruction?: string,
-    settings?: AISettings,
-    history?: ChatMessage[],
-    onStream?: (t: string) => void,
-    signal?: AbortSignal,
-    agentMode?: 'chat' | 'coder',
-    webSearch?: boolean
-  ): Promise<string> {
-    const messages: any[] = [];
-    if (systemInstruction) messages.push({ role: 'system', content: systemInstruction });
-    if (history && Array.isArray(history)) {
-      messages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
-    }
-    messages.push({ role: 'user', content: prompt });
 
+  private static async executeNyxNative(config: ProviderConfig): Promise<EnhancedAIResponse> {
+    const {
+      modelId, prompt, systemInstruction, settings, history,
+      onStream, signal, agentMode, webSearch, streamEvents
+    } = config;
+
+    const messages = this.buildMessages(prompt, systemInstruction, history);
     const response = await this.fetchWithAuth('/api/nyx/local-models/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model,
+        model: modelId,
         messages,
         temperature: settings?.temperature ?? 0.7,
         max_tokens: settings?.maxTokens ?? 4096,
@@ -485,31 +565,20 @@ export class AIService {
       signal,
     });
     if (!response.ok) await this.handleNonOkResponse(response, 'Native GGUF Runner');
-    return this.processStream(response, onStream);
+    return this.processStream(response, modelId, 'nyx-native', onStream, streamEvents);
   }
 
-  // WRONG-1 fix: qwen-local provider re-added
-  private static async executeQwenLocal(
-    model: string,
-    prompt: string,
-    systemInstruction?: string,
-    settings?: AISettings,
-    history?: ChatMessage[],
-    onStream?: (t: string) => void,
-    signal?: AbortSignal
-  ): Promise<string> {
-    const messages: any[] = [];
-    if (systemInstruction) messages.push({ role: 'system', content: systemInstruction });
-    if (history && Array.isArray(history)) {
-      messages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
-    }
-    messages.push({ role: 'user', content: prompt });
+  private static async executeQwenLocal(config: ProviderConfig): Promise<EnhancedAIResponse> {
+    const {
+      modelId, prompt, systemInstruction, settings, history, onStream, signal, streamEvents
+    } = config;
 
+    const messages = this.buildMessages(prompt, systemInstruction, history);
     const response = await this.fetchWithAuth('/api/nyx/local-models/qwen-chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model,
+        model: modelId,
         messages,
         temperature: settings?.temperature ?? 0.7,
         max_tokens: settings?.maxTokens ?? 4096,
@@ -517,272 +586,27 @@ export class AIService {
       signal,
     });
     if (!response.ok) await this.handleNonOkResponse(response, 'Qwen Local');
-    return this.processStream(response, onStream);
+    return this.processStream(response, modelId, 'qwen-local', onStream, streamEvents);
   }
 
-  private static async executeOpenRouter(
-    model: string,
-    prompt: string,
-    apiKey: string,
-    settings?: AISettings,
-    systemInstruction?: string,
-    history?: ChatMessage[],
-    onStream?: (t: string) => void,
-    signal?: AbortSignal,
-    gatewayUrls?: Record<string, string>,
-    images?: ChatMessage['images']
-  ): Promise<string> {
-    try {
-      const response = await this.fetchWithAuth('/api/openrouter/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Connection: 'keep-alive' },
-        body: JSON.stringify({
-          model,
-          prompt,
-          apiKey,
-          settings,
-          systemInstruction,
-          history,
-          gatewayUrls,
-          images,
-        }),
-        signal,
-      });
-      if (!response.ok) await this.handleNonOkResponse(response, 'OpenRouter');
-      return this.processStream(response, onStream);
-    } catch (error: any) {
-      const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
-      if (!isAbort) {
-        const { directFetchOpenRouter } = await import('@src/infrastructure/api/directClient');
-        const text = await directFetchOpenRouter(
-          model,
-          prompt,
-          apiKey,
-          settings,
-          systemInstruction,
-          history,
-          signal,
-          gatewayUrls
-        );
-        if (onStream) onStream(text);
-        return text;
-      }
-      throw error;
-    }
-  }
-
-  private static async executeNvidia(
-    model: string,
-    prompt: string,
-    apiKey: string,
-    settings?: AISettings,
-    systemInstruction?: string,
-    history?: ChatMessage[],
-    onStream?: (t: string) => void,
-    signal?: AbortSignal,
-    gatewayUrls?: Record<string, string>
-  ): Promise<string> {
-    try {
-      const response = await this.fetchWithAuth('/api/nvidia/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Connection: 'keep-alive' },
-        body: JSON.stringify({
-          model,
-          prompt,
-          apiKey,
-          settings,
-          systemInstruction,
-          history,
-          gatewayUrls,
-        }),
-        signal,
-      });
-      if (!response.ok) await this.handleNonOkResponse(response, 'NVIDIA');
-      return this.processStream(response, onStream);
-    } catch (error: any) {
-      const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
-      if (!isAbort) {
-        const { directFetchNvidia } = await import('@src/infrastructure/api/directClient');
-        const text = await directFetchNvidia(
-          model,
-          prompt,
-          apiKey,
-          settings,
-          systemInstruction,
-          history,
-          signal,
-          gatewayUrls
-        );
-        if (onStream) onStream(text);
-        return text;
-      }
-      throw error;
-    }
-  }
-
-  private static async executeOpencode(
-    model: string,
-    prompt: string,
-    apiKey?: string,
-    settings?: AISettings,
-    systemInstruction?: string,
-    history?: ChatMessage[],
-    onStream?: (t: string) => void,
-    signal?: AbortSignal,
-    gatewayUrls?: Record<string, string>
-  ): Promise<string> {
-    try {
-      const response = await this.fetchWithAuth('/api/opencode/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Connection: 'keep-alive' },
-        body: JSON.stringify({
-          model,
-          prompt,
-          apiKey,
-          settings,
-          systemInstruction,
-          history,
-          gatewayUrls,
-        }),
-        signal,
-      });
-      if (!response.ok) await this.handleNonOkResponse(response, 'OpenCode');
-      return this.processStream(response, onStream);
-    } catch (error: any) {
-      const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
-      if (!isAbort) {
-        const { directFetchOpenCode } = await import('@src/infrastructure/api/directClient');
-        const text = await directFetchOpenCode(
-          model,
-          prompt,
-          apiKey,
-          settings,
-          systemInstruction,
-          history,
-          signal,
-          gatewayUrls
-        );
-        if (onStream) onStream(text);
-        return text;
-      }
-      throw error;
-    }
-  }
-
-  private static async executePollinations(
-    model: string,
-    prompt: string,
-    settings?: AISettings,
-    systemInstruction?: string,
-    history?: ChatMessage[],
-    onStream?: (t: string) => void,
-    signal?: AbortSignal
-  ): Promise<string> {
-    try {
-      const response = await this.fetchWithAuth('/api/pollinations/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Connection: 'keep-alive' },
-        body: JSON.stringify({ model, prompt, settings, systemInstruction, history }),
-        signal,
-      });
-      if (!response.ok) await this.handleNonOkResponse(response, 'Pollinations');
-      return this.processStream(response, onStream);
-    } catch (error: any) {
-      const isAbort = error.name === 'AbortError' || error.message?.includes('aborted');
-      if (!isAbort) {
-        const realModel = model.replace('pollinations/', '');
-        const messages: any[] = [];
-        if (systemInstruction) messages.push({ role: 'system', content: systemInstruction });
-        if (history && Array.isArray(history)) {
-          messages.push(...history.map((m: any) => ({ role: m.role, content: m.content })));
-        }
-        messages.push({ role: 'user', content: prompt });
-        const directRes = await fetch('https://text.pollinations.ai/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: realModel,
-            messages,
-            stream: false,
-            temperature: settings?.temperature ?? 0.7,
-          }),
-          signal,
-        });
-        if (!directRes.ok) {
-          const errText = await directRes.text();
-          throw new Error(`Pollinations Direct API Error: ${errText}`, { cause: error });
-        }
-        let text: string;
-        const contentType = directRes.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const data = await directRes.json();
-          text =
-            data.choices?.[0]?.message?.content ||
-            data.choices?.[0]?.delta?.content ||
-            data.text ||
-            '';
-        } else {
-          text = await directRes.text();
-        }
-        if (onStream) onStream(text);
-        return text;
-      }
-      throw error;
-    }
-  }
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  private static async handleNonOkResponse(
-    response: Response,
-    providerName: string
-  ): Promise<never> {
-    const err = await response
-      .json()
-      .catch(() => ({ error: `${providerName} Error ${response.status}` }));
-    if (err && err.error === 'SAFETY_GATE_BLOCKED')
-      throw new Error(`SAFETY_GATE_BLOCKED:${JSON.stringify(err)}`);
-    throw new Error(err.error || `${providerName} Error ${response.status}`);
-  }
-
-  /**
-   * UGLY-4 fix: handleError now actually invokes _retryFn with exponential backoff
-   * instead of being a stub that ignores retries.
-   */
-  private static async handleError(
-    error: any,
-    retryFn: () => Promise<AIResponse>,
-    attempt = 1,
-    maxAttempts = 3
-  ): Promise<AIResponse> {
-    const message = error.message || String(error);
-    if (message.startsWith('SAFETY_GATE_BLOCKED:')) throw error;
-
-    const isRetryable = /429|503|rate_limit|quota|overloaded|timeout|network/i.test(message);
-    if (isRetryable && attempt <= maxAttempts) {
-      const delay = Math.pow(2, attempt - 1) * 1000 + Math.random() * 200; // Exponential backoff + jitter
-      console.warn(
-        `[AIService.handleError] Retryable error (attempt ${attempt}/${maxAttempts}). Retrying in ${delay.toFixed(0)}ms. Error: ${message}`
-      );
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      try {
-        return await retryFn();
-      } catch (retryErr: any) {
-        return this.handleError(retryErr, retryFn, attempt + 1, maxAttempts);
-      }
-    }
-    throw new Error(message);
-  }
-
+  // -------------------------------------------------------------------------
+  // Stream processing — token-by-token with reasoning extraction
+  // -------------------------------------------------------------------------
   private static async processStream(
     response: Response,
-    onStream?: (t: string) => void
-  ): Promise<string> {
+    model: string,
+    provider: string,
+    onStream?: (event: any) => void,
+    streamEvents = false
+  ): Promise<EnhancedAIResponse> {
     if (!response.body) throw new Error('No response body');
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let resultText = '';
+    let reasoningText = '';
     let buffer = '';
+    let toolCalls: ToolCall[] = [];
+    let finishReason: EnhancedAIResponse['finishReason'] = 'stop';
 
     try {
       while (true) {
@@ -795,102 +619,217 @@ export class AIService {
         for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed || trimmed.startsWith(':')) continue;
-          const hasDataPrefix = trimmed.startsWith('data: ');
-          const dataStr = hasDataPrefix ? trimmed.slice(6).trim() : trimmed;
-          if (dataStr === '[DONE]' || dataStr === '[done]') return resultText || '[PROTOCOL HALT]';
+          
+          const dataStr = trimmed.startsWith('data: ') ? trimmed.slice(6).trim() : trimmed;
+          if (dataStr === '[DONE]' || dataStr === '[done]') {
+            finishReason = 'stop';
+            continue;
+          }
           if (!dataStr) continue;
+
           try {
             const parsed = JSON.parse(dataStr);
-            if (parsed && parsed.tokenRotate) {
-              AIService.setSessionToken(parsed.tokenRotate);
+            
+            // Token rotation
+            if (parsed.tokenRotate) {
+              this.setSessionToken(parsed.tokenRotate);
               continue;
             }
+            
+            // Error handling
             if (parsed.error) {
-              const msg =
-                typeof parsed.error === 'object'
-                  ? parsed.error.message || JSON.stringify(parsed.error)
-                  : String(parsed.error);
+              const msg = typeof parsed.error === 'object'
+                ? parsed.error.message || JSON.stringify(parsed.error)
+                : String(parsed.error);
               throw new Error(msg);
             }
+
+            // Finish reason
+            if (parsed.finish_reason) {
+              finishReason = parsed.finish_reason;
+            }
+
+            // Tool calls
+            if (parsed.choices?.[0]?.delta?.tool_calls) {
+              const deltaTools = parsed.choices[0].delta.tool_calls;
+              for (const tool of deltaTools) {
+                const existing = toolCalls.find((t) => t.index === tool.index);
+                if (existing) {
+                  existing.function.arguments += tool.function?.arguments || '';
+                } else {
+                  toolCalls.push({
+                    index: tool.index,
+                    id: tool.id,
+                    type: 'function',
+                    function: {
+                      name: tool.function?.name || '',
+                      arguments: tool.function?.arguments || '',
+                    },
+                  });
+                }
+              }
+              if (onStream && streamEvents) {
+                onStream({ type: 'tool_calls', content: toolCalls, final: false });
+              }
+              continue;
+            }
+
+            // Reasoning/thinking extraction (Claude-style thinking blocks)
             let chunk: string | null = null;
-            if (typeof parsed.chunk === 'string') chunk = parsed.chunk;
-            else if (parsed.choices?.[0]?.delta?.content) chunk = parsed.choices[0].delta.content;
+            let reasoningChunk: string | null = null;
+            
+            if (parsed.choices?.[0]?.delta?.reasoning_content) {
+              reasoningChunk = parsed.choices[0].delta.reasoning_content;
+            } else if (parsed.choices?.[0]?.delta?.thinking) {
+              reasoningChunk = parsed.choices[0].delta.thinking;
+            }
+            
+            if (parsed.choices?.[0]?.delta?.content) {
+              chunk = parsed.choices[0].delta.content;
+            } else if (typeof parsed.chunk === 'string') {
+              chunk = parsed.chunk;
+            }
+
+            if (reasoningChunk) {
+              reasoningText += reasoningChunk;
+              if (onStream && streamEvents) {
+                onStream({ type: 'reasoning', content: reasoningChunk, final: false });
+              }
+            }
+            
             if (chunk) {
               resultText += chunk;
-              if (onStream) onStream(resultText);
+              if (onStream) {
+                if (streamEvents) {
+                  onStream({ type: 'text', content: chunk, final: false });
+                } else {
+                  onStream(resultText);
+                }
+              }
             }
           } catch (e: any) {
-            if (e.message?.includes('JSON') || e.message?.includes('Unexpected token')) continue;
+            if (e.message?.includes('JSON') || e.message?.includes('Unexpected token')) {
+              console.warn('[AIService] JSON parse error in stream:', e.message);
+              continue;
+            }
             throw e;
           }
         }
       }
     } finally {
-      try {
-        reader.releaseLock();
-      } catch {
-        /* already released */
+      try { reader.releaseLock(); } catch { /* already released */ }
+    }
+
+    // Final stream event
+    if (onStream) {
+      if (streamEvents) {
+        onStream({ type: 'text', content: resultText, final: true });
+        if (reasoningText) {
+          onStream({ type: 'reasoning', content: reasoningText, final: true });
+        }
+        if (toolCalls.length) {
+          onStream({ type: 'tool_calls', content: toolCalls, final: true });
+        }
+      } else {
+        onStream(resultText);
       }
     }
-    return resultText || '[PROTOCOL HALT]';
+
+    return {
+      text: resultText || '[PROTOCOL HALT]',
+      model,
+      provider,
+      reasoning: reasoningText ? [{ content: reasoningText, type: 'thinking' }] : undefined,
+      toolCalls: toolCalls.length ? toolCalls : undefined,
+      finishReason,
+      metrics: this.computeMetrics(resultText, Date.now()),
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // Helpers
+  // -------------------------------------------------------------------------
+  private static buildMessages(
+    prompt: string,
+    systemInstruction?: string,
+    history?: ChatMessage[]
+  ): Array<{ role: string; content: string }> {
+    const messages: Array<{ role: string; content: string }> = [];
+    if (systemInstruction) messages.push({ role: 'system', content: systemInstruction });
+    if (history?.length) {
+      messages.push(...history.map((m) => ({ role: m.role, content: m.content })));
+    }
+    messages.push({ role: 'user', content: prompt });
+    return messages;
+  }
+
+  private static computeMetrics(text: string, startTime: number): AIResponse['metrics'] {
+    const latency = Date.now() - startTime;
+    const tokens = countTokens(text);
+    return {
+      latency,
+      tokens,
+      tps: latency > 0 ? Math.round(tokens / (latency / 1000)) : 0,
+    };
+  }
+
+  private static async handleNonOkResponse(
+    response: Response,
+    providerName: string
+  ): Promise<never> {
+    const err = await response
+      .json()
+      .catch(() => ({ error: `${providerName} Error ${response.status}` }));
+    if (err?.error === 'SAFETY_GATE_BLOCKED') {
+      throw new Error(`SAFETY_GATE_BLOCKED:${JSON.stringify(err)}`);
+    }
+    throw new Error(err.error || `${providerName} Error ${response.status}`);
   }
 
   private static validateApiKey(provider: Provider | string, key?: string) {
-    if (provider === 'pollinations' || provider === 'nyx-native' || provider === 'qwen-local')
-      return;
-    if (!key) return;
+    const noKeyProviders = ['nyx-native', 'qwen-local'];
+    if (noKeyProviders.includes(String(provider))) return;
+    if (!key?.trim()) return;
+    
     const trimmed = key.trim();
-    if (!trimmed) return;
-    if (provider === 'openrouter' && !trimmed.startsWith('sk-or-'))
-      throw new Error('Invalid OpenRouter Key');
-    if (provider === 'gemini' && trimmed.length < 30) throw new Error('Invalid Gemini Key');
-    if (provider === 'openai' && !trimmed.startsWith('sk-')) throw new Error('Invalid OpenAI Key');
-    if (provider === 'anthropic' && !trimmed.startsWith('sk-ant-'))
-      throw new Error('Invalid Anthropic Key');
-    if (provider === 'deepseek' && trimmed.length < 20) throw new Error('Invalid DeepSeek Key');
-    if (provider === 'groq' && !trimmed.startsWith('gsk_')) throw new Error('Invalid Groq Key');
-    if (provider === 'mistral' && trimmed.length < 20) throw new Error('Invalid Mistral Key');
-    if (provider === 'together' && !trimmed.startsWith('sk-'))
-      throw new Error('Invalid Together AI Key');
+    const validators: Record<string, (k: string) => boolean> = {
+      gemini: (k) => k.length >= 30,
+    };
+    
+    const validator = validators[String(provider)];
+    if (validator && !validator(trimmed)) {
+      throw new Error(`Invalid ${provider} API key format`);
+    }
   }
 
-  /**
-   * Returns the connectivity status of a provider.
-   */
+  // -------------------------------------------------------------------------
+  // Status checking
+  // -------------------------------------------------------------------------
   static async checkStatus(
     provider: Provider | string,
     apiKey?: string
   ): Promise<'online' | 'offline' | 'no-key'> {
-    if (provider === 'pollinations') return 'online';
     if (provider === 'nyx-native' || provider === 'qwen-local') {
       try {
         const res = await this.fetchWithAuth('/api/nyx/local-models/status');
-        if (res.ok) {
-          const data = await res.json();
-          return data.activeModelId ? 'online' : 'offline';
-        }
-        return 'offline';
+        if (!res.ok) return 'offline';
+        const data = await res.json();
+        return data.activeModelId ? 'online' : 'offline';
       } catch {
         return 'offline';
       }
     }
     try {
       const vaultStatus = await this.getVaultStatus();
-      if (vaultStatus) {
-        const isConfigured = vaultStatus[provider];
-        if (isConfigured) return 'online';
-      }
-    } catch {
-      /* ignore */
-    }
-    if (apiKey && apiKey.trim().length > 0) return 'online';
+      if (vaultStatus?.[provider]) return 'online';
+    } catch { /* ignore */ }
+    if (apiKey?.trim().length) return 'online';
     return 'no-key';
   }
 
-  /**
-   * Executes with automatic continuation if the response is truncated.
-   * Guarantees complete, non-cut-off output.
-   */
+  // -------------------------------------------------------------------------
+  // Continuation support
+  // -------------------------------------------------------------------------
   static async executeWithContinuation(
     modelId: string,
     provider: Provider | string,
@@ -898,11 +837,11 @@ export class AIService {
     apiKey?: string,
     systemInstruction?: string,
     settings?: AISettings,
-    onStream?: (text: string) => void,
+    onStream?: (event: any) => void,
     signal?: AbortSignal,
-    options?: { history?: ChatMessage[]; nodeId?: string; gatewayUrls?: Record<string, string> }
+    options?: ExecuteOptions
   ): Promise<AIResponse> {
-    return ContinuationManager.executeWithContinuation(
+    const res = await ContinuationManager.executeWithContinuation(
       this.execute.bind(this),
       modelId,
       provider,
@@ -914,5 +853,31 @@ export class AIService {
       signal,
       options
     );
+    return {
+      text: res.text,
+      metrics: res.metrics,
+    };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Type definitions for internal use
+// ---------------------------------------------------------------------------
+interface ProviderConfig {
+  modelId: string;
+  prompt: string;
+  apiKey?: string;
+  settings?: AISettings;
+  systemInstruction?: string;
+  history?: ChatMessage[];
+  onStream?: (event: any) => void;
+  signal?: AbortSignal;
+  gatewayUrls?: Record<string, string>;
+  images?: ChatMessage['images'];
+  tools?: AIServiceToolDefinition[];
+  responseFormat?: ExecuteOptions['responseFormat'];
+  reasoning?: boolean;
+  agentMode?: 'chat' | 'coder';
+  webSearch?: boolean;
+  streamEvents?: boolean;
 }

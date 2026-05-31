@@ -212,6 +212,23 @@ nyxRouter.post('/git-status', async (req, res) => {
   }
 });
 
+// ── Intelligence Endpoints ───────────────────────────────────────────────────────
+
+// POST /api/nyx/claude-md-hierarchy
+nyxRouter.post('/claude-md-hierarchy', (req, res) => {
+  res.json({ files: [] });
+});
+
+// POST /api/nyx/memory-index
+nyxRouter.post('/memory-index', (req, res) => {
+  res.json({ entries: [] });
+});
+
+// POST /api/nyx/semantic-index
+nyxRouter.post('/semantic-index', (req, res) => {
+  res.json({ snippets: [] });
+});
+
 // ── Workspace Endpoints ────────────────────────────────────────────────────────
 
 // GET /api/nyx/workspace-profile
